@@ -1,0 +1,103 @@
+<?php
+
+namespace Database\Seeders\Core;
+
+use App\Modules\Core\Access\Models\Permission;
+use Illuminate\Database\Seeder;
+
+class PermissionSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $permissions = [
+            ['module' => 'dashboard', 'slug' => 'dashboard.view', 'name' => 'Voir le dashboard'],
+            ['module' => 'approvals', 'slug' => 'approvals.view', 'name' => 'Voir le portail d approbation'],
+            ['module' => 'reports', 'slug' => 'reports.view', 'name' => 'Voir les rapports'],
+            ['module' => 'budgets', 'slug' => 'budgets.view', 'name' => 'Voir les budgets'],
+            ['module' => 'budgets', 'slug' => 'budgets.manage', 'name' => 'Gerer les budgets'],
+            ['module' => 'imports', 'slug' => 'imports.manage', 'name' => 'Gerer les imports CSV'],
+            ['module' => 'notifications', 'slug' => 'notifications.view', 'name' => 'Voir les alertes internes'],
+            ['module' => 'notifications', 'slug' => 'notifications.outbound.view', 'name' => 'Voir les notifications sortantes'],
+            ['module' => 'companies', 'slug' => 'companies.view', 'name' => 'Voir les entreprises'],
+            ['module' => 'companies', 'slug' => 'companies.manage', 'name' => 'Gerer les entreprises'],
+            ['module' => 'branches', 'slug' => 'branches.view', 'name' => 'Voir les agences'],
+            ['module' => 'branches', 'slug' => 'branches.manage', 'name' => 'Gerer les agences'],
+            ['module' => 'users', 'slug' => 'users.view', 'name' => 'Voir les utilisateurs'],
+            ['module' => 'users', 'slug' => 'users.manage', 'name' => 'Gerer les utilisateurs'],
+            ['module' => 'roles', 'slug' => 'roles.view', 'name' => 'Voir les roles'],
+            ['module' => 'roles', 'slug' => 'roles.manage', 'name' => 'Gerer les roles'],
+            ['module' => 'settings', 'slug' => 'settings.view', 'name' => 'Voir les parametres'],
+            ['module' => 'settings', 'slug' => 'settings.manage', 'name' => 'Gerer les parametres'],
+            ['module' => 'customers', 'slug' => 'customers.view', 'name' => 'Voir les clients'],
+            ['module' => 'customers', 'slug' => 'customers.manage', 'name' => 'Gerer les clients'],
+            ['module' => 'suppliers', 'slug' => 'suppliers.view', 'name' => 'Voir les fournisseurs'],
+            ['module' => 'suppliers', 'slug' => 'suppliers.manage', 'name' => 'Gerer les fournisseurs'],
+            ['module' => 'categories', 'slug' => 'categories.view', 'name' => 'Voir les categories'],
+            ['module' => 'categories', 'slug' => 'categories.manage', 'name' => 'Gerer les categories'],
+            ['module' => 'products', 'slug' => 'products.view', 'name' => 'Voir les produits'],
+            ['module' => 'products', 'slug' => 'products.manage', 'name' => 'Gerer les produits'],
+            ['module' => 'stock', 'slug' => 'stock.view', 'name' => 'Voir le stock'],
+            ['module' => 'stock', 'slug' => 'stock.manage', 'name' => 'Gerer le stock'],
+            ['module' => 'stock', 'slug' => 'warehouses.view', 'name' => 'Voir les entrepots'],
+            ['module' => 'stock', 'slug' => 'warehouses.manage', 'name' => 'Gerer les entrepots'],
+            ['module' => 'stock', 'slug' => 'transfers.view', 'name' => 'Voir les transferts de stock'],
+            ['module' => 'stock', 'slug' => 'transfers.manage', 'name' => 'Gerer les transferts de stock'],
+            ['module' => 'stock', 'slug' => 'stock_counts.view', 'name' => 'Voir les inventaires de stock'],
+            ['module' => 'stock', 'slug' => 'stock_counts.manage', 'name' => 'Gerer les inventaires de stock'],
+            ['module' => 'crm', 'slug' => 'crm.view', 'name' => 'Voir le CRM'],
+            ['module' => 'crm', 'slug' => 'crm.manage', 'name' => 'Gerer le CRM'],
+            ['module' => 'quotes', 'slug' => 'quotes.view', 'name' => 'Voir les devis'],
+            ['module' => 'quotes', 'slug' => 'quotes.manage', 'name' => 'Gerer les devis'],
+            ['module' => 'orders', 'slug' => 'orders.view', 'name' => 'Voir les commandes clients'],
+            ['module' => 'orders', 'slug' => 'orders.manage', 'name' => 'Gerer les commandes clients'],
+            ['module' => 'delivery_notes', 'slug' => 'delivery_notes.view', 'name' => 'Voir les bons de livraison'],
+            ['module' => 'delivery_notes', 'slug' => 'delivery_notes.manage', 'name' => 'Gerer les bons de livraison'],
+            ['module' => 'pos', 'slug' => 'pos.view', 'name' => 'Voir le point de vente'],
+            ['module' => 'pos', 'slug' => 'pos.manage', 'name' => 'Gerer le point de vente'],
+            ['module' => 'sales', 'slug' => 'sales.view', 'name' => 'Voir les ventes'],
+            ['module' => 'sales', 'slug' => 'sales.manage', 'name' => 'Gerer les ventes'],
+            ['module' => 'sales', 'slug' => 'sales.approve', 'name' => 'Approuver les ventes'],
+            ['module' => 'credit_notes', 'slug' => 'credit_notes.view', 'name' => 'Voir les avoirs clients'],
+            ['module' => 'credit_notes', 'slug' => 'credit_notes.manage', 'name' => 'Gerer les avoirs clients'],
+            ['module' => 'collections', 'slug' => 'collections.view', 'name' => 'Voir le recouvrement client'],
+            ['module' => 'collections', 'slug' => 'collections.manage', 'name' => 'Gerer le recouvrement client'],
+            ['module' => 'purchase_requests', 'slug' => 'purchase_requests.view', 'name' => 'Voir les demandes d achat'],
+            ['module' => 'purchase_requests', 'slug' => 'purchase_requests.manage', 'name' => 'Gerer les demandes d achat'],
+            ['module' => 'purchase_requests', 'slug' => 'purchase_requests.approve', 'name' => 'Approuver les demandes d achat'],
+            ['module' => 'purchases', 'slug' => 'purchases.view', 'name' => 'Voir les achats'],
+            ['module' => 'purchases', 'slug' => 'purchases.manage', 'name' => 'Gerer les achats'],
+            ['module' => 'purchases', 'slug' => 'purchases.approve', 'name' => 'Approuver les achats'],
+            ['module' => 'purchases', 'slug' => 'purchase_orders.view', 'name' => 'Voir les commandes fournisseurs'],
+            ['module' => 'purchases', 'slug' => 'purchase_orders.manage', 'name' => 'Gerer les commandes fournisseurs'],
+            ['module' => 'purchases', 'slug' => 'goods_receipts.view', 'name' => 'Voir les receptions fournisseurs'],
+            ['module' => 'purchases', 'slug' => 'goods_receipts.manage', 'name' => 'Gerer les receptions fournisseurs'],
+            ['module' => 'cash_accounts', 'slug' => 'cash_accounts.view', 'name' => 'Voir les comptes de tresorerie'],
+            ['module' => 'cash_accounts', 'slug' => 'cash_accounts.manage', 'name' => 'Gerer les comptes de tresorerie'],
+            ['module' => 'reconciliations', 'slug' => 'reconciliations.view', 'name' => 'Voir les rapprochements de tresorerie'],
+            ['module' => 'reconciliations', 'slug' => 'reconciliations.manage', 'name' => 'Gerer les rapprochements de tresorerie'],
+            ['module' => 'payments', 'slug' => 'payments.view', 'name' => 'Voir les paiements'],
+            ['module' => 'payments', 'slug' => 'payments.manage', 'name' => 'Gerer les paiements'],
+            ['module' => 'expense_categories', 'slug' => 'expense_categories.view', 'name' => 'Voir les categories de depense'],
+            ['module' => 'expense_categories', 'slug' => 'expense_categories.manage', 'name' => 'Gerer les categories de depense'],
+            ['module' => 'expenses', 'slug' => 'expenses.view', 'name' => 'Voir les depenses'],
+            ['module' => 'expenses', 'slug' => 'expenses.manage', 'name' => 'Gerer les depenses'],
+            ['module' => 'expenses', 'slug' => 'expenses.approve', 'name' => 'Approuver les depenses'],
+            ['module' => 'accounting', 'slug' => 'accounting.view', 'name' => 'Voir la comptabilite'],
+            ['module' => 'fixed_assets', 'slug' => 'fixed_assets.view', 'name' => 'Voir les immobilisations'],
+            ['module' => 'fixed_assets', 'slug' => 'fixed_assets.manage', 'name' => 'Gerer les immobilisations'],
+            ['module' => 'accounting', 'slug' => 'accounting.manage_periods', 'name' => 'Gerer les periodes comptables'],
+            ['module' => 'ops', 'slug' => 'ops.view', 'name' => 'Voir la sante systeme et l exploitation'],
+            ['module' => 'activity', 'slug' => 'activity_logs.view', 'name' => 'Voir les journaux d activite'],
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::query()->updateOrCreate(
+                ['slug' => $permission['slug']],
+                $permission
+            );
+        }
+    }
+}
+
+
+
