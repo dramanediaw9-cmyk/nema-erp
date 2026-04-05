@@ -18,86 +18,99 @@
         $canIssueCreditNote = $invoice->status === 'validated' && (float) $invoice->balance_due > 0 && $creditableLinesCount > 0;
     @endphp
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">{{ $invoice->customer?->name }}</h2>
-            <div class="muted">Facture du {{ $invoice->invoice_date?->format('d/m/Y') }} · Agence {{ $invoice->branch?->name }} · {{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('sales.print', $invoice) }}" class="button button-secondary" target="_blank">Imprimer</a>
-            @allowed('accounting.view')
-                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'sales', 'search' => $invoice->invoice_number]) }}" class="button button-secondary">Voir les ecritures</a>
-            @endallowed
-            @allowed('collections.view')
-                <a href="{{ route('collections.show', $invoice) }}" class="button button-secondary">Suivi recouvrement</a>
-            @endallowed
-            @if ($invoice->status === 'pending_approval')
-                @allowed('sales.approve')
-                    <form method="POST" action="{{ route('sales.approve', $invoice) }}">
-                        @csrf
-                        <button type="submit" class="button button-primary">Valider l etape suivante</button>
-                    </form>
-                @endallowed
-                @allowed('sales.cancel')
-                    <form method="POST" action="{{ route('sales.cancel', $invoice) }}">
-                        @csrf
-                        <button type="submit" class="button button-secondary">Annuler la facture</button>
-                    </form>
-                @endallowed
-            @elseif ($invoice->status === 'validated')
-                @if (isset($paymentPortal) && $invoice->payment_status !== 'paid')
-                    <a href="{{ $paymentPortal['view_url'] }}" class="button button-secondary" target="_blank" rel="noopener">Portail reglement client</a>
-                @endif
-                @allowed('payments.validate')
-                    @if ($invoice->payment_status !== 'paid')
-                        <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Enregistrer un paiement</a>
-                    @endif
-                @endallowed
-                @allowed('credit_notes.issue')
-                    @if ($canIssueCreditNote)
-                        <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-secondary">Emettre un avoir</a>
-                    @endif
-                @endallowed
-            @endif
-        </div>
-    </div>
+    <div class="premium-detail-page">
+        <section class="card premium-detail-hero premium-detail-hero--teal">
+            <div class="premium-detail-hero__grid">
+                <div class="premium-detail-hero__copy">
+                    <div class="badge badge-muted">Facturation client</div>
+                    <h2>{{ $invoice->invoice_number }} · {{ $invoice->customer?->name }}</h2>
+                    <p class="muted">Facture du {{ $invoice->invoice_date?->format('d/m/Y') }} reliee a l agence {{ $invoice->branch?->name }} et au depot {{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}. Cet ecran met en avant les impacts business avant le detail comptable et stock.</p>
+                    <div class="premium-detail-hero__meta">
+                        <span class="badge {{ $workflowTone }}">{{ $workflowLabel }}</span>
+                        <span class="badge badge-muted">Paiement : {{ str($invoice->payment_status)->replace('_', ' ')->title() }}</span>
+                        <span class="badge badge-muted">Agence : {{ $invoice->branch?->name }}</span>
+                        <span class="badge badge-muted">Depot : {{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</span>
+                    </div>
+                </div>
+                <div class="premium-detail-panel">
+                    <div>
+                        <strong>Actions immediates</strong>
+                        <div class="muted" style="margin-top:8px;">Imprimer, encaisser, partager le portail client ou ouvrir les ecritures sans quitter la facture.</div>
+                    </div>
+                    <div class="premium-detail-panel__actions">
+                        <a href="{{ route('sales.print', $invoice) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                        @allowed('accounting.view')
+                            <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'sales', 'search' => $invoice->invoice_number]) }}" class="button button-secondary">Voir les ecritures</a>
+                        @endallowed
+                        @allowed('collections.view')
+                            <a href="{{ route('collections.show', $invoice) }}" class="button button-secondary">Suivi recouvrement</a>
+                        @endallowed
+                        @if ($invoice->status === 'pending_approval')
+                            @allowed('sales.approve')
+                                <form method="POST" action="{{ route('sales.approve', $invoice) }}">
+                                    @csrf
+                                    <button type="submit" class="button button-primary">Valider l etape suivante</button>
+                                </form>
+                            @endallowed
+                            @allowed('sales.cancel')
+                                <form method="POST" action="{{ route('sales.cancel', $invoice) }}">
+                                    @csrf
+                                    <button type="submit" class="button button-secondary">Annuler la facture</button>
+                                </form>
+                            @endallowed
+                        @elseif ($invoice->status === 'validated')
+                            @if (isset($paymentPortal) && $invoice->payment_status !== 'paid')
+                                <a href="{{ $paymentPortal['view_url'] }}" class="button button-secondary" target="_blank" rel="noopener">Portail reglement client</a>
+                            @endif
+                            @allowed('payments.validate')
+                                @if ($invoice->payment_status !== 'paid')
+                                    <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Enregistrer un paiement</a>
+                                @endif
+                            @endallowed
+                            @allowed('credit_notes.issue')
+                                @if ($canIssueCreditNote)
+                                    <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-secondary">Emettre un avoir</a>
+                                @endif
+                            @endallowed
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <section class="card" style="margin-bottom:20px;">
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-            <a href="{{ route('sales.index', ['search' => $invoice->invoice_number]) }}" class="card" style="padding:16px; display:block;">
+        <section class="premium-anchor-grid">
+            <a href="{{ route('sales.index', ['search' => $invoice->invoice_number]) }}" class="premium-anchor-card">
                 <strong>Retour au dossier commercial</strong>
-                <div class="muted" style="margin-top:8px;">Retrouver cette facture dans la liste filtree.</div>
+                <div class="muted">Retrouver cette facture dans la liste filtree.</div>
             </a>
             @allowed('accounting.view')
-                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'sales', 'search' => $invoice->invoice_number]) }}" class="card" style="padding:16px; display:block;">
+                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'sales', 'search' => $invoice->invoice_number]) }}" class="premium-anchor-card">
                     <strong>Ecriture comptable</strong>
-                    <div class="muted" style="margin-top:8px;">Ouvrir directement les journaux lies a cette facture.</div>
+                    <div class="muted">Ouvrir directement les journaux lies a cette facture.</div>
                 </a>
             @endallowed
-            <a href="#stock-effects" class="card" style="padding:16px; display:block;">
+            <a href="#stock-effects" class="premium-anchor-card">
                 <strong>Impacts stock</strong>
-                <div class="muted" style="margin-top:8px;">Voir les sorties de stock generees par cette facture.</div>
+                <div class="muted">Voir les sorties de stock generees par cette facture.</div>
             </a>
-            <a href="#payments" class="card" style="padding:16px; display:block;">
+            <a href="#payments" class="premium-anchor-card">
                 <strong>Recouvrement</strong>
-                <div class="muted" style="margin-top:8px;">Acceder directement aux paiements deja rattaches.</div>
+                <div class="muted">Acceder directement aux paiements deja rattaches.</div>
             </a>
             @allowed('collections.view')
-                <a href="{{ route('collections.show', $invoice) }}" class="card" style="padding:16px; display:block;">
+                <a href="{{ route('collections.show', $invoice) }}" class="premium-anchor-card">
                     <strong>Relances client</strong>
-                    <div class="muted" style="margin-top:8px;">Suivre les promesses de paiement et prochaines actions.</div>
+                    <div class="muted">Suivre les promesses de paiement et prochaines actions.</div>
                 </a>
             @endallowed
-        </div>
-    </section>
+        </section>
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Workflow</div><div class="stat-value" style="font-size:24px;">{{ $workflowLabel }}</div></div>
-        <div class="card"><div class="muted">Total facture</div><div class="stat-value">{{ number_format((float) $invoice->total, 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Montant paye</div><div class="stat-value">{{ number_format((float) $invoice->amount_paid, 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Solde restant</div><div class="stat-value">{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }}</div></div>
-    </div>
-
+        <section class="premium-stat-grid">
+            <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowLabel }}</div><div class="hint">Etat de la facture dans le flux metier.</div></article>
+            <article class="premium-stat-card"><div class="label">Total facture</div><div class="value">{{ number_format((float) $invoice->total, 0, ',', ' ') }}</div><div class="hint">Montant total emis au client.</div></article>
+            <article class="premium-stat-card"><div class="label">Montant paye</div><div class="value">{{ number_format((float) $invoice->amount_paid, 0, ',', ' ') }}</div><div class="hint">Encaissements deja relies a la facture.</div></article>
+            <article class="premium-stat-card"><div class="label">Solde restant</div><div class="value">{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }}</div><div class="hint">Montant encore ouvert au recouvrement.</div></article>
+        </section>
     @if ($invoice->status === 'validated' || $invoice->status === 'pending_approval' || $invoice->creditNotes->isNotEmpty())
         <section class="card" style="margin-bottom:20px;">
             <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-start;">

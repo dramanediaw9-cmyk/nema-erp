@@ -17,8 +17,20 @@
         <link rel="manifest" href="{{ asset('app-manifest.webmanifest') }}">
     @endif
     <title>@yield('title', config('app.name'))</title>
-    @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+    @if (file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @elseif (file_exists(public_path('build/manifest.json')))
+        @php
+            $viteManifest = json_decode(file_get_contents(public_path('build/manifest.json')), true) ?: [];
+            $cssEntry = $viteManifest['resources/css/app.css']['file'] ?? null;
+            $jsEntry = $viteManifest['resources/js/app.js']['file'] ?? null;
+        @endphp
+        @if ($cssEntry)
+            <link rel="stylesheet" href="{{ url('build/'.$cssEntry) }}">
+        @endif
+        @if ($jsEntry)
+            <script type="module" src="{{ url('build/'.$jsEntry) }}"></script>
+        @endif
     @else
         <style>
             :root {
@@ -607,9 +619,37 @@
     <div class="shell-backdrop" data-sidebar-backdrop hidden></div>
     <aside class="sidebar" id="app-sidebar" aria-label="Navigation principale">
         <div class="brand">
-            <h1>Nema ERP</h1>
-            <small>Socle ERP PME maliennes</small>
+            <div class="brand-kicker">Nema Suite</div>
+            <div class="brand-mark">
+                <div class="brand-mark__glyph">N</div>
+                <div class="brand-mark__copy">
+                    <h1>Nema ERP</h1>
+                    <small>Socle ERP PME maliennes</small>
+                </div>
+            </div>
         </div>
+        <section class="sidebar-overview">
+            <div class="sidebar-badge-row">
+                <span class="sidebar-badge">{{ $isMerchantMode ? 'Mode commercant' : 'Mode complet' }}</span>
+                <span class="sidebar-badge sidebar-badge--soft">{{ $sectorProfile['label'] ?? 'Profil metier' }}</span>
+            </div>
+            <div class="sidebar-overview__grid">
+                <div class="sidebar-overview__item">
+                    <span>Entreprise</span>
+                    <strong>{{ $workspace->company()?->name ?? 'Non definie' }}</strong>
+                </div>
+                @if ($workspace->branch())
+                    <div class="sidebar-overview__item">
+                        <span>Agence</span>
+                        <strong>{{ $workspace->branch()?->name }}</strong>
+                    </div>
+                @endif
+                <div class="sidebar-overview__item">
+                    <span>Compte</span>
+                    <strong>{{ $layoutUser?->name ?? 'Utilisateur' }}</strong>
+                </div>
+            </div>
+        </section>
         @if ($isMerchantMode)
             @include('layouts.partials.sidebar-merchant')
         @else

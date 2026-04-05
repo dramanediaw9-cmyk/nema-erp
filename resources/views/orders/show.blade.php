@@ -26,17 +26,44 @@
         $invoiceStatusLabel = $order->convertedInvoice ? 'Facturee' : ($order->status === 'delivered' ? 'A facturer' : 'Non facturee');
     @endphp
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">{{ $order->order_number }}</h2>
-            <div class="muted">Client {{ $order->customer?->name }} · Agence {{ $order->branch?->name }}</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('orders.print', $order) }}" class="button button-secondary" target="_blank">Imprimer</a>
-            <a href="{{ route('orders.index') }}" class="button button-secondary">Retour liste</a>
-        </div>
-    </div>
+    <div class="premium-detail-page">
+        <section class="card premium-detail-hero premium-detail-hero--ocean">
+            <div class="premium-detail-hero__grid">
+                <div class="premium-detail-hero__copy">
+                    <div class="badge badge-muted">Execution commerciale</div>
+                    <h2>{{ $order->order_number }} · {{ $order->customer?->name }}</h2>
+                    <p class="muted">Commande client rattachee a l agence {{ $order->branch?->name }}, avec promesse de stock, etat de livraison et prochaines actions de conversion ou d approvisionnement au meme endroit.</p>
+                    <div class="premium-detail-hero__meta">
+                        <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                        <span class="badge badge-muted">Facturation : {{ $invoiceStatusLabel }}</span>
+                        <span class="badge badge-muted">Depot : {{ $order->warehouse?->name ?? 'Depot principal' }}</span>
+                        @if ($order->salesperson_name)
+                            <span class="badge badge-muted">Commercial : {{ $order->salesperson_name }}</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="premium-detail-panel">
+                    <div>
+                        <strong>Actions immediates</strong>
+                        <div class="muted" style="margin-top:8px;">Imprimer, confirmer, convertir, livrer ou declencher l achat depuis la meme vue de pilotage.</div>
+                    </div>
+                    <div class="premium-detail-panel__actions">
+                        <a href="{{ route('orders.print', $order) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                        <a href="{{ route('orders.index') }}" class="button button-secondary">Retour liste</a>
+                        @if (in_array($order->status, ['confirmed', 'partial_delivered'], true) && $hasRemainingDelivery)
+                            <a href="{{ route('delivery-notes.create', ['order' => $order->id]) }}" class="button button-primary">Generer un bon de livraison</a>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </section>
 
+        <section class="premium-stat-grid">
+            <article class="premium-stat-card"><div class="label">Montant commande</div><div class="value">{{ number_format((float) $order->total, 0, ',', ' ') }}</div><div class="hint">Valeur commerciale du dossier client.</div></article>
+            <article class="premium-stat-card"><div class="label">Progression livraison</div><div class="value">{{ number_format($deliveryProgress, 1, ',', ' ') }} %</div><div class="hint">Avancement des quantites deja livrees.</div></article>
+            <article class="premium-stat-card"><div class="label">Reserve en stock</div><div class="value">{{ number_format($reservedQty, 3, ',', ' ') }}</div><div class="hint">Quantite encore mobilisee pour cette commande.</div></article>
+            <article class="premium-stat-card"><div class="label">Lignes a risque</div><div class="value">{{ $coverageSummary['at_risk'] }}</div><div class="hint">Lignes qui demandent une action achat ou arbitrage.</div></article>
+        </section>
     <div class="split">
         <section class="card">
             <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-start;">
@@ -354,6 +381,7 @@
             <p class="muted">Aucun bon de livraison n'a encore ete emis sur cette commande.</p>
         @endforelse
     </section>
+    </div>
 @endsection
 
 

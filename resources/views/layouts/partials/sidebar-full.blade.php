@@ -1,4 +1,5 @@
-<nav>
+<nav class="sidebar-nav">
+    <section class="nav-section">
     <div class="nav-title">Pilotage</div>
     @allowed('dashboard.view')
         <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">Dashboard</a>
@@ -25,7 +26,9 @@
     @allowed('ops.view')
         <a class="nav-link {{ request()->routeIs('ops.*') ? 'active' : '' }}" href="{{ route('ops.index') }}">Operations</a>
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Structure</div>
     @allowed('companies.view')
         <a class="nav-link {{ request()->routeIs('companies.*') ? 'active' : '' }}" href="{{ route('companies.index') }}">Entreprises</a>
@@ -42,7 +45,9 @@
     @allowed('settings.view')
         <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">Parametres</a>
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Tiers</div>
     @allowed('customers.view')
         <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}">Clients</a>
@@ -50,7 +55,9 @@
     @allowed('suppliers.view')
         <a class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}" href="{{ route('suppliers.index') }}">Fournisseurs</a>
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Catalogue</div>
     @allowed('categories.view')
         <a class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">Categories</a>
@@ -65,7 +72,9 @@
     @allowed('stock_counts.view')
         <a class="nav-link {{ request()->routeIs('stock-counts.*') ? 'active' : '' }}" href="{{ route('stock-counts.index') }}">Inventaires</a>
     @endallowed
+    </section>
 
+    <section class="nav-section nav-section--spotlight">
     <div class="nav-title">Commercial</div>
     @allowed('crm.view')
         <a class="nav-link {{ request()->routeIs('crm.*') ? 'active' : '' }}" href="{{ route('crm.index') }}">CRM</a>
@@ -104,7 +113,9 @@
     @allowed('goods_receipts.view')
         <a class="nav-link {{ request()->routeIs('goods-receipts.*') ? 'active' : '' }}" href="{{ route('goods-receipts.index') }}">Receptions fournisseurs</a>
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Tresorerie</div>
     @allowed('cash_accounts.view')
         <a class="nav-link {{ request()->routeIs('cash-accounts.*') ? 'active' : '' }}" href="{{ route('cash-accounts.index') }}">Comptes</a>
@@ -121,7 +132,9 @@
     @allowed('expense_categories.view')
         <a class="nav-link {{ request()->routeIs('expense-categories.*') ? 'active' : '' }}" href="{{ route('expense-categories.index') }}">Categories depenses</a>
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Comptabilite</div>
     @allowed('accounting.view')
         <a class="nav-link {{ request()->routeIs('accounting.accounts.*') ? 'active' : '' }}" href="{{ route('accounting.accounts.index') }}">Plan comptable</a>
@@ -138,9 +151,12 @@
             <a class="nav-link {{ request()->routeIs('fixed-assets.*') ? 'active' : '' }}" href="{{ route('fixed-assets.index') }}">Immobilisations</a>
         @endallowed
     @endallowed
+    </section>
 
+    <section class="nav-section">
     <div class="nav-title">Audit</div>
     @allowed('activity_logs.view')
         <a class="nav-link {{ request()->routeIs('activity-logs.*') ? 'active' : '' }}" href="{{ route('activity-logs.index') }}">Journaux d'activite</a>
     @endallowed
+    </section>
 </nav>

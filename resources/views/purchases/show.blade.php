@@ -4,54 +4,67 @@
 @section('page-title', 'Facture '.$bill->bill_number)
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">{{ $bill->supplier?->name }}</h2>
-            <div class="muted">Facture du {{ $bill->bill_date?->format('d/m/Y') }} · Agence {{ $bill->branch?->name }} · {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('purchases.print', $bill) }}" class="button button-secondary" target="_blank">Imprimer</a>
-            @allowed('accounting.view')
-                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="button button-secondary">Voir les ecritures</a>
-            @endallowed
-            @if ($bill->status === 'pending_approval')
-                @allowed('purchases.approve')
-                    <form method="POST" action="{{ route('purchases.approve', $bill) }}">
-                        @csrf
-                        <button type="submit" class="button button-primary">Valider l etape suivante</button>
-                    </form>
-                @endallowed
-            @elseif ($bill->payment_status !== 'paid')
-                @allowed('payments.manage')
-                    <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Enregistrer un reglement</a>
-                @endallowed
-            @endif
-        </div>
-    </div>
+    <div class="premium-detail-page">
+        <section class="card premium-detail-hero premium-detail-hero--sage">
+            <div class="premium-detail-hero__grid">
+                <div class="premium-detail-hero__copy">
+                    <div class="badge badge-muted">Facturation fournisseur</div>
+                    <h2>{{ $bill->bill_number }} · {{ $bill->supplier?->name }}</h2>
+                    <p class="muted">Facture du {{ $bill->bill_date?->format('d/m/Y') }} rattachee a l agence {{ $bill->branch?->name }} et a {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}. La page donne d abord une lecture approvisionnement et tresorerie avant le detail comptable.</p>
+                    <div class="premium-detail-hero__meta">
+                        <span class="badge {{ $bill->status === 'validated' ? 'badge-success' : 'badge-warning' }}">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</span>
+                        <span class="badge badge-muted">Paiement : {{ str($bill->payment_status)->replace('_', ' ')->title() }}</span>
+                        <span class="badge badge-muted">Agence : {{ $bill->branch?->name }}</span>
+                        <span class="badge badge-muted">Depot : {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</span>
+                    </div>
+                </div>
+                <div class="premium-detail-panel">
+                    <div>
+                        <strong>Actions immediates</strong>
+                        <div class="muted" style="margin-top:8px;">Imprimer, ouvrir les ecritures ou enregistrer un reglement fournisseur sans quitter le dossier.</div>
+                    </div>
+                    <div class="premium-detail-panel__actions">
+                        <a href="{{ route('purchases.print', $bill) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                        @allowed('accounting.view')
+                            <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="button button-secondary">Voir les ecritures</a>
+                        @endallowed
+                        @if ($bill->status === 'pending_approval')
+                            @allowed('purchases.approve')
+                                <form method="POST" action="{{ route('purchases.approve', $bill) }}">
+                                    @csrf
+                                    <button type="submit" class="button button-primary">Valider l etape suivante</button>
+                                </form>
+                            @endallowed
+                        @elseif ($bill->payment_status !== 'paid')
+                            @allowed('payments.manage')
+                                <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Enregistrer un reglement</a>
+                            @endallowed
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <section class="card" style="margin-bottom:20px;">
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-            <a href="{{ route('purchases.index', ['search' => $bill->bill_number]) }}" class="card" style="padding:16px; display:block;">
+        <section class="premium-anchor-grid">
+            <a href="{{ route('purchases.index', ['search' => $bill->bill_number]) }}" class="premium-anchor-card">
                 <strong>Retour au dossier achat</strong>
-                <div class="muted" style="margin-top:8px;">Retrouver cette facture dans la liste filtree.</div>
+                <div class="muted">Retrouver cette facture dans la liste filtree.</div>
             </a>
             @allowed('accounting.view')
-                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="card" style="padding:16px; display:block;">
+                <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="premium-anchor-card">
                     <strong>Ecriture comptable</strong>
-                    <div class="muted" style="margin-top:8px;">Ouvrir directement les journaux lies a cet achat.</div>
+                    <div class="muted">Ouvrir directement les journaux lies a cet achat.</div>
                 </a>
             @endallowed
-            <a href="#stock-effects" class="card" style="padding:16px; display:block;">
+            <a href="#stock-effects" class="premium-anchor-card">
                 <strong>Impacts stock</strong>
-                <div class="muted" style="margin-top:8px;">Voir les entrees de stock generees par cet achat.</div>
+                <div class="muted">Voir les entrees de stock generees par cet achat.</div>
             </a>
-            <a href="#payments" class="card" style="padding:16px; display:block;">
+            <a href="#payments" class="premium-anchor-card">
                 <strong>Reglements</strong>
-                <div class="muted" style="margin-top:8px;">Acceder directement aux paiements rattaches.</div>
+                <div class="muted">Acceder directement aux paiements rattaches.</div>
             </a>
-        </div>
-    </section>
-
+        </section>
     @if ($bill->goodsReceipt || $bill->purchaseOrder)
         <section class="card" style="margin-bottom:20px;">
             <h2 style="margin-top:0;">Origine du dossier achat</h2>
@@ -73,11 +86,11 @@
         </section>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Workflow</div><div class="stat-value" style="font-size:24px;">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</div></div>
-        <div class="card"><div class="muted">Total facture</div><div class="stat-value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Montant paye</div><div class="stat-value">{{ number_format((float) $bill->amount_paid, 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Solde restant</div><div class="stat-value">{{ number_format((float) $bill->balance_due, 0, ',', ' ') }}</div></div>
+    <div class="premium-stat-grid" style="margin-bottom:20px;">
+        <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</div><div class="hint">Etat de validation de la facture fournisseur.</div></article>
+        <article class="premium-stat-card"><div class="label">Total facture</div><div class="value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div><div class="hint">Montant total facture par le fournisseur.</div></article>
+        <article class="premium-stat-card"><div class="label">Montant paye</div><div class="value">{{ number_format((float) $bill->amount_paid, 0, ',', ' ') }}</div><div class="hint">Reglements deja associes a cet achat.</div></article>
+        <article class="premium-stat-card"><div class="label">Solde restant</div><div class="value">{{ number_format((float) $bill->balance_due, 0, ',', ' ') }}</div><div class="hint">Montant encore du au fournisseur.</div></article>
     </div>
 
     <div class="split" style="margin-bottom:20px;">
