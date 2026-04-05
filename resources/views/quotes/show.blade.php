@@ -81,6 +81,27 @@
 
         <aside class="card">
             <h2 class="section-title">Actions</h2>
+            @if (isset($portal))
+                <div class="card" style="padding:16px; margin-bottom:14px;">
+                    <strong>Portail client</strong>
+                    <div class="muted" style="margin:8px 0 12px;">Lien signe partageable jusqu au {{ $portal['expires_at']->format('d/m/Y H:i') }}.</div>
+                    <div>
+                        <label for="quote_portal_url">Lien partageable</label>
+                        <input id="quote_portal_url" type="text" value="{{ $portal['view_url'] }}" readonly onclick="this.select()" style="font-size:12px;">
+                    </div>
+                    <div class="actions" style="justify-content:flex-start; margin-top:12px;">
+                        <a href="{{ $portal['view_url'] }}" class="button button-secondary" target="_blank" rel="noopener">Ouvrir le portail</a>
+                        @if ($portal['whatsapp_url'])
+                            <a href="{{ $portal['whatsapp_url'] }}" class="button button-primary" target="_blank" rel="noopener">Partager via WhatsApp</a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+            @if ($quote->latestPortalAction)
+                <div class="card" style="padding:16px; margin-bottom:14px;">
+                    @include('partials.portal-action-summary', ['portalAction' => $quote->latestPortalAction, 'title' => 'Signature client portail'])
+                </div>
+            @endif
             <div class="summary-stack">
                 @if ($quote->status === 'draft')
                     <form method="POST" action="{{ route('quotes.send', $quote) }}">
@@ -199,4 +220,5 @@
         </div>
     </section>
 @endsection
+
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Notifications\Models\InternalNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -135,6 +136,96 @@ class NotificationsTest extends TestCase
         $this->assertSame($manager->id, $notification->read_by);
     }
 
+    public function test_branch_limited_user_only_sees_visible_agency_notifications(): void
+    {
+        $operations = User::query()->where('email', 'ops@nema-erp.test')->firstOrFail();
+        $director = User::query()->where('email', 'dg@nema-erp.test')->firstOrFail();
+
+        $otherBranch = Branch::query()->create([
+            'tenant_id' => $operations->tenant_id,
+            'company_id' => $operations->company_id,
+            'name' => 'Agence Segou',
+            'code' => 'SEG',
+            'city' => 'Segou',
+            'address' => 'Segou Centre',
+            'is_active' => true,
+            'is_default' => false,
+        ]);
+
+        $globalNotification = InternalNotification::query()->create([
+            'company_id' => $operations->company_id,
+            'branch_id' => null,
+            'code' => 'global-branch-visible-alert',
+            'type' => 'system',
+            'level' => 'warning',
+            'title' => 'Alerte globale visible',
+            'message' => 'Message global commun a toutes les agences.',
+            'action_url' => route('dashboard'),
+        ]);
+
+        $ownNotification = InternalNotification::query()->create([
+            'company_id' => $operations->company_id,
+            'branch_id' => $operations->branch_id,
+            'code' => 'own-branch-visible-alert',
+            'type' => 'system',
+            'level' => 'warning',
+            'title' => 'Alerte agence Bamako visible',
+            'message' => 'Message propre a l agence active.',
+            'action_url' => route('dashboard'),
+        ]);
+
+        $hiddenNotification = InternalNotification::query()->create([
+            'company_id' => $operations->company_id,
+            'branch_id' => $otherBranch->id,
+            'code' => 'hidden-branch-alert',
+            'type' => 'system',
+            'level' => 'danger',
+            'title' => 'Alerte agence Segou cachee',
+            'message' => 'Message reserve a une autre agence.',
+            'action_url' => route('dashboard'),
+        ]);
+
+        $this->actingAs($operations)
+            ->withSession([
+                'current_company_id' => $operations->company_id,
+                'current_branch_id' => $operations->branch_id,
+            ])
+            ->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('Alerte globale visible')
+            ->assertSee('Alerte agence Bamako visible')
+            ->assertDontSee('Alerte agence Segou cachee');
+
+        $this->actingAs($operations)
+            ->withSession([
+                'current_company_id' => $operations->company_id,
+                'current_branch_id' => $operations->branch_id,
+            ])
+            ->post(route('notifications.read', $hiddenNotification))
+            ->assertForbidden();
+
+        $this->actingAs($operations)
+            ->withSession([
+                'current_company_id' => $operations->company_id,
+                'current_branch_id' => $operations->branch_id,
+            ])
+            ->post(route('notifications.read-all'))
+            ->assertSessionHas('success');
+
+        $this->assertTrue($globalNotification->fresh()->is_read);
+        $this->assertTrue($ownNotification->fresh()->is_read);
+        $this->assertFalse($hiddenNotification->fresh()->is_read);
+
+        $this->actingAs($director)
+            ->withSession([
+                'current_company_id' => $director->company_id,
+                'current_branch_id' => $director->branch_id,
+            ])
+            ->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('Alerte agence Segou cachee');
+    }
+
     public function test_notifications_page_can_filter_by_scope_level_read_state_and_search(): void
     {
         $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
@@ -181,4 +272,3 @@ class NotificationsTest extends TestCase
             ->assertDontSee('Information de demonstration');
     }
 }
-

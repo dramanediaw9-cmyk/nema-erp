@@ -20,6 +20,11 @@
 /storage/pail
 /storage/framework/views/*.php
 /storage/framework/testing/disks/**
+/storage/app/public/products/*.png
+/storage/app/public/products/*.jpg
+/storage/app/public/products/*.jpeg
+/storage/app/public/products/*.webp
+/storage/app/public/products/*.gif
 /vendor
 /backups
 /logs/*.log

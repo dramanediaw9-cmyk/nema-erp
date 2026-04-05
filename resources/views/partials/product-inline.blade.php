@@ -1,37 +1,45 @@
 @php
-    $size = $size ?? 60;
+    $size = (int) ($size ?? 48);
     $link = $link ?? ($product ? route('products.show', $product) : null);
-    $title = $title ?? ($product?->name ?? 'Produit');
-    $meta = $meta ?? collect([$product?->sku, $product?->barcode])->filter()->implode(' · ');
+    $title = $title ?? ($product?->display_name ?? $product?->name ?? 'Produit');
+    $metaParts = collect([
+        $product?->sku,
+        $product?->barcode,
+        $product?->is_variant ? $product?->variant_label : null,
+    ])->filter()->unique()->values();
+    $meta = $meta ?? $metaParts->implode(' | ');
     $initials = collect(preg_split('/\s+/', trim((string) $title)))->filter()->take(2)->map(fn ($part) => \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($part, 0, 1)))->implode('') ?: 'PR';
-    $radius = max(16, (int) floor($size / 3));
+    $sizeCss = "var(--product-inline-size, {$size}px)";
+    $radiusCss = 'var(--product-inline-radius, '.max(12, (int) floor($size / 3)).'px)';
+    $gapCss = 'var(--product-inline-gap, 10px)';
+    $indicatorCss = 'var(--product-inline-indicator-size, '.max(10, (int) floor($size / 4)).'px)';
+    $titleSizeCss = 'var(--product-inline-title-size, 14px)';
+    $metaSizeCss = 'var(--product-inline-meta-size, 12px)';
 @endphp
 
 @if ($product)
-    <div style="display:flex; align-items:center; gap:14px; min-width:0;">
+    <div style="display:flex; align-items:center; gap:{{ $gapCss }}; min-width:0;">
         @php($thumb = $product->image_url)
         @if ($link)
-            <a href="{{ $link }}" style="position:relative; display:inline-flex; flex:0 0 {{ $size }}px; width:{{ $size }}px; height:{{ $size }}px; border-radius:{{ $radius }}px; overflow:hidden; border:1px solid #d8e3f1; background:linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); align-items:center; justify-content:center; box-shadow:0 14px 24px rgba(15, 23, 42, 0.07);">
+            <a href="{{ $link }}" style="position:relative; display:inline-flex; flex:0 0 {{ $sizeCss }}; width:{{ $sizeCss }}; height:{{ $sizeCss }}; border-radius:{{ $radiusCss }}; overflow:hidden; border:1px solid rgba(102, 82, 56, 0.12); background:linear-gradient(180deg, #fffdf8 0%, #f4ece0 100%); align-items:center; justify-content:center; box-shadow:0 10px 20px rgba(42, 28, 18, 0.08);">
         @endif
         @if ($thumb)
             <img src="{{ $thumb }}" alt="{{ $title }}" style="width:100%; height:100%; object-fit:cover; display:block;">
-            <span style="position:absolute; inset:auto 6px 6px auto; min-width:14px; height:14px; border-radius:999px; border:2px solid #fff; background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);"></span>
+            <span style="position:absolute; inset:auto 4px 4px auto; min-width:{{ $indicatorCss }}; height:{{ $indicatorCss }}; border-radius:999px; border:2px solid #fff8f0; background:linear-gradient(135deg, #22c55e 0%, #16a34a 100%);"></span>
         @else
-            <span style="display:inline-flex; width:{{ $size }}px; height:{{ $size }}px; align-items:center; justify-content:center; border-radius:{{ $radius }}px; background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #dbeafe 100%); color:#16324f; font-weight:900; letter-spacing:.04em; font-size:{{ max(13, (int) floor($size / 2.6)) }}px;">{{ $initials }}</span>
+            <span style="display:inline-flex; width:{{ $sizeCss }}; height:{{ $sizeCss }}; align-items:center; justify-content:center; border-radius:{{ $radiusCss }}; background:linear-gradient(135deg, #f4dcc0 0%, #efc99a 50%, #f7ead7 100%); color:#5d3a18; font-weight:900; letter-spacing:.04em; font-size:calc({{ $sizeCss }} / 2.8);">{{ $initials }}</span>
         @endif
         @if ($link)
             </a>
         @endif
-        <div style="display:grid; gap:6px; min-width:0;">
+        <div style="display:grid; gap:4px; min-width:0;">
             @if ($link)
-                <a href="{{ $link }}" style="font-weight:800; line-height:1.32; color:#14253b; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-decoration:none;">{{ $title }}</a>
+                <a href="{{ $link }}" style="font-weight:800; line-height:1.28; color:#1f1a14; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-decoration:none; font-size:{{ $titleSizeCss }};">{{ $title }}</a>
             @else
-                <div style="font-weight:800; line-height:1.32; color:#14253b; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{{ $title }}</div>
+                <div style="font-weight:800; line-height:1.28; color:#1f1a14; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:{{ $titleSizeCss }};">{{ $title }}</div>
             @endif
             @if ($meta)
-                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0;">
-                    <span class="muted" style="font-size:13px; line-height:1.35; display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background:#f1f6fd; border:1px solid #d9e5f5; color:#49627f; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $meta }}</span>
-                </div>
+                <div class="muted" style="font-size:{{ $metaSizeCss }}; line-height:1.25; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $meta }}</div>
             @endif
         </div>
     </div>

@@ -41,6 +41,7 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - [Usage rapide](docs/USAGE-RAPIDE.md)
 - [Tests manuels](docs/TESTS-MANUELS.md)
 - [Deploiement local](docs/DEPLOIEMENT-LOCAL.md)
+- [Publication Laravel Cloud](docs/PUBLICATION-LARAVEL-CLOUD.md)
 - [Sauvegarde et restauration](docs/SAUVEGARDE-RESTAURATION.md)
 - [Checklist mise en service](docs/CHECKLIST-MISE-EN-SERVICE.md)
 
@@ -148,6 +149,8 @@ C:\xampp\php\php.exe artisan migrate --seed
 C:\xampp\php\php.exe artisan storage:link
 ```
 
+Note : cette etape concerne le **local**. Pour une publication cloud avec stockage objet `s3`, voir [Publication Laravel Cloud](docs/PUBLICATION-LARAVEL-CLOUD.md).
+
 7. Installer les assets front :
 
 ```powershell
@@ -186,6 +189,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\backup-nema-erp.ps1
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 ```
+
+## Publication cloud
+
+Pour une vraie mise en ligne publique :
+
+- preparer le depot Git distant
+- utiliser [.env.laravel-cloud.example](.env.laravel-cloud.example) comme base
+- attacher une base MySQL, un KV store / Redis et un object storage
+- preparer le build cloud avec `composer run build:cloud`
+- deployer avec `composer run deploy:cloud`
+
+Guide detaille : [Publication Laravel Cloud](docs/PUBLICATION-LARAVEL-CLOUD.md)
 
 
 ## Exploitation phase 1

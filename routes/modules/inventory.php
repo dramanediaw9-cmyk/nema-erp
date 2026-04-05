@@ -3,6 +3,7 @@
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Inventory\Http\Controllers\StockCountController;
 use App\Modules\Inventory\Http\Controllers\StockTransferController;
+use App\Modules\Inventory\Http\Controllers\ProductLotController;
 use App\Modules\Inventory\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,6 +11,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/stock', [StockController::class, 'index'])->middleware('permission:stock.view')->name('stock.index');
     Route::get('/stock/export', [StockController::class, 'export'])->middleware('permission:stock.view')->name('stock.export');
     Route::get('/stock/mouvements', [StockController::class, 'movements'])->middleware('permission:stock.view')->name('stock.movements');
+    Route::get('/stock/lots', [ProductLotController::class, 'index'])->middleware('permission:stock.view')->name('stock.lots');
     Route::get('/stock/produits/{product}', [StockController::class, 'show'])->middleware('permission:stock.view')->name('stock.show');
     Route::get('/stock/initial', [StockController::class, 'createOpening'])->middleware('permission:stock.manage')->name('stock.opening.create');
     Route::post('/stock/initial', [StockController::class, 'storeOpening'])->middleware('permission:stock.manage')->name('stock.opening.store');

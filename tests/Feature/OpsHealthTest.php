@@ -5,7 +5,11 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
+use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class OpsHealthTest extends TestCase
@@ -27,7 +31,11 @@ class OpsHealthTest extends TestCase
         $this->get(route('ops.index'))
             ->assertOk()
             ->assertSee('Sante systeme')
-            ->assertSee('Outbox integration');
+            ->assertSee('Outbox integration')
+            ->assertSee('Sauvegardes locales')
+            ->assertSee('Restauration guidee')
+            ->assertSee('Surveillance applicative')
+            ->assertSee('nema:ops:monitor-app');
     }
 
     public function test_health_check_command_can_store_company_snapshot(): void
@@ -43,6 +51,101 @@ class OpsHealthTest extends TestCase
             'company_id' => $company->id,
             'scope' => 'company',
         ]);
+    }
+
+    public function test_backup_command_creates_manifest_and_health_report_detects_latest_backup(): void
+    {
+        $backupPath = storage_path('framework/testing/backups');
+        config()->set('ops.backups_path', $backupPath);
+        File::deleteDirectory($backupPath);
+
+        $this->artisan('nema:ops:backup-run', [
+            '--keep' => 3,
+        ])->assertExitCode(0);
+
+        $this->artisan('nema:ops:backup-verify')->assertExitCode(0);
+
+        $manifestPath = collect(File::directories($backupPath))
+            ->sortDesc()
+            ->map(fn (string $directory): string => $directory.DIRECTORY_SEPARATOR.'manifest.json')
+            ->first(fn (string $path): bool => File::exists($path));
+
+        $this->assertNotNull($manifestPath);
+
+        $manifest = json_decode(File::get($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertNotEmpty($manifest['tables'] ?? []);
+        $this->assertGreaterThan(0, (int) ($manifest['tables_count'] ?? 0));
+
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $report = app(SystemHealthService::class)->report($company);
+        $backupCheck = collect($report['checks'])->firstWhere('key', 'backups');
+
+        $this->assertNotNull($backupCheck);
+        $this->assertSame('ok', $backupCheck['status']);
+        $this->assertSame((int) ($manifest['tables_count'] ?? 0), (int) data_get($backupCheck, 'meta.tables_expected'));
+        $this->assertSame((int) ($manifest['tables_count'] ?? 0), (int) data_get($backupCheck, 'meta.tables_checked'));
+    }
+
+    public function test_backup_verification_fails_when_a_table_dump_is_corrupted(): void
+    {
+        $backupPath = storage_path('framework/testing/backups');
+        config()->set('ops.backups_path', $backupPath);
+        File::deleteDirectory($backupPath);
+
+        $this->artisan('nema:ops:backup-run', [
+            '--keep' => 2,
+        ])->assertExitCode(0);
+
+        $manifestPath = collect(File::directories($backupPath))
+            ->sortDesc()
+            ->map(fn (string $directory): string => $directory.DIRECTORY_SEPARATOR.'manifest.json')
+            ->first(fn (string $path): bool => File::exists($path));
+
+        $this->assertNotNull($manifestPath);
+
+        $manifest = json_decode(File::get($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        $firstTable = collect($manifest['tables'] ?? [])->first();
+
+        $this->assertNotNull($firstTable);
+
+        File::put(dirname($manifestPath).DIRECTORY_SEPARATOR.$firstTable['path'], '{invalid json');
+
+        $this->artisan('nema:ops:backup-verify')->assertExitCode(1);
+
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $report = app(SystemHealthService::class)->report($company);
+        $backupCheck = collect($report['checks'])->firstWhere('key', 'backups');
+
+        $this->assertSame('fail', $backupCheck['status']);
+        $this->assertNotEmpty(data_get($backupCheck, 'meta.errors', []));
+    }
+
+    public function test_monitor_app_command_returns_failure_when_logs_and_failed_jobs_are_detected(): void
+    {
+        $logPath = storage_path('framework/testing/ops-monitor.log');
+        File::ensureDirectoryExists(dirname($logPath));
+        File::put($logPath, "[2026-04-04 10:00:00] local.ERROR: Incident de monitoring test\n");
+
+        config()->set('logging.default', 'single');
+        config()->set('logging.channels.single.path', $logPath);
+        config()->set('ops.log_warning_threshold', 1);
+        config()->set('ops.log_fail_threshold', 1);
+        config()->set('ops.failed_jobs_warning', 1);
+        config()->set('ops.failed_jobs_fail', 1);
+
+        DB::table('failed_jobs')->insert([
+            'uuid' => (string) Str::uuid(),
+            'connection' => 'database',
+            'queue' => 'default',
+            'payload' => json_encode(['job' => 'MonitorOpsTest'], JSON_THROW_ON_ERROR),
+            'exception' => 'RuntimeException: incident technique test',
+            'failed_at' => now(),
+        ]);
+
+        $this->artisan('nema:ops:monitor-app', [
+            '--tail' => 20,
+        ])->assertExitCode(1);
     }
 
     public function test_outbox_prune_command_removes_old_published_events_only(): void

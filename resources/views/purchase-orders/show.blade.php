@@ -24,6 +24,10 @@
                 <div><div class="muted">Statut</div><span class="badge {{ in_array($order->status, ['confirmed', 'received'], true) ? 'badge-success' : 'badge-muted' }}">{{ $order->status }}</span></div>
                 <div><div class="muted">Depot</div><strong>{{ $order->warehouse?->name }}</strong></div>
                 <div><div class="muted">Reception attendue</div><strong>{{ $order->expected_receipt_date?->format('d/m/Y') ?? 'Non renseignee' }}</strong></div>
+                @if ($order->sourcePurchaseRequest)
+                    <div><div class="muted">Demande source</div><strong><a href="{{ route('purchase-requests.show', $order->sourcePurchaseRequest) }}">{{ $order->sourcePurchaseRequest->request_number }}</a></strong></div>
+                    <div><div class="muted">Origine</div><strong>Allocation fournisseur / demande d achat</strong></div>
+                @endif
             </div>
             @if ($order->notes)
                 <div class="card" style="margin-top:18px; padding:16px;">
@@ -46,6 +50,7 @@
                 </form>
             @endif
             <div class="tip-card" style="margin-top:12px;"><strong>Receptions</strong><div class="muted">{{ $order->goodsReceipts->count() }} reception(s) deja enregistree(s).</div></div>
+            <div class="tip-card" style="margin-top:12px;"><strong>Factures</strong><div class="muted">{{ $order->goodsReceipts->filter(fn ($receipt) => $receipt->purchaseBill)->count() }} facture(s) fournisseur deja creee(s).</div></div>
         </aside>
     </div>
 
@@ -73,15 +78,26 @@
         <section class="card" style="margin-top:18px;">
             <h2 class="section-title">Receptions deja enregistrees</h2>
             @foreach ($order->goodsReceipts as $receipt)
-                <div style="padding-bottom:12px; border-bottom:1px solid #efe4d3; margin-bottom:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <div style="padding-bottom:12px; border-bottom:1px solid #efe4d3; margin-bottom:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start;">
                     <div>
                         <strong>{{ $receipt->receipt_number }}</strong>
                         <div class="muted">{{ $receipt->receipt_date?->format('d/m/Y') }}</div>
+                        @if ($receipt->purchaseBill)
+                            <div class="muted" style="margin-top:6px;">Facture liee : {{ $receipt->purchaseBill->bill_number }}</div>
+                        @else
+                            <div class="muted" style="margin-top:6px;">Reception a facturer</div>
+                        @endif
                     </div>
-                    <a href="{{ route('goods-receipts.show', $receipt) }}" class="button button-secondary">Voir</a>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <a href="{{ route('goods-receipts.show', $receipt) }}" class="button button-secondary">Voir</a>
+                        @if ($receipt->purchaseBill)
+                            <a href="{{ route('purchases.show', $receipt->purchaseBill) }}" class="button button-secondary">Facture</a>
+                        @else
+                            <a href="{{ route('purchases.create', ['receipt' => $receipt->id]) }}" class="button button-primary">Facturer</a>
+                        @endif
+                    </div>
                 </div>
             @endforeach
         </section>
     @endif
 @endsection
-

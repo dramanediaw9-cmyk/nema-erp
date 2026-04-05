@@ -105,6 +105,96 @@
         </section>
     </div>
 
+    @php
+        $selectedSectorKey = old('sector_profile', $sectorProfile['key']);
+    @endphp
+
+    <section class="card" style="margin-top:18px;">
+        <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+            <div>
+                <h2 style="margin:0;">Profil secteur</h2>
+                <div class="help" style="margin-top:8px;">Nema ERP reste generaliste, mais ce pack met en avant les usages, modules et reglages qui collent le mieux a ton terrain.</div>
+            </div>
+            <span class="badge badge-success">Actif : {{ $sectorProfile['label'] }}</span>
+        </div>
+
+        <div class="grid" style="margin-top:18px; margin-bottom:20px;">
+            <div class="summary-box">
+                <strong>Terrains cibles</strong>
+                <div class="chip-row" style="margin-top:10px;">
+                    @foreach ($sectorProfile['use_cases'] as $useCase)
+                        <span class="badge badge-muted">{{ $useCase }}</span>
+                    @endforeach
+                </div>
+                <div class="help" style="margin-top:10px;">{{ $sectorProfile['description'] }}</div>
+            </div>
+            <div class="summary-box">
+                <strong>Unites conseillees</strong>
+                <div class="chip-row" style="margin-top:10px;">
+                    @foreach ($sectorProfile['recommended_units'] as $unit)
+                        <span class="badge badge-muted">{{ $unit }}</span>
+                    @endforeach
+                </div>
+                <div class="help" style="margin-top:10px;">Bon point de depart pour configurer le catalogue et les conditionnements.</div>
+            </div>
+            <div class="summary-box">
+                <strong>Paiements terrain</strong>
+                <div class="chip-row" style="margin-top:10px;">
+                    @foreach ($sectorProfile['recommended_payments'] as $payment)
+                        <span class="badge badge-muted">{{ $payment }}</span>
+                    @endforeach
+                </div>
+                <div class="help" style="margin-top:10px;">Canaux conseilles pour garder une experience simple au comptoir ou en recouvrement.</div>
+            </div>
+            <div class="summary-box">
+                <strong>Catalogue de depart</strong>
+                <div class="chip-row" style="margin-top:10px;">
+                    @foreach ($sectorProfile['starter_catalog'] as $item)
+                        <span class="badge badge-muted">{{ $item }}</span>
+                    @endforeach
+                </div>
+                <div class="help" style="margin-top:10px;">Le dashboard utilisera ensuite ce profil pour recommander les bons modules.</div>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ route('settings.sector-profile.update') }}">
+            @csrf
+            @method('PUT')
+            <div class="grid">
+                @foreach ($sectorProfiles as $profile)
+                    @php
+                        $isSelected = $selectedSectorKey === $profile['key'];
+                    @endphp
+                    <label class="summary-box" style="display:block; cursor:pointer; border-color: {{ $isSelected ? 'rgba(15, 118, 110, 0.36)' : 'rgba(102, 82, 56, 0.10)' }}; background: {{ $isSelected ? 'linear-gradient(135deg, rgba(239, 250, 248, 0.94) 0%, rgba(255, 249, 240, 0.92) 100%)' : 'rgba(255, 255, 255, 0.78)' }};">
+                        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                            <div style="display:flex; gap:10px; align-items:flex-start; text-transform:none; letter-spacing:0; font-weight:700;">
+                                <input type="radio" name="sector_profile" value="{{ $profile['key'] }}" @checked($isSelected)>
+                                <span>
+                                    <strong>{{ $profile['label'] }}</strong>
+                                    <span class="muted" style="display:block; margin-top:6px; font-weight:600;">{{ $profile['badge'] }}</span>
+                                </span>
+                            </div>
+                            @if ($sectorProfile['key'] === $profile['key'])
+                                <span class="badge badge-success">Actuel</span>
+                            @endif
+                        </div>
+                        <div class="help" style="margin-top:12px;">{{ $profile['description'] }}</div>
+                        <div class="chip-row" style="margin-top:12px;">
+                            @foreach ($profile['use_cases'] as $useCase)
+                                <span class="badge badge-muted">{{ $useCase }}</span>
+                            @endforeach
+                        </div>
+                        <div class="help" style="margin-top:12px;"><strong>Focus terrain :</strong> {{ implode(' · ', $profile['operational_focus']) }}</div>
+                        <div class="help" style="margin-top:8px;"><strong>Modules conseilles :</strong> {{ collect($profile['recommended_modules'])->pluck('label')->implode(' · ') }}</div>
+                    </label>
+                @endforeach
+            </div>
+            <div class="actions">
+                <button type="submit" class="button button-primary">Appliquer le profil secteur</button>
+            </div>
+        </form>
+    </section>
+
     <div class="split" style="margin-top:18px;">
         <section class="card">
             <h2 style="margin-top:0;">Workflow d approbation</h2>
@@ -137,6 +227,7 @@
 
         <section class="card">
             <h2 style="margin-top:0;">Notifications externes d approbation</h2>
+            <div class="help" style="margin-bottom:16px;">Les emails utilisent le mailer Laravel configure. WhatsApp passe par le webhook defini dans <code>WHATSAPP_WEBHOOK_URL</code> et accepte un token Bearer via <code>WHATSAPP_API_TOKEN</code>.</div>
             <form method="POST" action="{{ route('settings.approval-notifications.update') }}">
                 @csrf
                 @method('PUT')
@@ -317,7 +408,103 @@
 
         <section class="card">
             <h2 style="margin-top:0;">API et integrations</h2>
-            <div class="help" style="margin-bottom:16px;">Les jetons donnent acces a l API v1 securisee par Bearer token. Les evenements metier partent maintenant aussi dans une outbox interne.</div>
+            <div class="help" style="margin-bottom:16px;">Les jetons donnent acces a l API v1 securisee par Bearer token. Les evenements metier peuvent maintenant etre publies vers un webhook sortant avec historique des tentatives.</div>
+
+            <div class="summary-box" style="margin-bottom:16px;">
+                <strong>Webhook sortant outbox</strong>
+                <div class="chip-row" style="margin-top:10px;">
+                    <span class="badge {{ $integrationWebhook['enabled'] ? 'badge-success' : 'badge-muted' }}">{{ $integrationWebhook['enabled'] ? 'Actif' : 'Inactif' }}</span>
+                    <span class="badge badge-muted">Timeout : {{ $integrationWebhook['timeout'] }}s</span>
+                </div>
+                <div class="help" style="margin-top:10px;">Nema ERP enverra un <code>POST</code> JSON avec les en-tetes <code>X-Nema-Event</code>, <code>X-Nema-Event-Id</code> et une signature HMAC <code>X-Nema-Signature</code> si un secret est defini.</div>
+            </div>
+
+            <form method="POST" action="{{ route('settings.integrations.webhook.update') }}" style="margin-bottom:20px;">
+                @csrf
+                @method('PUT')
+                <div class="form-grid">
+                    <div class="checkbox-card"><label style="display:flex; gap:10px; align-items:center; margin:0;"><input type="checkbox" name="webhook[enabled]" value="1" @checked(old('webhook.enabled', $integrationWebhook['enabled']))> Activer la publication webhook</label></div>
+                    <div><label>Timeout (secondes)</label><input type="number" name="webhook[timeout]" min="1" max="60" value="{{ old('webhook.timeout', $integrationWebhook['timeout']) }}"></div>
+                    <div class="full"><label>URL webhook</label><input type="url" name="webhook[url]" placeholder="https://api.partenaire.test/nema/webhooks" value="{{ old('webhook.url', $integrationWebhook['url']) }}"></div>
+                    <div class="full"><label>Secret de signature</label><input type="text" name="webhook[secret]" placeholder="secret-shared-key" value="{{ old('webhook.secret', $integrationWebhook['secret']) }}"></div>
+                </div>
+                <div class="actions"><button type="submit" class="button button-primary">Mettre a jour le webhook</button></div>
+            </form>
+
+            <div class="summary-box" style="margin-bottom:16px;">
+                <strong>Passerelles de paiement terrain</strong>
+                <div class="help" style="margin-top:8px;">Configure ici les numeros et comptes a afficher au client pour Wave, Orange Money, Moov Money et virement bancaire.</div>
+            </div>
+
+            <form method="POST" action="{{ route('settings.payment-gateways.update') }}" style="margin-bottom:20px;">
+                @csrf
+                @method('PUT')
+                <div class="grid">
+                    @foreach ($paymentGateways as $method => $channel)
+                        <div class="summary-box">
+                            <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
+                                <div>
+                                    <strong>{{ $channel['label'] }}</strong>
+                                    <div class="chip-row" style="margin-top:8px;">
+                                        <span class="badge {{ $channel['callback_ready'] ? 'badge-success' : 'badge-muted' }}">{{ $channel['callback_ready'] ? 'Callback pret' : 'Callback non configure' }}</span>
+                                        @if ($channel['auto_record'])
+                                            <span class="badge badge-success">Encaissement auto</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <label style="display:flex; gap:8px; align-items:center; margin:0; text-transform:none; letter-spacing:0; font-weight:600;">
+                                    <input type="checkbox" name="channels[{{ $method }}][enabled]" value="1" @checked(old('channels.'.$method.'.enabled', $channel['enabled']))>
+                                    Actif
+                                </label>
+                            </div>
+                            <div class="form-grid" style="margin-top:12px; grid-template-columns:repeat(2, minmax(0, 1fr));">
+                                <div>
+                                    <label>Libelle public</label>
+                                    <input type="text" name="channels[{{ $method }}][label]" value="{{ old('channels.'.$method.'.label', $channel['label']) }}">
+                                </div>
+                                <div>
+                                    <label>Numero / compte</label>
+                                    <input type="text" name="channels[{{ $method }}][collection_number]" value="{{ old('channels.'.$method.'.collection_number', $channel['collection_number']) }}" placeholder="+223..., IBAN, numero marchand...">
+                                </div>
+                                <div class="full">
+                                    <label>Nom du compte</label>
+                                    <input type="text" name="channels[{{ $method }}][account_name]" value="{{ old('channels.'.$method.'.account_name', $channel['account_name']) }}" placeholder="Nema Distribution / Compte collecte">
+                                </div>
+                                <div class="full">
+                                    <label>Instructions client</label>
+                                    <textarea name="channels[{{ $method }}][instructions]" placeholder="Reference facture, capture a envoyer, agence concernee...">{{ old('channels.'.$method.'.instructions', $channel['instructions']) }}</textarea>
+                                </div>
+                                <div>
+                                    <label>Compte de tresorerie de rapprochement</label>
+                                    <select name="channels[{{ $method }}][cash_account_id]">
+                                        <option value="">Aucun rapprochement auto</option>
+                                        @foreach ($cashAccounts as $cashAccount)
+                                            <option value="{{ $cashAccount->id }}" @selected((string) old('channels.'.$method.'.cash_account_id', $channel['cash_account_id']) === (string) $cashAccount->id)>{{ $cashAccount->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Secret callback entrant</label>
+                                    <input type="text" name="channels[{{ $method }}][callback_secret]" value="{{ old('channels.'.$method.'.callback_secret', $channel['callback_secret']) }}" placeholder="secret-shared-{{ $method }}">
+                                </div>
+                                <div class="full checkbox-card">
+                                    <label style="display:flex; gap:10px; align-items:center; margin:0; text-transform:none; letter-spacing:0;">
+                                        <input type="checkbox" name="channels[{{ $method }}][auto_record]" value="1" @checked(old('channels.'.$method.'.auto_record', $channel['auto_record']))>
+                                        Enregistrer automatiquement l encaissement si le callback revient en succes
+                                    </label>
+                                </div>
+                                <div class="full">
+                                    <label>URL callback entrant</label>
+                                    <input type="text" value="{{ $channel['callback_url'] }}" readonly onclick="this.select()">
+                                    <div class="help" style="margin-top:8px;">Le prestataire doit appeler cette URL en <code>POST</code> avec au minimum <code>invoice_number</code>, <code>status</code>, <code>amount</code>, <code>reference</code> et le secret dans <code>X-Nema-Gateway-Secret</code> ou <code>secret</code>.</div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="actions"><button type="submit" class="button button-primary">Mettre a jour les passerelles</button></div>
+            </form>
+
             <div class="grid" style="margin-bottom:16px;">
                 @forelse ($apiTokens as $apiToken)
                     <div class="summary-box">
@@ -352,3 +539,8 @@
         </section>
     </div>
 @endsection
+
+
+
+
+

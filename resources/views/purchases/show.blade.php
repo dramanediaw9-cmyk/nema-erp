@@ -52,6 +52,27 @@
         </div>
     </section>
 
+    @if ($bill->goodsReceipt || $bill->purchaseOrder)
+        <section class="card" style="margin-bottom:20px;">
+            <h2 style="margin-top:0;">Origine du dossier achat</h2>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+                @if ($bill->purchaseOrder)
+                    <div class="card" style="padding:16px;">
+                        <div class="muted">Commande fournisseur</div>
+                        <div style="margin-top:8px; font-weight:600;"><a href="{{ route('purchase-orders.show', $bill->purchaseOrder) }}">{{ $bill->purchaseOrder->order_number }}</a></div>
+                    </div>
+                @endif
+                @if ($bill->goodsReceipt)
+                    <div class="card" style="padding:16px;">
+                        <div class="muted">Reception source</div>
+                        <div style="margin-top:8px; font-weight:600;"><a href="{{ route('goods-receipts.show', $bill->goodsReceipt) }}">{{ $bill->goodsReceipt->receipt_number }}</a></div>
+                        <div class="muted" style="margin-top:8px;">Stock deja mis a jour a la reception, sans double impact a la facturation.</div>
+                    </div>
+                @endif
+            </div>
+        </section>
+    @endif
+
     <div class="grid stats-grid" style="margin-bottom:20px;">
         <div class="card"><div class="muted">Workflow</div><div class="stat-value" style="font-size:24px;">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</div></div>
         <div class="card"><div class="muted">Total facture</div><div class="stat-value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div></div>
@@ -76,7 +97,7 @@
             <div class="grid">
                 <div><strong>Statut paiement</strong><div class="muted">{{ $bill->payment_status === 'paid' ? 'Payee' : ($bill->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}</div></div>
                 <div><strong>Entrepot</strong><div class="muted">{{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</div></div>
-                <div><strong>Effet stock</strong><div class="muted">{{ $bill->status === 'validated' ? 'Stock mis a jour' : 'En attente d approbation finale' }}</div></div>
+                <div><strong>Effet stock</strong><div class="muted">{{ $bill->goodsReceipt ? 'Stock deja receptionne avant facturation' : ($bill->status === 'validated' ? 'Stock mis a jour' : 'En attente d approbation finale') }}</div></div>
                 <div><strong>Effet comptable</strong><div class="muted">{{ $bill->status === 'validated' ? 'Ecriture generee' : 'Ecriture en attente' }}</div></div>
                 <div><strong>Nombre de mouvements</strong><div class="muted">{{ $stockMovements->count() }} mouvement(s) de stock lie(s)</div></div>
             </div>
@@ -177,5 +198,3 @@
     </div>
     @include('partials.document-collaboration', ['document' => $bill, 'documentType' => 'purchase_bill', 'managePermission' => 'purchases.manage'])
 @endsection
-
-

@@ -103,6 +103,31 @@ class DocumentCollaborationTest extends TestCase
         $this->assertNull($event->published_at);
     }
 
+    public function test_manager_can_store_attachment_on_a_configured_cloud_disk(): void
+    {
+        Storage::fake('s3');
+        config()->set('nema.document_attachment_disk', 's3');
+
+        $this->actingAsManager();
+        $bill = PurchaseBill::query()->firstOrFail();
+
+        $this->from(route('purchases.show', $bill))
+            ->post(route('documents.attachments.store'), [
+                'document_type' => 'purchase_bill',
+                'document_id' => $bill->id,
+                'attachment_file' => UploadedFile::fake()->create('facture-cloud.pdf', 128, 'application/pdf'),
+            ])
+            ->assertRedirect(route('purchases.show', $bill));
+
+        $attachment = Attachment::query()->latest('id')->firstOrFail();
+
+        $this->assertSame('s3', $attachment->disk);
+        Storage::disk('s3')->assertExists($attachment->path);
+
+        $this->get(route('documents.attachments.show', $attachment))
+            ->assertOk();
+    }
+
     private function actingAsManager(): User
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();

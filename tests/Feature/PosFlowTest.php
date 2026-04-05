@@ -49,6 +49,7 @@ class PosFlowTest extends TestCase
                 'notes' => 'TEST-POS-SALE',
                 'discount_type' => 'none',
                 'discount_value' => 0,
+                'cash_received_amount' => 1000,
                 'items' => [
                     [
                         'product_id' => $product->id,
@@ -185,6 +186,45 @@ class PosFlowTest extends TestCase
             ->assertSeeText('855');
     }
 
+    public function test_cashier_cannot_validate_pos_sale_when_cash_received_is_insufficient(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->from(route('pos.sales.create'))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-CASH-LOW-001',
+                'notes' => 'TEST-POS-CASH-LOW',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 900,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket cash insuffisant',
+                        'qty' => 2,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.sales.create'))
+            ->assertSessionHasErrors('cash_received_amount');
+
+        $this->assertDatabaseMissing('sales_invoices', [
+            'company_id' => $user->company_id,
+            'notes' => 'TEST-POS-CASH-LOW',
+        ]);
+    }
     public function test_cashier_can_record_mixed_pos_payment_and_show_change_on_receipts(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
@@ -270,6 +310,120 @@ class PosFlowTest extends TestCase
             ->assertSeeText('Montant recu')
             ->assertSeeText('Monnaie rendue');
     }
+
+    public function test_pos_sync_key_prevents_duplicate_ticket_creation_when_resynchronised(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+        $session = $this->currentSession($user);
+
+        $payload = [
+            'sale_date' => now()->format('Y-m-d'),
+            'method' => 'cash',
+            'reference' => 'POS-OFFLINE-SYNC-001',
+            'notes' => 'TEST-POS-OFFLINE-SYNC',
+            'discount_type' => 'none',
+            'discount_value' => 0,
+            'cash_received_amount' => 1000,
+            'pos_sync_key' => 'pos-offline-sync-key-001',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'description' => 'Ticket hors ligne resynchronise',
+                    'qty' => 2,
+                    'unit_price' => 500,
+                    'discount_type' => 'none',
+                    'discount_value' => 0,
+                ],
+            ],
+        ];
+
+        $first = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->postJson(route('pos.sales.store'), $payload);
+
+        $first->assertCreated()
+            ->assertJsonPath('invoice.already_processed', false);
+
+        $invoiceId = $first->json('invoice.id');
+
+        $second = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->postJson(route('pos.sales.store'), $payload);
+
+        $second->assertOk()
+            ->assertJsonPath('invoice.id', $invoiceId)
+            ->assertJsonPath('invoice.already_processed', true);
+
+        $this->assertSame(1, SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('pos_sync_key', 'pos-offline-sync-key-001')
+            ->count());
+
+        $this->assertSame(1, DB::table('payments')
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('reference', 'POS-OFFLINE-SYNC-001')
+            ->count());
+    }
+
+    public function test_operations_officer_can_enter_another_open_branch_session_when_session_id_is_provided(): void
+    {
+        $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $operator = User::query()->where('email', 'ops@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $cashier->company_id)->where('branch_id', $cashier->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $cashier->company_id)->where('branch_id', $cashier->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $cashier->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($cashier, $cashAccount, $warehouse, 0);
+        $session = $this->currentSession($cashier);
+
+        $this->actingAs($operator)
+            ->withSession($this->workspaceSession($operator))
+            ->get(route('pos.sales.create', ['session' => $session->id]))
+            ->assertOk()
+            ->assertSeeText($session->session_number)
+            ->assertSeeText('Panier en cours');
+
+        $response = $this->actingAs($operator)
+            ->withSession($this->workspaceSession($operator))
+            ->post(route('pos.sales.store'), [
+                'pos_session_id' => $session->id,
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-SHARED-SESSION-001',
+                'notes' => 'TEST-POS-SHARED-SESSION',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Vente sur session ouverte par un autre operateur',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ]);
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $cashier->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('notes', 'TEST-POS-SHARED-SESSION')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('pos.receipt', $invoice));
+        $this->assertSame($session->id, $invoice->pos_session_id);
+        $this->assertSame($operator->id, $invoice->created_by);
+    }
+
     public function test_session_variance_requires_justification_and_count_sheet_is_printable(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
@@ -377,3 +531,4 @@ class PosFlowTest extends TestCase
             ->value('balance');
     }
 }
+

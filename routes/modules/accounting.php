@@ -33,6 +33,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/comptabilite/journaux/{journalEntry}', [JournalEntryController::class, 'show'])
         ->middleware('permission:accounting.view')
         ->name('accounting.journal-entries.show');
+    Route::post('/comptabilite/journaux/{journalEntry}/contrepasser', [JournalEntryController::class, 'reverse'])
+        ->middleware('permission:accounting.reverse')
+        ->name('accounting.journal-entries.reverse');
 
     Route::get('/comptabilite/balance', [BalanceController::class, 'index'])
         ->middleware('permission:accounting.view')

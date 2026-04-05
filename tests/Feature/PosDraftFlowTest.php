@@ -85,6 +85,7 @@ class PosDraftFlowTest extends TestCase
                 'notes' => 'VENTE ISSUE BROUILLON POS',
                 'discount_type' => 'none',
                 'discount_value' => 0,
+                'cash_received_amount' => 500,
                 'source_draft_id' => $draftId,
                 'items' => [
                     [

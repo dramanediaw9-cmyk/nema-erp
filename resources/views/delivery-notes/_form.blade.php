@@ -22,10 +22,10 @@
                 <select id="warehouse_id" name="warehouse_id">
                     <option value="">Entrepot par defaut de l'agence</option>
                     @foreach ($warehouses as $warehouse)
-                        <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id') === (string) $warehouse->id || (! old('warehouse_id') && $warehouse->is_default))>{{ $warehouse->code }} - {{ $warehouse->name }}</option>
+                        <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id', $selectedOrder?->warehouse_id) === (string) $warehouse->id || (! old('warehouse_id', $selectedOrder?->warehouse_id) && $warehouse->is_default))>{{ $warehouse->code }} - {{ $warehouse->name }}</option>
                     @endforeach
                 </select>
-                <div class="help">Le stock sera sorti de cet entrepot au moment de la validation du bon.</div>
+                <div class="help">Le stock sera sorti de cet entrepot au moment de la validation du bon. Le depot reserve sur la commande est preselectionne.</div>
                 @error('warehouse_id')<div class="field-error">{{ $message }}</div>@enderror
             </div>
             <div>
@@ -51,7 +51,7 @@
         <div class="summary-stack">
             <div class="tip-card">
                 <strong>Stock</strong>
-                <div class="muted">Chaque validation retire seulement les quantites effectivement livrees.</div>
+                <div class="muted">Chaque validation retire seulement les quantites effectivement livrees et libere la reservation correspondante.</div>
             </div>
             <div class="tip-card">
                 <strong>Comptabilite</strong>
@@ -78,6 +78,7 @@
         <div class="kpi-row" style="margin-top:16px;">
             <div class="kpi"><div class="label">Montant</div><div class="value">{{ number_format((float) $selectedOrder->total, 0, ',', ' ') }}</div></div>
             <div class="kpi"><div class="label">Livraison souhaitee</div><div class="value" style="font-size:20px;">{{ $selectedOrder->requested_delivery_date?->format('d/m/Y') ?? 'Non renseignee' }}</div></div>
+            <div class="kpi"><div class="label">Depot reserve</div><div class="value" style="font-size:20px;">{{ $selectedOrder->warehouse?->name ?? 'Depot principal' }}</div></div>
         </div>
 
         <div class="table-wrap" style="margin-top:18px;">
@@ -118,4 +119,3 @@
     <a href="{{ route('delivery-notes.index') }}" class="button button-secondary">Annuler</a>
     <button type="submit" class="button button-primary">Generer le bon de livraison</button>
 </div>
-

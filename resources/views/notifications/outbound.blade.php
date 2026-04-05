@@ -7,9 +7,37 @@
     <div class="page-head">
         <div>
             <h2 style="margin:0;">File d envoi approbations</h2>
-            <div class="muted">Base email et WhatsApp prete pour raccordement fournisseur. Les messages sont traces ici avant integration d envoi reel.</div>
+            <div class="muted">Les notifications email utilisent le mailer Laravel configure. WhatsApp passe par un webhook/API configurable via les variables d environnement.</div>
         </div>
+        @allowed('settings.manage')
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <form method="POST" action="{{ route('notifications.outbound.process') }}">
+                    @csrf
+                    <button type="submit" class="button button-primary">Traiter la file</button>
+                </form>
+                @if (($summary['failed'] ?? 0) > 0)
+                    <form method="POST" action="{{ route('notifications.outbound.retry-failed') }}">
+                        @csrf
+                        <button type="submit" class="button button-secondary">Relancer les echecs</button>
+                    </form>
+                @endif
+            </div>
+        @endallowed
     </div>
+
+    <div class="grid stats-grid" style="margin-bottom:20px;">
+        <div class="card"><div class="muted">En attente</div><div class="stat-value">{{ $summary['queued'] }}</div></div>
+        <div class="card"><div class="muted">Envoyees</div><div class="stat-value">{{ $summary['sent'] }}</div></div>
+        <div class="card"><div class="muted">En echec</div><div class="stat-value">{{ $summary['failed'] }}</div></div>
+    </div>
+
+    @if (($summary['queued'] ?? 0) > 0 || ($summary['failed'] ?? 0) > 0 || ($summary['sent'] ?? 0) > 0)
+        <div class="help" style="margin-bottom:18px;">
+            Plus ancienne en attente : {{ $summary['oldest_queued_at'] ? \Illuminate\Support\Carbon::parse($summary['oldest_queued_at'])->format('d/m/Y H:i') : 'Aucune' }}
+            · Dernier envoi : {{ $summary['last_sent_at'] ? \Illuminate\Support\Carbon::parse($summary['last_sent_at'])->format('d/m/Y H:i') : 'Aucun' }}
+            · Dernier echec : {{ $summary['last_failed_at'] ? \Illuminate\Support\Carbon::parse($summary['last_failed_at'])->format('d/m/Y H:i') : 'Aucun' }}
+        </div>
+    @endif
 
     <div class="card" style="margin-bottom:18px;">
         <form method="GET" class="form-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); align-items:end;">
@@ -47,7 +75,8 @@
                     <th>Document</th>
                     <th>Etape</th>
                     <th>Statut</th>
-                    <th>Cree le</th>
+                    <th>Dernier evenement</th>
+                    <th>Erreur</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -68,11 +97,23 @@
                                 {{ $notification->status === 'queued' ? 'En attente' : ($notification->status === 'sent' ? 'Envoye' : 'En erreur') }}
                             </span>
                         </td>
-                        <td>{{ $notification->created_at?->format('d/m/Y H:i') }}</td>
+                        <td>
+                            @if ($notification->status === 'sent')
+                                <div>{{ $notification->sent_at?->format('d/m/Y H:i') ?: 'N/A' }}</div>
+                                <div class="muted">{{ strtoupper((string) data_get($notification->meta, 'delivery.transport', '')) }}</div>
+                            @elseif ($notification->status === 'failed')
+                                <div>{{ $notification->failed_at?->format('d/m/Y H:i') ?: 'N/A' }}</div>
+                                <div class="muted">Tentative en echec</div>
+                            @else
+                                <div>{{ $notification->queued_at?->format('d/m/Y H:i') ?: $notification->created_at?->format('d/m/Y H:i') }}</div>
+                                <div class="muted">File d attente</div>
+                            @endif
+                        </td>
+                        <td>{{ $notification->failure_reason ?: '-' }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="muted">Aucune notification sortante pour ce filtre.</td>
+                        <td colspan="7" class="muted">Aucune notification sortante pour ce filtre.</td>
                     </tr>
                 @endforelse
                 </tbody>

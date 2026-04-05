@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'whatsapp' => [
+        'webhook_url' => env('WHATSAPP_WEBHOOK_URL'),
+        'api_token' => env('WHATSAPP_API_TOKEN'),
+        'from' => env('WHATSAPP_FROM'),
+        'timeout' => (int) env('WHATSAPP_TIMEOUT', 10),
+    ],
+
+    'integrations' => [
+        'webhook_timeout' => (int) env('INTEGRATIONS_WEBHOOK_TIMEOUT', 10),
+    ],
+
 ];

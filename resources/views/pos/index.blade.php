@@ -169,7 +169,7 @@
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
                 @if ($currentSession)
-                    <a href="{{ route('pos.sales.create') }}" class="button button-primary">Nouvelle vente comptoir</a>
+                    <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">Nouvelle vente comptoir</a>
                     <a href="{{ route('pos.show', $currentSession) }}" class="button button-secondary">Voir la session</a>
                 @endif
             </div>
@@ -347,7 +347,7 @@
                                     <div style="display:grid; gap:8px; justify-items:end;">
                                         <a href="{{ route('pos.receipt', $invoice) }}" class="button button-secondary">Ticket</a>
                                         <a href="{{ route('pos.receipt.thermal', $invoice) }}" class="button button-secondary">Thermique</a>
-                                        <a href="{{ route('pos.returns.create', $invoice) }}" class="button button-secondary">Retour</a>
+                                        <a href="{{ route('pos.returns.create', ['sale' => $invoice, 'session' => $currentSession->id]) }}" class="button button-secondary">Retour</a>
                                     </div>
                                 </div>
                             @empty
@@ -476,3 +476,4 @@
     });
     </script>
 @endsection
+

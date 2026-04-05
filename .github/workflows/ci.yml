@@ -40,5 +40,17 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      - name: Run Pint On Hardened Core Surfaces
+        run: >-
+          vendor/bin/pint --test
+          app/Modules/Core/Onboarding
+          app/Modules/Core/Ops
+          routes/console.php
+          config/ops.php
+          tests/Feature/OpsHealthTest.php
+          tests/Feature/PilotReadinessTest.php
+          tests/Feature/SectorDemoDataTest.php
+          tests/Feature/SectorOnboardingStarterTest.php
+
       - name: Run tests
         run: php artisan test

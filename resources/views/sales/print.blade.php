@@ -16,7 +16,7 @@
             <div><strong>Date :</strong> {{ $invoice->invoice_date?->format('d/m/Y') }}</div>
             <div class="meta">Echeance : {{ $invoice->due_date?->format('d/m/Y') ?: 'Non definie' }}</div>
             <div class="meta">Agence : {{ $invoice->branch?->name }}</div>
-            <div class="meta">Workflow : {{ $invoice->status === 'validated' ? 'Approuvee' : 'En attente' }}</div>
+            <div class="meta">Workflow : {{ $invoice->status === 'validated' ? 'Approuvee' : ($invoice->status === 'cancelled' ? 'Annulee' : 'En attente') }}</div>
             <div class="meta">Devise : {{ $invoice->company?->currency_code ?: 'XOF' }}</div>
         </div>
     </section>
@@ -32,8 +32,9 @@
         </div>
         <div class="panel">
             <h2>Situation de reglement</h2>
-            <div><strong>Workflow :</strong> {{ $invoice->status === 'validated' ? 'Approuvee' : 'En attente d approbation' }}</div>
+            <div><strong>Workflow :</strong> {{ $invoice->status === 'validated' ? 'Approuvee' : ($invoice->status === 'cancelled' ? 'Annulee' : 'En attente d approbation') }}</div>
             <div><strong>Approuvee par :</strong> {{ $invoice->approver?->name ?? 'Non approuvee' }}</div>
+            <div><strong>Annulee par :</strong> {{ $invoice->cancelledBy?->name ?? 'Non annulee' }}</div>
             <div><strong>Statut paiement :</strong> {{ $invoice->payment_status === 'paid' ? 'Payee' : ($invoice->payment_status === 'partial' ? 'Partiellement payee' : 'Impayee') }}</div>
             <div><strong>Montant paye :</strong> {{ number_format((float) $invoice->amount_paid, 0, ',', ' ') }} XOF</div>
             <div><strong>Solde restant :</strong> {{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF</div>
@@ -100,4 +101,5 @@
         <div class="signature-box">Signature client</div>
     </div>
 @endsection
+
 

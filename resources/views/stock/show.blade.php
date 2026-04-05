@@ -41,13 +41,33 @@
     </section>
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Stock actuel</div><div class="stat-value">{{ number_format($currentStock, 3, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Stock physique</div><div class="stat-value">{{ number_format($currentStock, 3, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Stock vendable</div><div class="stat-value">{{ number_format($saleableStock, 3, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Reserve</div><div class="stat-value">{{ number_format($reservedStock, 3, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Disponible a promettre</div><div class="stat-value">{{ number_format($availableToPromise, 3, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Stock minimum</div><div class="stat-value">{{ number_format((float) $product->min_stock, 3, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Entrees cumulees</div><div class="stat-value">{{ number_format($totalIn, 3, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Sorties cumulees</div><div class="stat-value">{{ number_format($totalOut, 3, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Stock minimum</div><div class="stat-value">{{ number_format((float) $product->min_stock, 3, ',', ' ') }}</div></div>
     </div>
 
     <div class="split">
+        <section class="card">
+            <h2 style="margin-top:0;">Reservations ouvertes</h2>
+            @forelse ($reservationOrders as $reservation)
+                @php($reservedOrder = $reservation['order'])
+                <div style="padding-bottom:14px; border-bottom:1px solid #efe4d3; margin-bottom:14px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <strong>{{ $reservedOrder->order_number }}</strong>
+                        <div class="muted" style="margin-top:6px;">{{ $reservedOrder->customer?->name }} · {{ $reservedOrder->warehouse?->name ?? 'Depot principal' }}</div>
+                        <div class="muted" style="margin-top:6px;">Reserve : {{ number_format((float) $reservation['reserved_qty'], 3, ',', ' ') }} · Livraison souhaitee : {{ $reservedOrder->requested_delivery_date?->format('d/m/Y') ?? 'Non renseignee' }}</div>
+                    </div>
+                    <a href="{{ route('orders.show', $reservedOrder) }}" class="button button-secondary">Ouvrir</a>
+                </div>
+            @empty
+                <p class="muted">Aucune reservation ouverte sur ce produit pour ce perimetre.</p>
+            @endforelse
+        </section>
+
         <section class="card">
             <h2 style="margin-top:0;">Documents lies</h2>
             @forelse ($relatedDocuments as $document)
@@ -62,7 +82,9 @@
                 <p class="muted">Aucun document n'est rattache a ce produit pour ce perimetre.</p>
             @endforelse
         </section>
+    </div>
 
+    <div class="split" style="margin-top:20px;">
         <section class="card">
             <h2 style="margin-top:0;">Ecritures comptables liees</h2>
             @forelse ($journalEntries as $entry)
@@ -76,6 +98,24 @@
             @empty
                 <p class="muted">Aucune ecriture comptable rattachee a ce produit.</p>
             @endforelse
+        </section>
+
+        <section class="card">
+            <h2 style="margin-top:0;">Lecture rapide</h2>
+            <div class="summary-stack">
+                <div class="tip-card">
+                    <strong>Stock physique</strong>
+                    <div class="muted">Ce qui est reellement present selon les mouvements deja postes.</div>
+                </div>
+                <div class="tip-card">
+                    <strong>Stock vendable</strong>
+                    <div class="muted">Pour les produits suivis par lot ou serie, les lots expires sont exclus du vendable.</div>
+                </div>
+                <div class="tip-card">
+                    <strong>Disponible a promettre</strong>
+                    <div class="muted">Ce qui reste encore vendable apres deduction des commandes confirmees non encore livrees.</div>
+                </div>
+            </div>
         </section>
     </div>
 
@@ -122,5 +162,3 @@
         </div>
     </section>
 @endsection
-
-

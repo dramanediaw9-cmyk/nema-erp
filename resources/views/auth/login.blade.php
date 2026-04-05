@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4ede2">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('icons/pos-192.png') }}">
+    <link rel="manifest" href="{{ asset('app-manifest.webmanifest') }}">
     <title>Connexion - Nema ERP</title>
     <style>
         body {
@@ -36,6 +41,7 @@
             box-sizing: border-box;
         }
         button {
+            touch-action: manipulation;
             width: 100%;
             padding: 13px 16px;
             border-radius: 12px;
@@ -74,10 +80,10 @@
         <form method="POST" action="{{ route('login.store') }}">
             @csrf
             <label for="email">Adresse e-mail</label>
-            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus>
+            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username email" autocapitalize="off" spellcheck="false" inputmode="email" enterkeyhint="next">
 
             <label for="password">Mot de passe</label>
-            <input id="password" type="password" name="password" required>
+            <input id="password" type="password" name="password" required autocomplete="current-password" enterkeyhint="go">
 
             <label class="remember" for="remember">
                 <input id="remember" type="checkbox" name="remember" value="1">

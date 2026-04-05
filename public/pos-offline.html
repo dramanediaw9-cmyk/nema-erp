@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#102730">
+    <title>Nema POS hors ligne</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: radial-gradient(circle at top left, rgba(15,118,110,.28), transparent 30%), linear-gradient(180deg, #0d1820 0%, #102730 55%, #0b2027 100%);
+            color: #f8f7f2;
+            font-family: "Segoe UI", Aptos, sans-serif;
+            padding: 24px;
+        }
+        .card {
+            width: min(540px, 100%);
+            padding: 28px;
+            border-radius: 24px;
+            background: rgba(14, 28, 35, 0.92);
+            border: 1px solid rgba(255,255,255,.08);
+            box-shadow: 0 28px 70px rgba(0,0,0,.28);
+        }
+        h1 { margin: 0 0 10px; font-size: 28px; }
+        p { margin: 0 0 14px; line-height: 1.6; color: #d5d9db; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+        a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #0f766e 0%, #1e9388 100%);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .ghost {
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.08);
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Le point de vente est temporairement hors ligne</h1>
+        <p>La caisse peut conserver les tickets prepares sur cet appareil. Des que la connexion revient, la file offline se resynchronise automatiquement.</p>
+        <p>Si la page etait deja ouverte, reviens a la caisse et continue a scanner. Sinon, reconnecte-toi puis relance l ecran POS.</p>
+        <div class="actions">
+            <a href="./point-de-vente/vente">Ouvrir la caisse</a>
+            <a class="ghost" href="./login">Retour connexion</a>
+        </div>
+    </div>
+</body>
+</html>

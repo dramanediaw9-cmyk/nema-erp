@@ -17,11 +17,13 @@
         $statusClass = match ($order->status) {
             'confirmed', 'delivered', 'converted' => 'badge-success',
             'partial_delivered' => 'badge-warning',
-            'cancelled' => 'badge-muted',
+            'cancelled' => 'badge-danger',
             default => 'badge-muted',
         };
         $deliveryProgress = $order->items->sum('qty') > 0 ? round(($order->items->sum('delivered_qty') / $order->items->sum('qty')) * 100, 1) : 0;
+        $reservedQty = in_array($order->status, ['confirmed', 'partial_delivered'], true) ? (float) $order->items->sum(fn ($item) => $item->remainingQty()) : 0;
         $hasRemainingDelivery = $order->items->contains(fn ($item) => $item->remainingQty() > 0);
+        $invoiceStatusLabel = $order->convertedInvoice ? 'Facturee' : ($order->status === 'delivered' ? 'A facturer' : 'Non facturee');
     @endphp
 
     <div class="page-head">
@@ -41,6 +43,13 @@
                 <div>
                     <div class="muted">Statut</div>
                     <span class="badge {{ $statusClass }}" style="margin-top:8px;">{{ $statusLabel }}</span>
+                    <div class="chip-row" style="margin-top:10px;">
+                        <span class="badge badge-muted">Facturation : {{ $invoiceStatusLabel }}</span>
+                        @if ($order->salesperson_name)
+                            <span class="badge badge-muted">Commercial : {{ $order->salesperson_name }}</span>
+                        @endif
+                        <span class="badge badge-muted">Depot : {{ $order->warehouse?->name ?? 'Depot principal' }}</span>
+                    </div>
                 </div>
                 <div class="summary-box" style="min-width:220px;">
                     <div class="muted">Montant de la commande</div>
@@ -58,8 +67,24 @@
                     <strong>{{ $order->requested_delivery_date?->format('d/m/Y') ?? 'Non renseignee' }}</strong>
                 </div>
                 <div>
+                    <div class="muted">Date d engagement</div>
+                    <strong>{{ $order->commitment_date?->format('d/m/Y') ?? 'Non renseignee' }}</strong>
+                </div>
+                <div>
+                    <div class="muted">Reference client</div>
+                    <strong>{{ $order->customer_reference ?: 'Aucune' }}</strong>
+                </div>
+                <div>
+                    <div class="muted">Document source</div>
+                    <strong>{{ $order->source_document ?: 'Aucun' }}</strong>
+                </div>
+                <div>
                     <div class="muted">Creee par</div>
                     <strong>{{ $order->creator?->name ?? 'Systeme' }}</strong>
+                </div>
+                <div>
+                    <div class="muted">Depot de preparation</div>
+                    <strong>{{ $order->warehouse?->name ?? 'Depot principal agence' }}</strong>
                 </div>
                 <div>
                     <div class="muted">Facture directe issue de la commande</div>
@@ -70,10 +95,6 @@
                     @endif
                 </div>
                 <div>
-                    <div class="muted">Confirmee le</div>
-                    <strong>{{ $order->confirmed_at?->format('d/m/Y H:i') ?? 'Pas encore' }}</strong>
-                </div>
-                <div>
                     <div class="muted">Devis source</div>
                     @if ($order->originQuote)
                         <a href="{{ route('quotes.show', $order->originQuote) }}"><strong>{{ $order->originQuote->quote_number }}</strong></a>
@@ -81,7 +102,18 @@
                         <strong>Aucun</strong>
                     @endif
                 </div>
+                <div>
+                    <div class="muted">Confirmee le</div>
+                    <strong>{{ $order->confirmed_at?->format('d/m/Y H:i') ?? 'Pas encore' }}</strong>
+                </div>
             </div>
+
+            @if ($order->delivery_instruction)
+                <div class="card" style="margin-top:18px; padding:16px;">
+                    <div class="muted">Instructions de livraison</div>
+                    <div style="margin-top:8px; line-height:1.6;">{{ $order->delivery_instruction }}</div>
+                </div>
+            @endif
 
             <div class="card" style="margin-top:18px; padding:16px;">
                 <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
@@ -92,6 +124,28 @@
                     <span class="badge {{ $deliveryProgress >= 100 ? 'badge-success' : 'badge-warning' }}">{{ number_format($deliveryProgress, 1, ',', ' ') }} %</span>
                 </div>
                 <div class="progress" style="margin-top:12px;"><div class="progress-bar" style="width: {{ min(100, $deliveryProgress) }}%;"></div></div>
+                <div class="chip-row" style="margin-top:12px;">
+                    <span class="badge badge-warning">Reserve en stock : {{ number_format($reservedQty, 3, ',', ' ') }}</span>
+                    <span class="badge badge-muted">Reste a livrer : {{ number_format((float) $order->items->sum(fn ($item) => $item->remainingQty()), 3, ',', ' ') }}</span>
+                </div>
+            </div>
+
+            <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px; margin-top:18px;">
+                <div class="card" style="padding:16px;">
+                    <div class="muted">Lignes couvertes maintenant</div>
+                    <div class="value" style="font-size:1.5rem; margin-top:6px;">{{ $coverageSummary['covered_now'] }}</div>
+                    <div class="muted" style="margin-top:8px;">Disponibles ou deja securisees par la reservation.</div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div class="muted">Couvre par appro</div>
+                    <div class="value" style="font-size:1.5rem; margin-top:6px;">{{ $coverageSummary['covered_incoming'] }}</div>
+                    <div class="muted" style="margin-top:8px;">Depend d un achat fournisseur deja attendu.</div>
+                </div>
+                <div class="card" style="padding:16px;">
+                    <div class="muted">Lignes a risque</div>
+                    <div class="value" style="font-size:1.5rem; margin-top:6px;">{{ $coverageSummary['at_risk'] }}</div>
+                    <div class="muted" style="margin-top:8px;">Demandent une action achat ou un arbitrage stock.</div>
+                </div>
             </div>
 
             @if ($order->notes)
@@ -104,6 +158,50 @@
 
         <aside class="card">
             <h2 class="section-title">Actions</h2>
+            @if (isset($portal))
+                <div class="card" style="padding:16px; margin-bottom:14px;">
+                    <strong>Portail client</strong>
+                    <div class="muted" style="margin:8px 0 12px;">Lien signe partageable jusqu au {{ $portal['expires_at']->format('d/m/Y H:i') }}.</div>
+                    <div>
+                        <label for="order_portal_url">Lien partageable</label>
+                        <input id="order_portal_url" type="text" value="{{ $portal['view_url'] }}" readonly onclick="this.select()" style="font-size:12px;">
+                    </div>
+                    <div class="actions" style="justify-content:flex-start; margin-top:12px;">
+                        <a href="{{ $portal['view_url'] }}" class="button button-secondary" target="_blank" rel="noopener">Ouvrir le portail</a>
+                        @if ($portal['whatsapp_url'])
+                            <a href="{{ $portal['whatsapp_url'] }}" class="button button-primary" target="_blank" rel="noopener">Partager via WhatsApp</a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+            @if ($order->latestPortalAction)
+                <div class="card" style="padding:16px; margin-bottom:14px;">
+                    @include('partials.portal-action-summary', ['portalAction' => $order->latestPortalAction, 'title' => 'Signature client portail'])
+                </div>
+            @endif
+
+            <div class="card" style="padding:16px; margin-bottom:14px;">
+                <strong>Promesse logistique</strong>
+                <div class="muted" style="margin:8px 0 12px;">Lecture rapide du reste a livrer ou a couvrir sur cette commande.</div>
+                <div class="chip-row">
+                    <span class="badge badge-success">Couvert maintenant : {{ $coverageSummary['covered_now'] }}</span>
+                    <span class="badge badge-warning">Avec achat attendu : {{ $coverageSummary['covered_incoming'] }}</span>
+                    <span class="badge badge-danger">A risque : {{ $coverageSummary['at_risk'] }}</span>
+                </div>
+                @allowed('purchase_requests.manage')
+                    @if ($openGeneratedPurchaseRequest)
+                        <div class="muted" style="margin:12px 0 10px;">Une demande d achat issue de cette commande est deja ouverte.</div>
+                        <a href="{{ route('purchase-requests.show', $openGeneratedPurchaseRequest) }}" class="button button-secondary" style="width:100%; text-align:center;">Ouvrir la demande liee</a>
+                    @elseif ($coverageSummary['at_risk'] > 0)
+                        <div class="muted" style="margin:12px 0 10px;">Genere automatiquement une demande d achat sur les lignes encore non couvertes.</div>
+                        <form method="POST" action="{{ route('orders.generate-purchase-request', $order) }}">
+                            @csrf
+                            <button type="submit" class="button button-primary" style="width:100%;">Generer une demande d achat</button>
+                        </form>
+                    @endif
+                @endallowed
+            </div>
+
             <div class="summary-stack">
                 @if ($order->status === 'draft')
                     <form method="POST" action="{{ route('orders.confirm', $order) }}">
@@ -168,19 +266,44 @@
                     <th>Description</th>
                     <th>Commande</th>
                     <th>Deja livre</th>
+                    <th>Reserve</th>
                     <th>Reste</th>
+                    <th>Couverture previsionnelle</th>
                     <th>PU</th>
                     <th>Total</th>
                 </tr>
                 </thead>
                 <tbody>
                 @foreach ($order->items as $item)
+                    @php
+                        $coverage = $lineCoverage[$item->id] ?? null;
+                    @endphp
                     <tr>
                         <td>@include('partials.product-inline', ['product' => $item->product, 'meta' => $item->product?->barcode ?: $item->product?->sku, 'size' => 42])</td>
                         <td>{{ $item->description }}</td>
                         <td>{{ number_format((float) $item->qty, 3, ',', ' ') }}</td>
                         <td>{{ number_format((float) $item->delivered_qty, 3, ',', ' ') }}</td>
+                        <td>{{ number_format(in_array($order->status, ['confirmed', 'partial_delivered'], true) ? $item->remainingQty() : 0, 3, ',', ' ') }}</td>
                         <td>{{ number_format($item->remainingQty(), 3, ',', ' ') }}</td>
+                        <td style="min-width:240px;">
+                            @if ($coverage)
+                                <span class="badge {{ $coverage['tone'] }}">{{ $coverage['label'] }}</span>
+                                <div class="muted" style="margin-top:8px; line-height:1.5;">{{ $coverage['detail'] }}</div>
+                                @if ($coverage['available_now'] !== null)
+                                    <div class="muted" style="margin-top:6px;">
+                                        ATP {{ number_format((float) $coverage['available_now'], 3, ',', ' ') }}
+                                        @if ((float) $coverage['incoming_qty'] > 0)
+                                            · Entrant {{ number_format((float) $coverage['incoming_qty'], 3, ',', ' ') }}
+                                        @endif
+                                        @if ($coverage['next_incoming_date'])
+                                            · Attendu le {{ $coverage['next_incoming_date']->format('d/m/Y') }}
+                                        @endif
+                                    </div>
+                                @endif
+                            @else
+                                <span class="badge badge-muted">Analyse indisponible</span>
+                            @endif
+                        </td>
                         <td>{{ number_format((float) $item->unit_price, 0, ',', ' ') }} XOF</td>
                         <td>{{ number_format((float) $item->line_total, 0, ',', ' ') }} XOF</td>
                     </tr>
@@ -188,6 +311,27 @@
                 </tbody>
             </table>
         </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+        <h2 class="section-title">Demandes d achat liees</h2>
+        @forelse ($generatedPurchaseRequests as $generatedRequest)
+            <div style="padding-bottom:12px; border-bottom:1px solid #efe4d3; margin-bottom:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <div>
+                    <strong>{{ $generatedRequest->request_number }}</strong>
+                    <div class="muted" style="margin-top:6px;">{{ $generatedRequest->request_date?->format('d/m/Y') }} · {{ $generatedRequest->warehouse?->name ?? 'Entrepot par defaut' }}</div>
+                    <div class="muted" style="margin-top:6px;">Statut {{ str_replace('_', ' ', $generatedRequest->status) }}</div>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <a href="{{ route('purchase-requests.show', $generatedRequest) }}" class="button button-secondary">Voir la demande</a>
+                    @if ($generatedRequest->convertedPurchaseOrder)
+                        <a href="{{ route('purchase-orders.show', $generatedRequest->convertedPurchaseOrder) }}" class="button button-secondary">Voir la commande fournisseur</a>
+                    @endif
+                </div>
+            </div>
+        @empty
+            <p class="muted">Aucune demande d achat n'a encore ete generee depuis cette commande.</p>
+        @endforelse
     </section>
 
     <section class="card" style="margin-top:20px;">
@@ -211,4 +355,5 @@
         @endforelse
     </section>
 @endsection
+
 

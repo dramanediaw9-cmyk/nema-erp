@@ -4,15 +4,19 @@ use App\Modules\Purchases\Http\Controllers\GoodsReceiptController;
 use App\Modules\Purchases\Http\Controllers\PurchaseBillController;
 use App\Modules\Purchases\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchases\Http\Controllers\PurchaseRequestController;
+use App\Modules\Purchases\Http\Controllers\ReplenishmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
+    Route::get('/reapprovisionnements', [ReplenishmentController::class, 'index'])->middleware('permission:purchase_requests.view')->name('replenishments.index');
+    Route::post('/reapprovisionnements/generer', [ReplenishmentController::class, 'generate'])->middleware('permission:purchase_requests.manage')->name('replenishments.generate');
     Route::get('/demandes-achats', [PurchaseRequestController::class, 'index'])->middleware('permission:purchase_requests.view')->name('purchase-requests.index');
     Route::get('/demandes-achats/creer', [PurchaseRequestController::class, 'create'])->middleware('permission:purchase_requests.manage')->name('purchase-requests.create');
     Route::post('/demandes-achats', [PurchaseRequestController::class, 'store'])->middleware('permission:purchase_requests.manage')->name('purchase-requests.store');
     Route::post('/demandes-achats/{purchaseRequest}/approuver', [PurchaseRequestController::class, 'approve'])->middleware('permission:purchase_requests.approve')->name('purchase-requests.approve');
     Route::post('/demandes-achats/{purchaseRequest}/rejeter', [PurchaseRequestController::class, 'reject'])->middleware('permission:purchase_requests.approve')->name('purchase-requests.reject');
     Route::post('/demandes-achats/{purchaseRequest}/convertir', [PurchaseRequestController::class, 'convert'])->middleware('permission:purchase_requests.manage')->name('purchase-requests.convert');
+    Route::post('/demandes-achats/{purchaseRequest}/convertir-recommande', [PurchaseRequestController::class, 'autoConvert'])->middleware('permission:purchase_requests.manage')->name('purchase-requests.auto-convert');
     Route::get('/demandes-achats/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->middleware('permission:purchase_requests.view')->name('purchase-requests.show');
 
     Route::get('/achats', [PurchaseBillController::class, 'index'])->middleware('permission:purchases.view')->name('purchases.index');
@@ -35,4 +39,3 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/receptions-fournisseurs', [GoodsReceiptController::class, 'store'])->middleware('permission:goods_receipts.manage')->name('goods-receipts.store');
     Route::get('/receptions-fournisseurs/{goodsReceipt}', [GoodsReceiptController::class, 'show'])->middleware('permission:goods_receipts.view')->name('goods-receipts.show');
 });
-

@@ -168,7 +168,7 @@
                     </thead>
                     <tbody>
                     @forelse ($report['top_products'] as $product)
-                        @php($imageUrl = $product->image_path ? route('products.media.show', ['path' => $product->image_path], false) : null)
+                        @php($imageUrl = $product->image_url)
                         <tr>
                             <td>
                                 <div class="pos-report-product">
@@ -210,7 +210,7 @@
                     </thead>
                     <tbody>
                     @forelse ($report['top_returns'] as $product)
-                        @php($imageUrl = $product->image_path ? route('products.media.show', ['path' => $product->image_path], false) : null)
+                        @php($imageUrl = $product->image_url)
                         <tr>
                             <td>
                                 <div class="pos-report-product">
@@ -239,3 +239,4 @@
         </section>
     </div>
 @endsection
+

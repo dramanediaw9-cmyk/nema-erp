@@ -3,148 +3,453 @@
 @section('title', 'Produits - Nema ERP')
 @section('page-title', 'Catalogue produits')
 
-@section('content')
+@push('page-styles')
     <style>
-        .product-cell {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 10px 12px;
-            border-radius: 22px;
-            background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
-            border: 1px solid #dbe4f0;
-            box-shadow: 0 14px 26px rgba(15, 23, 42, 0.05);
-            text-decoration: none;
+        .premium-page {
+            display: grid;
+            gap: 20px;
         }
-        .product-thumb {
-            width: 76px;
-            height: 76px;
-            flex: 0 0 76px;
-            border-radius: 22px;
-            object-fit: cover;
-            border: 1px solid #d7deea;
-            background: #fff;
-            box-shadow: 0 12px 22px rgba(15, 23, 42, 0.08);
+        .premium-hero {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(255, 249, 240, 0.98) 0%, rgba(240, 248, 246, 0.96) 58%, rgba(255, 241, 221, 0.92) 100%);
+            border-color: rgba(11, 79, 86, 0.12);
         }
-        .product-thumb-fallback {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 76px;
-            height: 76px;
-            flex: 0 0 76px;
-            border-radius: 22px;
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            color: #17304f;
-            font-weight: 900;
-            letter-spacing: .04em;
-            border: 1px solid #d7deea;
-            box-shadow: 0 12px 22px rgba(15, 23, 42, 0.08);
-        }
-        .product-card-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 6px;
-        }
-        .product-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 10px;
+        .premium-hero::after {
+            content: "";
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            right: -56px;
+            top: -48px;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            background: #eef4ff;
-            border: 1px solid #d9e5f5;
-            color: #33527b;
+            background: rgba(197, 106, 24, 0.12);
+            filter: blur(6px);
+            pointer-events: none;
         }
-        .product-actions {
+        .premium-hero__grid {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(280px, .9fr);
+            gap: 20px;
+            align-items: start;
+        }
+        .premium-hero__copy {
+            display: grid;
+            gap: 12px;
+        }
+        .premium-hero__copy h2 {
+            margin: 0;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1.02;
+            letter-spacing: -.04em;
+        }
+        .premium-hero__copy p {
+            margin: 0;
+            max-width: 780px;
+        }
+        .premium-panel {
+            border: 1px solid rgba(102, 82, 56, 0.1);
+            border-radius: 20px;
+            padding: 16px 18px;
+            background: rgba(255, 255, 255, 0.72);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        }
+        .premium-panel strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .premium-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .premium-metric-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .premium-metric-card {
+            border: 1px solid rgba(102, 82, 56, 0.1);
+            border-radius: 22px;
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(255, 254, 251, 0.98) 0%, rgba(247, 239, 228, 0.94) 100%);
+            box-shadow: var(--shadow-soft);
+        }
+        .premium-metric-card .label {
+            color: var(--muted);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            font-weight: 800;
+        }
+        .premium-metric-card .value {
+            margin-top: 10px;
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -.04em;
+        }
+        .premium-metric-card .hint {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .premium-filter-card {
+            background: linear-gradient(180deg, rgba(255, 252, 247, 0.96) 0%, rgba(245, 237, 225, 0.88) 100%);
+        }
+        .premium-section-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+        .premium-section-head h3 {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: -.03em;
+        }
+        .premium-section-head p {
+            margin: 6px 0 0;
+        }
+        .catalog-table {
+            --product-inline-size: 44px;
+            --product-inline-radius: 14px;
+            --product-inline-gap: 10px;
+            --product-inline-title-size: 13px;
+            --product-inline-meta-size: 11px;
+            --product-inline-indicator-size: 10px;
+            --table-cell-padding-y: 9px;
+            --table-cell-padding-x: 8px;
+            --product-action-padding-y: 6px;
+            --product-action-padding-x: 8px;
+        }
+        .catalog-table.is-detailed {
+            --product-inline-size: 58px;
+            --product-inline-radius: 18px;
+            --product-inline-gap: 12px;
+            --product-inline-title-size: 14px;
+            --product-inline-meta-size: 12px;
+            --product-inline-indicator-size: 12px;
+            --table-cell-padding-y: 12px;
+            --table-cell-padding-x: 10px;
+            --product-action-padding-y: 7px;
+            --product-action-padding-x: 10px;
+        }
+        .catalog-table table th,
+        .catalog-table table td {
+            padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+            vertical-align: middle;
+        }
+        .catalog-table tbody tr {
+            transition: background .18s ease, transform .18s ease;
+        }
+        .catalog-table tbody tr:hover {
+            background: rgba(15, 118, 110, 0.04);
+        }
+        .catalog-table .product-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .catalog-table .product-actions .button {
+            padding: var(--product-action-padding-y) var(--product-action-padding-x);
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .table-tools {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .table-note {
             display: flex;
             gap: 8px;
+            align-items: center;
             flex-wrap: wrap;
+            color: var(--muted);
+        }
+        .table-note strong {
+            color: var(--text);
+        }
+        .mode-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            border-radius: 16px;
+            border: 1px solid rgba(102, 82, 56, 0.12);
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+        }
+        .mode-switch .button {
+            padding: 7px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .mode-switch .button.is-active {
+            background: var(--brand);
+            color: #fff;
+        }
+        .premium-table-card {
+            overflow: hidden;
+        }
+        @media (max-width: 1280px) {
+            .catalog-table .col-optional-lg {
+                display: none;
+            }
+        }
+        @media (max-width: 1080px) {
+            .premium-hero__grid {
+                grid-template-columns: 1fr;
+            }
+            .catalog-table .col-optional-md {
+                display: none;
+            }
+        }
+        @media (max-width: 860px) {
+            .catalog-table .col-optional-sm {
+                display: none;
+            }
         }
     </style>
+@endpush
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Produits et services</h2>
-            <div class="muted">Le catalogue sert directement au stock, aux ventes, aux achats et au point de vente.</div>
+@section('content')
+    @php
+        $canViewProductCosts = auth()->user()?->hasPermission('products.cost.view');
+        $visibleProducts = collect(method_exists($products, 'items') ? $products->items() : $products);
+        $visibleStockable = $visibleProducts->where('type', 'stockable');
+        $visibleServices = $visibleProducts->where('type', 'service')->count();
+        $visibleAlerts = $visibleStockable->filter(fn ($product) => ((float) ($product->current_stock ?? 0)) <= (float) $product->min_stock)->count();
+        $visibleActive = $visibleProducts->where('is_active', true)->count();
+        $resultTotal = method_exists($products, 'total') ? $products->total() : $visibleProducts->count();
+    @endphp
+
+    <div class="premium-page">
+        <section class="card premium-hero">
+            <div class="premium-hero__grid">
+                <div class="premium-hero__copy">
+                    <div class="badge badge-muted">Catalogue central</div>
+                    <h2>Produits et services relies au stock, aux ventes et au POS.</h2>
+                    <p class="muted">Le catalogue sert directement au stock, aux ventes, aux achats et au point de vente. L idee est d aller vite, avec une vue plus premium et plus facile a scanner au quotidien.</p>
+                    <div class="premium-actions">
+                        @allowed('imports.manage')
+                            <a href="{{ route('imports.index') }}" class="button button-secondary">Importer CSV</a>
+                        @endallowed
+                        @allowed('products.manage')
+                            <a href="{{ route('products.create') }}" class="button button-primary">Nouveau produit</a>
+                        @endallowed
+                    </div>
+                </div>
+                <div class="premium-panel">
+                    <strong>Qualite de lecture</strong>
+                    <p class="muted">Basculer entre `compact` et `detaille`, filtrer par categorie ou par etat de stock, puis ouvrir directement la bonne fiche sans perdre de temps.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="premium-metric-grid">
+            <article class="premium-metric-card">
+                <div class="label">References</div>
+                <div class="value">{{ number_format($resultTotal, 0, ',', ' ') }}</div>
+                <div class="hint">Catalogue trouve avec les filtres courants.</div>
+            </article>
+            <article class="premium-metric-card">
+                <div class="label">Actifs visibles</div>
+                <div class="value">{{ number_format($visibleActive, 0, ',', ' ') }}</div>
+                <div class="hint">Produits ou services actifs dans cette vue.</div>
+            </article>
+            <article class="premium-metric-card">
+                <div class="label">Services visibles</div>
+                <div class="value">{{ number_format($visibleServices, 0, ',', ' ') }}</div>
+                <div class="hint">Sans impact stock.</div>
+            </article>
+            <article class="premium-metric-card">
+                <div class="label">Stock a surveiller</div>
+                <div class="value">{{ number_format($visibleAlerts, 0, ',', ' ') }}</div>
+                <div class="hint">Articles sous ou au niveau mini dans cette page.</div>
+            </article>
+        </section>
+
+        <section class="card premium-filter-card">
+            <div class="premium-section-head">
+                <div>
+                    <h3>Filtres catalogue</h3>
+                    <p class="muted">Affiner rapidement par recherche, categorie, type, statut ou etat de stock.</p>
+                </div>
+            </div>
+            <form method="GET" action="{{ route('products.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+                <div style="grid-column:span 2; min-width:220px;">
+                    <label for="search">Recherche</label>
+                    <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Nom, SKU, code-barres ou categorie...">
+                </div>
+                <div>
+                    <label for="category_id">Categorie</label>
+                    <select id="category_id" name="category_id">
+                        <option value="">Toutes les categories</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected((int) ($filters['category_id'] ?? 0) === $category->id)>{{ $category->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="type">Type</label>
+                    <select id="type" name="type">
+                        <option value="">Tous les types</option>
+                        <option value="stockable" @selected(($filters['type'] ?? null) === 'stockable')>Article stockable</option>
+                        <option value="service" @selected(($filters['type'] ?? null) === 'service')>Service</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="status">Statut</label>
+                    <select id="status" name="status">
+                        <option value="">Tous les statuts</option>
+                        <option value="active" @selected(($filters['status'] ?? null) === 'active')>Actif</option>
+                        <option value="inactive" @selected(($filters['status'] ?? null) === 'inactive')>Archive</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="stock_state">Etat de stock</label>
+                    <select id="stock_state" name="stock_state">
+                        <option value="">Tous les etats</option>
+                        <option value="low" @selected(($filters['stock_state'] ?? null) === 'low')>A surveiller</option>
+                        <option value="positive" @selected(($filters['stock_state'] ?? null) === 'positive')>Disponible</option>
+                        <option value="zero" @selected(($filters['stock_state'] ?? null) === 'zero')>Rupture / zero</option>
+                    </select>
+                </div>
+                <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
+                    <button type="submit" class="button button-primary">Filtrer</button>
+                    <a href="{{ route('products.index') }}" class="button button-secondary">Reinitialiser</a>
+                </div>
+            </form>
+        </section>
+
+        <div class="table-tools">
+            <div class="table-note">
+                <strong>{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</strong>
+                <span>ligne(s) visibles sur cette page.</span>
+                <span>Mode d affichage memorise dans le navigateur.</span>
+            </div>
+            <div class="mode-switch" data-display-controls="products">
+                <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
+                <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+            </div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            @allowed('imports.manage')
-                <a href="{{ route('imports.index') }}" class="button button-secondary">Importer CSV</a>
-            @endallowed
-            @allowed('products.manage')
-                <a href="{{ route('products.create') }}" class="button button-primary">Nouveau produit</a>
-            @endallowed
-        </div>
+
+        <section class="card table-wrap catalog-table is-compact premium-table-card" data-display-table="products">
+            <table>
+                <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th class="col-optional-lg">Code-barres</th>
+                    <th>Produit</th>
+                    <th class="col-optional-sm">Type</th>
+                    <th class="col-optional-md">Categorie</th>
+                    <th>Stock actuel</th>
+                    <th>PU vente</th>
+                    @if ($canViewProductCosts)
+                        <th class="col-optional-lg">PU achat</th>
+                    @endif
+                    <th class="col-optional-md">Stock mini</th>
+                    <th>Etat stock</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse ($products as $product)
+                    @php
+                        $currentStock = (float) ($product->current_stock ?? 0);
+                        $isStockable = $product->type === 'stockable';
+                        $isLowStock = $isStockable && $currentStock <= (float) $product->min_stock;
+                        $stockLabel = ! $isStockable
+                            ? 'Service'
+                            : ($currentStock <= 0 ? 'Rupture' : ($isLowStock ? 'A surveiller' : 'Disponible'));
+                        $stockBadgeClass = ! $isStockable
+                            ? 'badge-warning'
+                            : ($isLowStock ? 'badge-muted' : 'badge-success');
+                    @endphp
+                    <tr>
+                        <td><strong>{{ $product->sku }}</strong></td>
+                        <td class="col-optional-lg">{{ $product->barcode ?: 'Non renseigne' }}</td>
+                        <td>
+                            @include('partials.product-inline', [
+                                'product' => $product,
+                                'meta' => collect([$product->unit, $product->category?->name])->filter()->implode(' | '),
+                                'size' => 48,
+                            ])
+                        </td>
+                        <td class="col-optional-sm">{{ $isStockable ? 'Stockable' : 'Service' }}</td>
+                        <td class="col-optional-md">{{ $product->category?->name ?? 'Sans categorie' }}</td>
+                        <td>{{ $isStockable ? number_format($currentStock, 3, ',', ' ') : 'Non gere' }}</td>
+                        <td>{{ number_format((float) $product->sale_price, 0, ',', ' ') }} XOF</td>
+                        @if ($canViewProductCosts)
+                            <td class="col-optional-lg">{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</td>
+                        @endif
+                        <td class="col-optional-md">{{ $isStockable ? number_format((float) $product->min_stock, 3, ',', ' ') : 'Non gere' }}</td>
+                        <td><span class="badge {{ $stockBadgeClass }}">{{ $stockLabel }}</span></td>
+                        <td><span class="badge {{ $product->is_active ? 'badge-success' : 'badge-muted' }}">{{ $product->is_active ? 'Actif' : 'Archive' }}</span></td>
+                        <td>
+                            <div class="product-actions">
+                                <a href="{{ route('products.show', $product) }}" class="button button-secondary">Voir</a>
+                                @allowed('products.manage')
+                                    <a href="{{ route('products.edit', $product) }}" class="button button-secondary">Modifier</a>
+                                @endallowed
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="12" class="muted">Aucun produit ne correspond aux filtres selectionnes.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+
+            @if (method_exists($products, 'links'))
+                <div style="margin-top:18px;">{{ $products->links() }}</div>
+            @endif
+        </section>
     </div>
 
-    <section class="card table-wrap">
-        <table>
-            <thead>
-            <tr>
-                <th>SKU</th>
-                <th>Code-barres</th>
-                <th>Produit</th>
-                <th>Type</th>
-                <th>Categorie</th>
-                <th>PU vente</th>
-                <th>PU achat</th>
-                <th>Stock mini</th>
-                <th>Statut</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            @forelse ($products as $product)
-                <tr>
-                    <td><strong>{{ $product->sku }}</strong></td>
-                    <td>{{ $product->barcode ?: 'Non renseigne' }}</td>
-                    <td>
-                        <a href="{{ route('products.show', $product) }}" class="product-cell">
-                            @if ($product->image_url)
-                                <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="product-thumb">
-                            @else
-                                <span class="product-thumb-fallback">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($product->name, 0, 2)) }}</span>
-                            @endif
-                            <div style="min-width:0;">
-                                <div style="font-weight:800; color:#15263d; line-height:1.32;">{{ $product->name }}</div>
-                                <div class="product-card-meta">
-                                    <span class="product-pill">{{ $product->unit }}</span>
-                                    @if ($product->category?->name)
-                                        <span class="product-pill">{{ $product->category->name }}</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </a>
-                    </td>
-                    <td>{{ $product->type === 'service' ? 'Service' : 'Stockable' }}</td>
-                    <td>{{ $product->category?->name ?? 'Sans categorie' }}</td>
-                    <td>{{ number_format((float) $product->sale_price, 0, ',', ' ') }} XOF</td>
-                    <td>{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</td>
-                    <td>{{ number_format((float) $product->min_stock, 3, ',', ' ') }}</td>
-                    <td><span class="badge {{ $product->is_active ? 'badge-success' : 'badge-muted' }}">{{ $product->is_active ? 'Actif' : 'Inactif' }}</span></td>
-                    <td>
-                        <div class="product-actions">
-                            <a href="{{ route('products.show', $product) }}" class="button button-secondary">Voir</a>
-                            @allowed('products.manage')
-                                <a href="{{ route('products.edit', $product) }}" class="button button-secondary">Modifier</a>
-                            @endallowed
-                        </div>
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="10" class="muted">Aucun produit disponible.</td>
-                </tr>
-            @endforelse
-            </tbody>
-        </table>
+    <script>
+        (() => {
+            const storageKey = 'nema.products.display_mode';
+            const table = document.querySelector('[data-display-table="products"]');
+            const controls = document.querySelector('[data-display-controls="products"]');
+            const buttons = controls ? Array.from(controls.querySelectorAll('[data-mode]')) : [];
 
-        @if (method_exists($products, 'links'))
-            <div style="margin-top:18px;">{{ $products->links() }}</div>
-        @endif
-    </section>
+            if (!table || !buttons.length) {
+                return;
+            }
+
+            const applyMode = (mode) => {
+                const nextMode = mode === 'detailed' ? 'detailed' : 'compact';
+                table.classList.remove('is-compact', 'is-detailed');
+                table.classList.add(nextMode === 'detailed' ? 'is-detailed' : 'is-compact');
+                buttons.forEach((button) => {
+                    button.classList.toggle('is-active', button.dataset.mode === nextMode);
+                });
+            };
+
+            applyMode(localStorage.getItem(storageKey) || 'compact');
+
+            buttons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const mode = button.dataset.mode === 'detailed' ? 'detailed' : 'compact';
+                    localStorage.setItem(storageKey, mode);
+                    applyMode(mode);
+                });
+            });
+        })();
+    </script>
 @endsection
+
+
+
+

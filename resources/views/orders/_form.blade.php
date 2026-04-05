@@ -1,7 +1,7 @@
 <div class="split">
     <section class="card">
         <h2 class="section-title">Entete de la commande</h2>
-        <div class="muted" style="margin-bottom:16px;">La commande formalise l engagement client sans impact immediat sur le stock ni la comptabilite. La facture viendra ensuite.</div>
+        <div class="muted" style="margin-bottom:16px;">La commande formalise l engagement client, reserve le stock au moment de la confirmation et prepare ensuite la livraison ou la facturation.</div>
 
         <div class="form-grid">
             <div>
@@ -9,10 +9,11 @@
                 <select id="customer_id" name="customer_id" required>
                     <option value="">Selectionner un client</option>
                     @foreach ($customers as $customer)
-                        <option value="{{ $customer->id }}" @selected((string) old('customer_id') === (string) $customer->id)>{{ $customer->code }} - {{ $customer->name }}</option>
+                        <option value="{{ $customer->id }}" data-price-list-id="{{ $customer->price_list_id ?? '' }}" data-price-list-name="{{ $customer->priceList?->name ?? '' }}" @selected((string) old('customer_id') === (string) $customer->id)>{{ $customer->code }} - {{ $customer->name }}</option>
                     @endforeach
                 </select>
                 @error('customer_id')<div class="field-error">{{ $message }}</div>@enderror
+                <div class="help" id="order-customer-pricing">Aucune liste de prix specifique: le prix catalogue sera propose.</div>
             </div>
             <div>
                 <label for="order_date">Date de commande</label>
@@ -34,6 +35,17 @@
                 <label>Agence active</label>
                 <input type="text" value="{{ $branch?->name }}" disabled>
                 <div class="help">La commande sera rattachee a cette agence commerciale.</div>
+            </div>
+            <div>
+                <label for="warehouse_id">Depot de preparation</label>
+                <select id="warehouse_id" name="warehouse_id">
+                    <option value="">Depot principal de l agence</option>
+                    @foreach ($warehouses as $warehouse)
+                        <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id') === (string) $warehouse->id || (! old('warehouse_id') && $warehouse->is_default))>{{ $warehouse->code }} - {{ $warehouse->name }}</option>
+                    @endforeach
+                </select>
+                <div class="help">Le stock sera reserve sur ce depot une fois la commande confirmee.</div>
+                @error('warehouse_id')<div class="field-error">{{ $message }}</div>@enderror
             </div>
             <div class="full">
                 <label for="notes">Notes</label>
@@ -67,11 +79,44 @@
                 </div>
                 <div class="tip-card">
                     <strong>Bon reflexe</strong>
-                    <div class="muted">Renseigne la livraison souhaitee pour piloter le carnet de commandes.</div>
+                    <div class="muted">Renseigne la livraison souhaitee et la date d engagement pour piloter proprement le carnet de commandes.</div>
                 </div>
             </div>
         </div>
     </aside>
+</div>
+
+<div class="card" style="margin-top:18px;">
+    <h2 class="section-title">Proprietes commerciales</h2>
+    <div class="muted" style="margin-bottom:16px;">Ces champs rapprochent le comportement du module Commandes d un ERP de type Odoo : reference client, document source, commercial responsable et promesse de livraison.</div>
+    <div class="form-grid">
+        <div>
+            <label for="customer_reference">Reference client</label>
+            <input id="customer_reference" type="text" name="customer_reference" value="{{ old('customer_reference') }}" placeholder="Bon de commande client, reference interne...">
+            @error('customer_reference')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+        <div>
+            <label for="source_document">Document source</label>
+            <input id="source_document" type="text" name="source_document" value="{{ old('source_document') }}" placeholder="Campagne, appel d offres, devis source...">
+            @error('source_document')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+        <div>
+            <label for="salesperson_name">Commercial</label>
+            <input id="salesperson_name" type="text" name="salesperson_name" value="{{ old('salesperson_name', auth()->user()?->name) }}" placeholder="Nom du commercial ou charge de compte">
+            @error('salesperson_name')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+        <div>
+            <label for="commitment_date">Date d engagement</label>
+            <input id="commitment_date" type="date" name="commitment_date" value="{{ old('commitment_date') }}">
+            <div class="help">Promesse de livraison ou date a laquelle tu t engages envers le client.</div>
+            @error('commitment_date')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+        <div class="full">
+            <label for="delivery_instruction">Instructions de livraison</label>
+            <textarea id="delivery_instruction" name="delivery_instruction" placeholder="Adresse terrain, contact sur place, consignes transport, details de remise...">{{ old('delivery_instruction') }}</textarea>
+            @error('delivery_instruction')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+    </div>
 </div>
 
 <div class="card" style="margin-top:18px;">
@@ -106,8 +151,8 @@
                         <select name="items[{{ $index }}][product_id]" class="line-product">
                             <option value="">Choisir</option>
                             @foreach ($products as $product)
-                                <option value="{{ $product->id }}" data-name="{{ $product->name }}" data-price="{{ $product->sale_price }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
-                                    {{ $product->sku }} - {{ $product->name }}
+                                <option value="{{ $product->id }}" data-name="{{ $product->display_name }}" data-price="{{ $product->sale_price }}" data-sale-description="{{ $product->sales_description ?: ($product->description ?: $product->display_name) }}" data-unit-summary="{{ $product->salesUnitSummary() ?: $product->unit }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
+                                    {{ $product->sku }} - {{ $product->display_name }}{{ $product->salesUnitSummary() ? ' · '.$product->salesUnitSummary() : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -145,6 +190,7 @@
         const rows = Array.from(document.querySelectorAll('#order-lines-table tbody tr'));
         const orderDateInput = document.getElementById('order_date');
         const deliveryDateInput = document.getElementById('requested_delivery_date');
+        const commitmentDateInput = document.getElementById('commitment_date');
         const linesCount = document.getElementById('order-lines-count');
         const totalQty = document.getElementById('order-total-qty');
         const grandTotal = document.getElementById('order-grand-total');
@@ -161,7 +207,11 @@
 
             const baseDate = new Date(orderDateInput.value + 'T00:00:00');
             baseDate.setDate(baseDate.getDate() + days);
-            deliveryDateInput.value = baseDate.toISOString().slice(0, 10);
+            const formatted = baseDate.toISOString().slice(0, 10);
+            deliveryDateInput.value = formatted;
+            if (commitmentDateInput && !commitmentDateInput.value) {
+                commitmentDateInput.value = formatted;
+            }
         };
 
         const compute = () => {
@@ -181,7 +231,7 @@
                 const lineTotal = qty * price;
 
                 if (selectedOption && selectedOption.value && !descriptionInput.value.trim()) {
-                    descriptionInput.value = selectedOption.dataset.name || '';
+                    descriptionInput.value = selectedOption.dataset.saleDescription || selectedOption.dataset.name || '';
                 }
 
                 if (selectedOption && selectedOption.value && !priceInput.value) {
@@ -218,3 +268,17 @@
         compute();
     });
 </script>
+
+@include('partials.document-line-pricing', [
+    'tableId' => 'order-lines-table',
+    'partnerSelectId' => 'customer_id',
+    'pricingHintId' => 'order-customer-pricing',
+    'lineAmountClass' => 'line-price',
+    'priceDataKey' => 'price',
+    'partnerKind' => 'client',
+    'defaultPricingText' => 'Aucune liste de prix specifique: le prix catalogue sera propose.',
+])
+
+
+
+

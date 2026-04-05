@@ -48,6 +48,37 @@
         <div class="card"><div class="muted">Depenses</div><div class="stat-value">{{ number_format($stats['expenses_total'], 0, ',', ' ') }}</div></div>
     </div>
 
+    <section class="card" style="margin-bottom:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Performance fournisseur</h2>
+                <div class="muted">Score calcule sur la ponctualite, l execution des commandes et l exposition financiere.</div>
+            </div>
+        </div>
+        <div class="grid stats-grid">
+            <div class="card">
+                <div class="muted">Score</div>
+                <div class="stat-value">{{ number_format((float) $performance['score'], 1, ',', ' ') }}/100</div>
+                <div class="muted">{{ $performance['score_label'] }}</div>
+            </div>
+            <div class="card">
+                <div class="muted">Livraisons a temps</div>
+                <div class="stat-value">{{ $performance['on_time_rate'] !== null ? number_format((float) $performance['on_time_rate'], 1, ',', ' ') . ' %' : 'n.c.' }}</div>
+                <div class="muted">{{ $performance['on_time_orders_count'] }} / {{ $performance['expected_orders_count'] }} commandes avec date cible</div>
+            </div>
+            <div class="card">
+                <div class="muted">Retard moyen</div>
+                <div class="stat-value">{{ $performance['avg_delay_days'] !== null ? number_format((float) $performance['avg_delay_days'], 1, ',', ' ') . ' j' : 'n.c.' }}</div>
+                <div class="muted">Lead time moyen {{ $performance['avg_lead_time_days'] !== null ? number_format((float) $performance['avg_lead_time_days'], 1, ',', ' ') . ' j' : 'n.c.' }}</div>
+            </div>
+            <div class="card">
+                <div class="muted">Execution commandes</div>
+                <div class="stat-value">{{ $performance['receipt_completion_rate'] !== null ? number_format((float) $performance['receipt_completion_rate'], 1, ',', ' ') . ' %' : 'n.c.' }}</div>
+                <div class="muted">{{ $performance['received_orders_count'] }} commande(s) recues sur {{ $performance['orders_count'] }}</div>
+            </div>
+        </div>
+    </section>
+
     <div class="split" style="margin-bottom:20px;">
         <section class="card">
             <h2 style="margin-top:0;">Informations generales</h2>
@@ -72,6 +103,8 @@
                 <div><strong>Historique achats</strong><div class="muted">{{ $bills->count() }} facture(s) affichee(s)</div></div>
                 <div><strong>Historique depenses</strong><div class="muted">{{ $expenses->count() }} depense(s) affichee(s)</div></div>
                 <div><strong>Comptabilite</strong><div class="muted">{{ $journalEntries->count() }} ecriture(s) recente(s)</div></div>
+                <div><strong>Derniere reception</strong><div class="muted">{{ $performance['last_receipt_date'] ? \Illuminate\Support\Carbon::parse($performance['last_receipt_date'])->format('d/m/Y') : 'Aucune' }}</div></div>
+                <div><strong>Exposition dettes / achats</strong><div class="muted">{{ $performance['open_balance_ratio'] !== null ? number_format((float) $performance['open_balance_ratio'], 1, ',', ' ') . ' %' : 'n.c.' }}</div></div>
             </div>
             @if ($supplier->notes)
                 <div class="muted" style="margin-top:14px;">{{ $supplier->notes }}</div>
@@ -159,6 +192,8 @@
 
     @include('partials.partner-directory', ['partner' => $supplier])
 @endsection
+
+
 
 
 

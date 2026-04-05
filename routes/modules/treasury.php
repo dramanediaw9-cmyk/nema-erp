@@ -14,12 +14,13 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
 
     Route::get('/paiements', [PaymentController::class, 'index'])->middleware('permission:payments.view')->name('payments.index');
     Route::get('/paiements/export', [PaymentController::class, 'export'])->middleware('permission:payments.view')->name('payments.export');
-    Route::get('/paiements/creer', [PaymentController::class, 'create'])->middleware('permission:payments.manage')->name('payments.create');
+    Route::get('/paiements/creer', [PaymentController::class, 'create'])->middleware('permission:payments.validate')->name('payments.create');
     Route::get('/paiements/{payment}', [PaymentController::class, 'show'])->middleware('permission:payments.view')->name('payments.show');
-    Route::post('/paiements', [PaymentController::class, 'store'])->middleware('permission:payments.manage')->name('payments.store');
+    Route::post('/paiements', [PaymentController::class, 'store'])->middleware('permission:payments.validate')->name('payments.store');
     Route::get('/rapprochements-tresorerie', [TreasuryReconciliationController::class, 'index'])->middleware('permission:reconciliations.view')->name('treasury-reconciliations.index');
     Route::get('/rapprochements-tresorerie/creer', [TreasuryReconciliationController::class, 'create'])->middleware('permission:reconciliations.manage')->name('treasury-reconciliations.create');
     Route::post('/rapprochements-tresorerie', [TreasuryReconciliationController::class, 'store'])->middleware('permission:reconciliations.manage')->name('treasury-reconciliations.store');
     Route::get('/rapprochements-tresorerie/{treasuryReconciliation}', [TreasuryReconciliationController::class, 'show'])->middleware('permission:reconciliations.view')->name('treasury-reconciliations.show');
 });
+
 

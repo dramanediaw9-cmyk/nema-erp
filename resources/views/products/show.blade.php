@@ -1,9 +1,10 @@
 @extends('layouts.app')
 
-@section('title', $product->name.' - Produit - Nema ERP')
+@section('title', $product->display_name.' - Produit - Nema ERP')
 @section('page-title', 'Fiche produit')
 
 @section('content')
+    @php($canViewProductCosts = auth()->user()?->hasPermission('products.cost.view'))
     <style>
         .product-detail-layout {
             display: grid;
@@ -70,6 +71,12 @@
             background: #fff;
             padding: 14px 16px;
         }
+        .lifecycle-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
         @media (max-width: 960px) {
             .product-detail-layout {
                 grid-template-columns: 1fr;
@@ -79,13 +86,38 @@
 
     <div class="page-head">
         <div>
-            <h2 style="margin:0;">{{ $product->name }}</h2>
-            <div class="muted">{{ $product->sku }} · {{ $product->barcode ?: 'Code-barres non renseigne' }} · {{ $product->category?->name ?? 'Sans categorie' }}</div>
+            <h2 style="margin:0;">{{ $product->display_name }}</h2>
+            <div class="muted">
+                {{ $product->sku }} · {{ $product->barcode ?: 'Code-barres non renseigne' }} · {{ $product->category?->name ?? 'Sans categorie' }}
+                @if ($product->is_variant && $product->parent)
+                    · Variante de {{ $product->parent->name }}
+                @elseif ($product->variants->isNotEmpty())
+                    · Famille avec {{ $product->variants->count() }} variantes
+                @endif
+            </div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <a href="{{ route('products.index') }}" class="button button-secondary">Retour catalogue</a>
             @allowed('products.manage')
                 <a href="{{ route('products.edit', $product) }}" class="button button-primary">Modifier</a>
+                @if ($product->is_active)
+                    <form method="POST" action="{{ route('products.archive', $product) }}" class="inline-form" onsubmit="return confirm('Archiver ce produit ? Il ne sera plus propose dans les nouveaux documents.');">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="button button-secondary">Archiver</button>
+                    </form>
+                @else
+                    <form method="POST" action="{{ route('products.restore', $product) }}" class="inline-form">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="button button-primary">Reactiver</button>
+                    </form>
+                @endif
+                <form method="POST" action="{{ route('products.destroy', $product) }}" class="inline-form" onsubmit="return confirm('Supprimer definitivement ce produit ? Cette action est irreversible.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="button button-danger" @disabled(! $deletionGuard['can_delete'])>Supprimer</button>
+                </form>
             @endallowed
         </div>
     </div>
@@ -93,9 +125,9 @@
     <div class="product-detail-layout">
         <section class="product-photo-card">
             @if ($product->image_url)
-                <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="product-photo-large">
+                <img src="{{ $product->image_url }}" alt="{{ $product->display_name }}" class="product-photo-large">
             @else
-                <div class="product-photo-placeholder">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($product->name, 0, 2)) }}</div>
+                <div class="product-photo-placeholder">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($product->display_name, 0, 2)) }}</div>
             @endif
             <div style="margin-top:16px; display:grid; gap:10px;">
                 <div class="summary-box">
@@ -104,8 +136,14 @@
                 </div>
                 @if ($product->description)
                     <div class="summary-box">
-                        <strong>Description</strong>
+                        <strong>Description generale</strong>
                         <div style="margin-top:8px; line-height:1.6;">{{ $product->description }}</div>
+                    </div>
+                @endif
+                @if ($product->internal_notes)
+                    <div class="summary-box">
+                        <strong>Notes internes</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->internal_notes }}</div>
                     </div>
                 @endif
             </div>
@@ -117,10 +155,17 @@
                     <div class="label">Prix de vente</div>
                     <div class="value">{{ number_format((float) $product->sale_price, 0, ',', ' ') }} XOF</div>
                 </div>
-                <div class="product-meta-box">
-                    <div class="label">Prix d achat</div>
-                    <div class="value">{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</div>
-                </div>
+                @if ($canViewProductCosts)
+                    <div class="product-meta-box">
+                        <div class="label">Prix d achat</div>
+                        <div class="value">{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</div>
+                    </div>
+                @else
+                    <div class="product-meta-box">
+                        <div class="label">Couts confidentiels</div>
+                        <div class="value" style="font-size:20px;">Masques</div>
+                    </div>
+                @endif
                 <div class="product-meta-box">
                     <div class="label">Stock actuel</div>
                     <div class="value">{{ number_format($currentStock, 3, ',', ' ') }}</div>
@@ -139,15 +184,276 @@
                         <div class="value" style="font-size:20px;">{{ $product->type === 'service' ? 'Service' : 'Article stockable' }}</div>
                     </div>
                     <div class="kpi">
-                        <div class="label">Unite</div>
+                        <div class="label">Unite de base</div>
                         <div class="value" style="font-size:20px;">{{ $product->unit }}</div>
                     </div>
                     <div class="kpi">
                         <div class="label">Statut</div>
-                        <div class="value" style="font-size:20px;">{{ $product->is_active ? 'Actif' : 'Inactif' }}</div>
+                        <div class="value" style="font-size:20px;">{{ $product->is_active ? 'Actif' : 'Archive' }}</div>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top:14px;">
+                    <div class="summary-box">
+                        <strong>Unite commerciale vente</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->salesUnitSummary() ?: 'Non renseignee' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Unite achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchaseUnitSummary() ?: 'Non renseignee' }}</div>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top:14px;">
+                    <div class="summary-box">
+                        <strong>Motif blocage vente</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->saleBlockSummary() ?: 'Aucun blocage de vente actif.' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Motif blocage achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchaseBlockSummary() ?: 'Aucun blocage d achat actif.' }}</div>
+                    </div>
+                </div>
+                <div class="chip-row" style="margin-top:14px;">
+                    <span class="badge {{ $product->sale_ok ? 'badge-success' : 'badge-muted' }}">{{ $product->sale_ok ? 'Vendable' : 'Non vendable' }}</span>
+                    <span class="badge {{ $product->sale_blocked ? 'badge-danger' : 'badge-success' }}">{{ $product->sale_blocked ? 'Vente bloquee' : 'Vente ouverte' }}</span>
+                    <span class="badge {{ $product->purchase_ok ? 'badge-success' : 'badge-muted' }}">{{ $product->purchase_ok ? 'Achetable' : 'Non achetable' }}</span>
+                    <span class="badge {{ $product->purchase_blocked ? 'badge-danger' : 'badge-success' }}">{{ $product->purchase_blocked ? 'Achat bloque' : 'Achat ouvert' }}</span>
+                    <span class="badge badge-muted">Facturation : {{ $product->invoice_policy === 'delivered' ? 'quantites livrees' : 'quantites commandees' }}</span>
+                    <span class="badge badge-muted">Suivi : {{ match($product->tracking_type) { 'lot' => 'par lot', 'serial' => 'numero de serie', default => 'aucun' } }}</span>
+                    <span class="badge {{ $product->auto_replenish ? 'badge-success' : 'badge-muted' }}">{{ $product->auto_replenish ? 'Reappro auto active' : 'Reappro auto desactivee' }}</span>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top:14px;">
+                    <div class="summary-box">
+                        <strong>Stock cible</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->reorder_max_qty ? number_format((float) $product->reorder_max_qty, 3, ',', ' ') : 'Non defini' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Multiple achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->reorder_multiple_qty ? number_format((float) $product->reorder_multiple_qty, 3, ',', ' ') : 'Libre' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Delai achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchase_lead_time_days !== null ? $product->purchase_lead_time_days.' j' : 'Non defini' }}</div>
                     </div>
                 </div>
             </div>
+
+            <div class="card">
+                <h3 class="section-title">Famille et variantes</h3>
+                @if ($product->is_variant || $product->variants->isNotEmpty())
+                    <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px;">
+                        @if ($product->is_variant)
+                            <div class="summary-box">
+                                <strong>Produit parent</strong>
+                                <div style="margin-top:8px; line-height:1.6;">
+                                    @if ($product->parent)
+                                        <a href="{{ route('products.show', $product->parent) }}">{{ $product->parent->name }}</a>
+                                    @else
+                                        -
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="summary-box">
+                                <strong>Configuration de la variante</strong>
+                                <div style="margin-top:8px; line-height:1.6;">{{ $product->variant_label ?: ($product->variantValuesSummary() ?: 'Aucune valeur rattachee.') }}</div>
+                            </div>
+                        @else
+                            <div class="summary-box">
+                                <strong>Produit parent</strong>
+                                <div style="margin-top:8px; line-height:1.6;">Cette fiche sert de famille pour les variantes ci-dessous.</div>
+                            </div>
+                            <div class="summary-box">
+                                <strong>Nombre de variantes</strong>
+                                <div style="margin-top:8px; line-height:1.6;">{{ $product->variants->count() }}</div>
+                            </div>
+                        @endif
+                    </div>
+
+                    @if ($product->variants->isNotEmpty())
+                        <div class="summary-box" style="margin-top:14px;">
+                            <strong>Variantes disponibles</strong>
+                            <div class="chip-row" style="margin-top:10px;">
+                                @foreach ($product->variants as $variant)
+                                    <a href="{{ route('products.show', $variant) }}" class="badge badge-muted">{{ $variant->display_name }}</a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                @else
+                    <div class="summary-box">
+                        <strong>Produit simple</strong>
+                        <div class="help" style="margin-top:8px;">Ce produit n appartient pas encore a une famille de variantes.</div>
+                    </div>
+                @endif
+            </div>
+
+            <div class="card">
+                <h3 class="section-title">Descriptions metier</h3>
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+                    <div class="summary-box">
+                        <strong>Description vente</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->sales_description ?: 'Aucune description commerciale specifique.' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Description achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchase_description ?: 'Aucune description achat specifique.' }}</div>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top:14px;">
+                    <div class="summary-box">
+                        <strong>Unite commerciale vente</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->salesUnitSummary() ?: 'Non renseignee' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Unite achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchaseUnitSummary() ?: 'Non renseignee' }}</div>
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top:14px;">
+                    <div class="summary-box">
+                        <strong>Motif blocage vente</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->saleBlockSummary() ?: 'Aucun blocage de vente actif.' }}</div>
+                    </div>
+                    <div class="summary-box">
+                        <strong>Motif blocage achat</strong>
+                        <div style="margin-top:8px; line-height:1.6;">{{ $product->purchaseBlockSummary() ?: 'Aucun blocage d achat actif.' }}</div>
+                    </div>
+                </div>
+                <div class="chip-row" style="margin-top:14px;">
+                    @if ($product->saleTaxRule)
+                        <span class="badge badge-muted">Taxe vente : {{ $product->saleTaxRule->name }}</span>
+                    @endif
+                    @if ($product->purchaseTaxRule)
+                        <span class="badge badge-muted">Taxe achat : {{ $product->purchaseTaxRule->name }}</span>
+                    @endif
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="section-title">Fournisseurs produit</h3>
+                @unless ($canViewProductCosts)
+                    <div class="summary-box" style="margin-bottom:14px;">
+                        <strong>Couts fournisseurs masques</strong>
+                        <div class="help" style="margin-top:8px;">Les montants achat et couts fournisseurs sont reserves aux profils autorises.</div>
+                    </div>
+                @endunless
+                @if ($product->supplierInfos->isEmpty())
+                    <div class="summary-box">
+                        <strong>Aucun fournisseur specifique</strong>
+                        <div class="help" style="margin-top:8px;">Le produit utilisera son cout achat standard et ses regles generales tant qu aucun fournisseur prefere n est renseigne.</div>
+                    </div>
+                @else
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Fournisseur</th>
+                                <th>Statut</th>
+                                <th>Reference</th>
+                                <th>Nom fournisseur</th>
+                                <th>Mini</th>
+                                @if ($canViewProductCosts)
+                                    <th>Cout</th>
+                                @endif
+                                <th>Delai</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach ($product->supplierInfos as $supplierInfo)
+                                <tr>
+                                    <td>{{ $supplierInfo->supplier?->name ?? '-' }}</td>
+                                    <td>
+                                        <span class="badge {{ $supplierInfo->is_preferred ? 'badge-success' : 'badge-muted' }}">
+                                            {{ $supplierInfo->is_preferred ? 'Prefere' : 'Secondaire' }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $supplierInfo->supplier_product_code ?: '-' }}</td>
+                                    <td>{{ $supplierInfo->supplier_product_name ?: '-' }}</td>
+                                    <td>{{ $supplierInfo->min_qty !== null ? number_format((float) $supplierInfo->min_qty, 3, ',', ' ') : '-' }}</td>
+                                    @if ($canViewProductCosts)
+                                        <td>{{ $supplierInfo->unit_cost !== null ? number_format((float) $supplierInfo->unit_cost, 0, ',', ' ') . ' XOF' : '-' }}</td>
+                                    @endif
+                                    <td>{{ $supplierInfo->lead_time_days !== null ? $supplierInfo->lead_time_days . ' j' : '-' }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+
+            <div class="card">
+                <h3 class="section-title">Archivage et suppression</h3>
+                @if ($deletionGuard['can_delete'])
+                    <div class="summary-box">
+                        <strong>Suppression autorisee</strong>
+                        <div class="help" style="margin-top:8px;">Ce produit ne porte encore aucune reference metier. Il peut etre supprime definitivement si tu n en as plus besoin.</div>
+                    </div>
+                @else
+                    <div class="summary-box">
+                        <strong>Suppression bloquee</strong>
+                        <div class="help" style="margin-top:8px;">Ce produit est deja utilise dans l historique. Pour conserver les ventes, achats et mouvements de stock, archive-le au lieu de le supprimer.</div>
+                        <div class="chip-row">
+                            @foreach ($deletionGuard['usage'] as $usage)
+                                <span class="badge badge-muted">{{ $usage['label'] }} : {{ $usage['count'] }}</span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                <div class="lifecycle-actions">
+                    @if ($product->is_active)
+                        <span class="badge badge-success">Produit visible dans les nouveaux documents</span>
+                    @else
+                        <span class="badge badge-warning">Produit retire des nouveaux documents</span>
+                    @endif
+                </div>
+            </div>
+
+            @if ($product->tracking_type !== 'none')
+                <div class="card">
+                    <h3 class="section-title">Lots et suivi</h3>
+                    @if ($trackedLots->isEmpty())
+                        <div class="summary-box">
+                            <strong>Aucun lot ou numero de serie</strong>
+                            <div class="help" style="margin-top:8px;">Aucune reception tracee n a encore cree de lot pour ce produit.</div>
+                        </div>
+                    @else
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Type</th>
+                                    <th>Depot</th>
+                                    <th>Quantite</th>
+                                    <th>Disponible</th>
+                                    <th>Peremption</th>
+                                    <th>Reception</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach ($trackedLots as $lot)
+                                    <tr>
+                                        <td>{{ $lot->displayCode() }}</td>
+                                        <td>{{ $lot->tracking_type === 'serial' ? 'Numero de serie' : 'Lot' }}</td>
+                                        <td>{{ $lot->warehouse?->name ?? '-' }}</td>
+                                        <td>{{ number_format((float) $lot->quantity_received, 3, ',', ' ') }}</td>
+                                        <td>{{ number_format((float) $lot->quantity_available, 3, ',', ' ') }}</td>
+                                        <td>
+                                            @if ($lot->expires_at)
+                                                <span class="badge {{ $lot->isExpired() ? 'badge-danger' : 'badge-warning' }}">{{ $lot->expires_at->format('d/m/Y') }}</span>
+                                            @else
+                                                <span class="muted">-</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $lot->goodsReceipt?->receipt_number ?? '-' }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            @endif
 
             <div class="card">
                 <h3 class="section-title">Stock par magasin</h3>
@@ -202,3 +508,4 @@
         </section>
     </div>
 @endsection
+

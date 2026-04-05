@@ -9,10 +9,11 @@
                 <select id="customer_id" name="customer_id" required>
                     <option value="">Selectionner un client</option>
                     @foreach ($customers as $customer)
-                        <option value="{{ $customer->id }}" @selected((string) old('customer_id') === (string) $customer->id)>{{ $customer->code }} - {{ $customer->name }}</option>
+                        <option value="{{ $customer->id }}" data-price-list-id="{{ $customer->price_list_id ?? '' }}" data-price-list-name="{{ $customer->priceList?->name ?? '' }}" @selected((string) old('customer_id') === (string) $customer->id)>{{ $customer->code }} - {{ $customer->name }}</option>
                     @endforeach
                 </select>
                 @error('customer_id')<div class="field-error">{{ $message }}</div>@enderror
+                <div class="help" id="quote-customer-pricing">Aucune liste de prix specifique: le prix catalogue sera propose.</div>
             </div>
             <div>
                 <label for="quote_date">Date du devis</label>
@@ -106,8 +107,8 @@
                         <select name="items[{{ $index }}][product_id]" class="line-product">
                             <option value="">Choisir</option>
                             @foreach ($products as $product)
-                                <option value="{{ $product->id }}" data-name="{{ $product->name }}" data-price="{{ $product->sale_price }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
-                                    {{ $product->sku }} - {{ $product->name }}
+                                <option value="{{ $product->id }}" data-name="{{ $product->display_name }}" data-price="{{ $product->sale_price }}" data-sale-description="{{ $product->sales_description ?: ($product->description ?: $product->display_name) }}" data-unit-summary="{{ $product->salesUnitSummary() ?: $product->unit }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
+                                    {{ $product->sku }} - {{ $product->display_name }}{{ $product->salesUnitSummary() ? ' · '.$product->salesUnitSummary() : '' }}
                                 </option>
                             @endforeach
                         </select>
@@ -181,7 +182,7 @@
                 const lineTotal = qty * price;
 
                 if (selectedOption && selectedOption.value && !descriptionInput.value.trim()) {
-                    descriptionInput.value = selectedOption.dataset.name || '';
+                    descriptionInput.value = selectedOption.dataset.saleDescription || selectedOption.dataset.name || '';
                 }
 
                 if (selectedOption && selectedOption.value && !priceInput.value) {
@@ -218,3 +219,17 @@
         compute();
     });
 </script>
+
+@include('partials.document-line-pricing', [
+    'tableId' => 'quote-lines-table',
+    'partnerSelectId' => 'customer_id',
+    'pricingHintId' => 'quote-customer-pricing',
+    'lineAmountClass' => 'line-price',
+    'priceDataKey' => 'price',
+    'partnerKind' => 'client',
+    'defaultPricingText' => 'Aucune liste de prix specifique: le prix catalogue sera propose.',
+])
+
+
+
+

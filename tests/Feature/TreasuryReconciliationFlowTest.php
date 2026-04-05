@@ -19,12 +19,14 @@ class TreasuryReconciliationFlowTest extends TestCase
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
         $account = CashAccount::query()->where('company_id', $user->company_id)->where('type', 'bank')->firstOrFail();
+        $statementDate = '2026-03-25';
 
         $incoming = $this->makePayment($user, $account, 'REC-BANK-001', 'in', 200000);
         $outgoing = $this->makePayment($user, $account, 'PAY-BANK-001', 'out', 50000);
         $expectedBookBalance = round((float) $account->opening_balance + Payment::query()
             ->where('company_id', $user->company_id)
             ->where('cash_account_id', $account->id)
+            ->whereDate('payment_date', '<=', $statementDate)
             ->get()
             ->sum(fn (Payment $payment) => $payment->direction === 'in' ? (float) $payment->amount : -1 * (float) $payment->amount), 2);
 
@@ -32,7 +34,7 @@ class TreasuryReconciliationFlowTest extends TestCase
             ->withSession($this->workspaceSession($user))
             ->post(route('treasury-reconciliations.store'), [
                 'cash_account_id' => $account->id,
-                'statement_date' => '2026-03-25',
+                'statement_date' => $statementDate,
                 'statement_reference' => 'Releve BDM mars',
                 'statement_balance' => $expectedBookBalance,
                 'payment_ids' => [$incoming->id, $outgoing->id],

@@ -8,10 +8,13 @@
         <div>
             <h2 style="margin:0;">Historique des paiements</h2>
             <div class="muted">Les encaissements clients, reglements fournisseurs et remboursements POS sont centralises ici.</div>
+            @if ($scopeBranch)
+                <div class="help" style="margin-top:8px;">Perimetre agence actif : <strong>{{ $scopeBranch->name }}</strong></div>
+            @endif
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <a href="{{ route('payments.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-            @allowed('payments.manage')
+            @allowed('payments.validate')
                 <a href="{{ route('payments.create', ['type' => 'customer_receipt']) }}" class="button button-primary">Nouvel encaissement</a>
                 <a href="{{ route('payments.create', ['type' => 'supplier_payment']) }}" class="button button-secondary">Nouveau reglement</a>
             @endallowed

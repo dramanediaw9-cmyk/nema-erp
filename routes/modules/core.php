@@ -10,6 +10,9 @@ use App\Modules\Core\Collaboration\Http\Controllers\DocumentCollaborationControl
 use App\Modules\Core\Company\Http\Controllers\CompanyController;
 use App\Modules\Core\Company\Http\Controllers\SettingsController;
 use App\Modules\Core\Dashboard\Http\Controllers\DashboardController;
+use App\Modules\Core\Dashboard\Http\Controllers\GlobalSearchController;
+use App\Modules\Core\Dashboard\Http\Controllers\MerchantRoutineController;
+use App\Modules\Core\Dashboard\Http\Controllers\UiModeController;
 use App\Modules\Core\Notifications\Http\Controllers\NotificationController;
 use App\Modules\Core\Notifications\Http\Controllers\OutboundNotificationController;
 use App\Modules\Core\Onboarding\Http\Controllers\OnboardingController;
@@ -28,6 +31,17 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
         ->middleware('permission:dashboard.view')
         ->name('dashboard');
 
+    Route::get('/routine-commerce', MerchantRoutineController::class)
+        ->middleware('permission:dashboard.view')
+        ->name('merchant.routine');
+
+    Route::get('/recherche', GlobalSearchController::class)
+        ->middleware('permission:dashboard.view')
+        ->name('search.index');
+    Route::post('/interface/mode', [UiModeController::class, 'update'])
+        ->middleware('permission:dashboard.view')
+        ->name('ui-mode.update');
+
     Route::get('/demarrage', [OnboardingController::class, 'index'])
         ->middleware('permission:dashboard.view')
         ->name('onboarding.index');
@@ -37,6 +51,12 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/demarrage/reactiver', [OnboardingController::class, 'reopen'])
         ->middleware('permission:dashboard.view')
         ->name('onboarding.reopen');
+    Route::post('/demarrage/starter-secteur', [OnboardingController::class, 'applySectorStarter'])
+        ->middleware('permission:settings.manage')
+        ->name('onboarding.sector-starter.apply');
+    Route::post('/demarrage/demo-secteur', [OnboardingController::class, 'applySectorDemoData'])
+        ->middleware('permission:settings.manage')
+        ->name('onboarding.sector-demo.apply');
 
     Route::get('/approbations', [ApprovalPortalController::class, 'index'])
         ->middleware('permission:approvals.view')
@@ -48,9 +68,18 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/notifications-sortantes', [OutboundNotificationController::class, 'index'])
         ->middleware('permission:notifications.outbound.view')
         ->name('notifications.outbound.index');
+    Route::post('/notifications-sortantes/traiter', [OutboundNotificationController::class, 'process'])
+        ->middleware('permission:settings.manage')
+        ->name('notifications.outbound.process');
+    Route::post('/notifications-sortantes/relancer-echecs', [OutboundNotificationController::class, 'retryFailed'])
+        ->middleware('permission:settings.manage')
+        ->name('notifications.outbound.retry-failed');
     Route::get('/operations/sante', [OperationsController::class, 'index'])
         ->middleware('permission:ops.view')
         ->name('ops.index');
+    Route::post('/operations/outbox/traiter', [OperationsController::class, 'processOutbox'])
+        ->middleware('permission:ops.view')
+        ->name('ops.outbox.process');
     Route::post('/operations/outbox/{integrationEvent}/relancer', [OperationsController::class, 'retryOutboxEvent'])
         ->middleware('permission:ops.view')
         ->name('ops.outbox.retry');
@@ -95,18 +124,22 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
 
     Route::get('/parametres', [SettingsController::class, 'index'])->middleware('permission:settings.view')->name('settings.index');
     Route::put('/parametres/societe', [SettingsController::class, 'updateCompany'])->middleware('permission:settings.manage')->name('settings.company.update');
+    Route::put('/parametres/profil-secteur', [SettingsController::class, 'updateSectorProfile'])->middleware('permission:settings.manage')->name('settings.sector-profile.update');
     Route::put('/parametres/sequences', [SettingsController::class, 'updateSequences'])->middleware('permission:settings.manage')->name('settings.sequences.update');
     Route::put('/parametres/approbations', [SettingsController::class, 'updateApprovalWorkflows'])->middleware('permission:settings.manage')->name('settings.approvals.update');
     Route::put('/parametres/notifications-approbations', [SettingsController::class, 'updateApprovalNotifications'])->middleware('permission:settings.manage')->name('settings.approval-notifications.update');
+    Route::put('/parametres/integrations/webhook', [SettingsController::class, 'updateIntegrationWebhook'])->middleware('permission:settings.integrations.manage')->name('settings.integrations.webhook.update');
+    Route::put('/parametres/passerelles-paiement', [SettingsController::class, 'updatePaymentGateways'])->middleware('permission:settings.integrations.manage')->name('settings.payment-gateways.update');
     Route::post('/parametres/conditions-paiement', [SettingsController::class, 'storePaymentTerm'])->middleware('permission:settings.manage')->name('settings.payment-terms.store');
     Route::post('/parametres/listes-prix', [SettingsController::class, 'storePriceList'])->middleware('permission:settings.manage')->name('settings.price-lists.store');
     Route::post('/parametres/listes-prix/lignes', [SettingsController::class, 'storePriceListItem'])->middleware('permission:settings.manage')->name('settings.price-list-items.store');
     Route::post('/parametres/regles-fiscales', [SettingsController::class, 'storeTaxRule'])->middleware('permission:settings.manage')->name('settings.tax-rules.store');
-    Route::post('/parametres/api/tokens', [SettingsController::class, 'createApiToken'])->middleware('permission:settings.manage')->name('settings.api-tokens.store');
-    Route::delete('/parametres/api/tokens/{apiToken}', [SettingsController::class, 'revokeApiToken'])->middleware('permission:settings.manage')->name('settings.api-tokens.destroy');
+    Route::post('/parametres/api/tokens', [SettingsController::class, 'createApiToken'])->middleware('permission:settings.integrations.manage')->name('settings.api-tokens.store');
+    Route::delete('/parametres/api/tokens/{apiToken}', [SettingsController::class, 'revokeApiToken'])->middleware('permission:settings.integrations.manage')->name('settings.api-tokens.destroy');
 
     Route::get('/journaux-activite', [ActivityLogController::class, 'index'])
         ->middleware('permission:activity_logs.view')
         ->name('activity-logs.index');
 });
+
 

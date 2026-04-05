@@ -38,6 +38,7 @@
 
     <form method="POST" action="{{ route('pos.returns.store', $invoice) }}" class="return-layout" id="pos-return-form">
         @csrf
+        <input type="hidden" name="pos_session_id" value="{{ $session->id }}">
         <div class="form-grid card" style="margin:0;">
             <div>
                 <label for="return_date">Date retour</label>

@@ -1,4 +1,2 @@
-*
-!private/
-!public/
-!.gitignore
+# Track application source files by default.
+# app/private and app/public manage their own placeholders locally.

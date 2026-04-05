@@ -38,6 +38,7 @@ class CoreNavigationTest extends TestCase
             route('crm.index'),
             route('sales.index'),
             route('purchases.index'),
+            route('delivery-notes.index'),
             route('cash-accounts.index'),
             route('payments.index'),
             route('treasury-reconciliations.index'),
@@ -122,4 +123,3 @@ class CoreNavigationTest extends TestCase
         $this->get(route('notifications.outbound.index'))->assertForbidden();
     }
 }
-

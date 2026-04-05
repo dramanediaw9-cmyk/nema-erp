@@ -4,7 +4,11 @@
 @section('page-title', 'Enregistrer un paiement')
 
 @section('content')
-    @php($paymentMethodOptions = $methodOptions ?? \App\Support\PaymentMethodCatalog::options())
+    @php
+        $paymentMethodOptions = $methodOptions ?? \App\Support\PaymentMethodCatalog::options();
+        $prefill = $prefill ?? [];
+        $scopeBranch = $scopeBranch ?? $branch ?? null;
+    @endphp
 
     <form method="POST" action="{{ route('payments.store') }}">
         @csrf
@@ -12,6 +16,24 @@
             <div class="form-grid">
                 <div class="full">
                     <div class="help">Agence active : <strong>{{ $branch?->name }}</strong></div>
+                    <div class="help" style="margin-top:8px;">Perimetre de validation : <strong>{{ $scopeBranch?->name ?? 'Agence non determinee' }}</strong> · Plafond profil : <strong>{{ $validationLimitLabel ?? 'Illimite' }}</strong></div>
+                    @if ($scopeBranch && $branch && $scopeBranch->id !== $branch->id)
+                        <div class="notice" style="margin-top:12px;">
+                            <strong>Perimetre adapte au document</strong>
+                            <div class="muted" style="margin-top:8px;">Le paiement sera rattache a {{ $scopeBranch->name }} pour rester coherent avec le document et le compte de tresorerie selectionnes.</div>
+                        </div>
+                    @endif
+                    @if (($prefill['source'] ?? null) === 'portal_payment_notice')
+                        <div class="notice" style="margin-top:12px;">
+                            <strong>Pre-remplissage depuis le portail client</strong>
+                            <div class="muted" style="margin-top:8px;">Le client a annonce un reglement via le lien de paiement. Verifie le compte de tresorerie reel puis enregistre l encaissement.</div>
+                        </div>
+                    @elseif (($prefill['source'] ?? null) === 'gateway_callback')
+                        <div class="notice" style="margin-top:12px;">
+                            <strong>Pre-remplissage depuis un callback paiement terrain</strong>
+                            <div class="muted" style="margin-top:8px;">Un retour automatique du prestataire a ete recu. Verifie le compte de tresorerie reel puis confirme l encaissement.</div>
+                        </div>
+                    @endif
                 </div>
                 <div>
                     <label for="payment_type">Type de paiement</label>
@@ -56,28 +78,28 @@
                 </div>
                 <div>
                     <label for="payment_date">Date du paiement</label>
-                    <input id="payment_date" type="date" name="payment_date" value="{{ old('payment_date', now()->format('Y-m-d')) }}" required>
+                    <input id="payment_date" type="date" name="payment_date" value="{{ old('payment_date', $prefill['payment_date'] ?? now()->format('Y-m-d')) }}" required>
                 </div>
                 <div>
                     <label for="amount">Montant</label>
-                    <input id="amount" type="number" step="0.01" min="0.01" name="amount" value="{{ old('amount') }}" required>
+                    <input id="amount" type="number" step="0.01" min="0.01" name="amount" value="{{ old('amount', $prefill['amount'] ?? null) }}" required>
                 </div>
                 <div>
                     <label for="method">Mode de paiement</label>
                     <select id="method" name="method" required>
                         @foreach ($paymentMethodOptions as $value => $label)
-                            <option value="{{ $value }}" @selected(old('method') === $value)>{{ $label }}</option>
+                            <option value="{{ $value }}" @selected(old('method', $prefill['method'] ?? null) === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
-                    <div class="help">Les wallets dedies comme Wave et Moov Money sont maintenant suivis distinctement.</div>
+                    <div class="help">Les wallets dedies comme Wave et Moov Money sont suivis distinctement, avec controle agence et plafond de validation.</div>
                 </div>
                 <div>
                     <label for="reference">Reference</label>
-                    <input id="reference" type="text" name="reference" value="{{ old('reference') }}">
+                    <input id="reference" type="text" name="reference" value="{{ old('reference', $prefill['reference'] ?? null) }}">
                 </div>
                 <div class="full">
                     <label for="notes">Notes</label>
-                    <textarea id="notes" name="notes">{{ old('notes') }}</textarea>
+                    <textarea id="notes" name="notes">{{ old('notes', $prefill['notes'] ?? null) }}</textarea>
                 </div>
             </div>
             <div class="actions">
@@ -136,3 +158,4 @@
         });
     </script>
 @endsection
+

@@ -7,6 +7,8 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductCategory;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Expenses\Models\ExpenseCategory;
+use App\Modules\Inventory\Models\ProductLot;
+use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
@@ -72,6 +74,74 @@ class OperationalFiltersTest extends TestCase
             ->assertSee('PRD-LOW01')
             ->assertDontSee('Sucre 1kg')
             ->assertDontSee('Eau minerale 1.5L');
+    }
+
+
+    public function test_stock_page_handles_tracked_lot_products_without_sql_errors(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $category = ProductCategory::query()->where('company_id', $user->company_id)->where('name', 'Epicerie')->firstOrFail();
+        $warehouse = Warehouse::query()
+            ->where('company_id', $user->company_id)
+            ->where('branch_id', $user->branch_id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $product = Product::query()->create([
+            'company_id' => $user->company_id,
+            'category_id' => $category->id,
+            'sku' => 'PRD-LOT-STOCK01',
+            'barcode' => '770000000501',
+            'name' => 'Nido poudre 900g',
+            'unit' => 'boite',
+            'type' => 'stockable',
+            'tracking_type' => 'lot',
+            'sale_price' => 4200,
+            'purchase_price' => 3250,
+            'min_stock' => 3,
+            'description' => 'Produit lot trace pour ecran stock',
+            'is_active' => true,
+            'sale_ok' => true,
+            'purchase_ok' => true,
+        ]);
+
+        ProductLot::query()->create([
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'tracking_type' => 'lot',
+            'lot_number' => 'NIDO-LOT-001',
+            'expires_at' => now()->addDays(25)->toDateString(),
+            'received_at' => now()->subDays(7)->toDateString(),
+            'unit_cost' => 3250,
+            'quantity_received' => 10,
+            'quantity_available' => 10,
+        ]);
+
+        ProductLot::query()->create([
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'tracking_type' => 'lot',
+            'lot_number' => 'NIDO-LOT-EXP',
+            'expires_at' => now()->subDay()->toDateString(),
+            'received_at' => now()->subDays(20)->toDateString(),
+            'unit_cost' => 3250,
+            'quantity_received' => 4,
+            'quantity_available' => 4,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('stock.index', [
+                'search' => 'Nido',
+                'category_id' => $category->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Nido poudre 900g')
+            ->assertSee('PRD-LOT-STOCK01');
     }
 
     public function test_sales_page_filters_by_search_workflow_payment_and_branch(): void

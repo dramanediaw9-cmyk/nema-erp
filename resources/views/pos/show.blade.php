@@ -161,6 +161,9 @@
             display: grid;
             gap: 12px;
         }
+        .pos-history-list.is-compact {
+            gap: 8px;
+        }
         .pos-history-item {
             display: flex;
             justify-content: space-between;
@@ -171,8 +174,71 @@
             border-radius: 18px;
             background: #fff;
         }
+        .pos-history-item.is-compact {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 16px;
+        }
         .pos-history-item strong { display: block; margin-bottom: 5px; }
         .pos-history-meta { color: #6f8094; font-size: 13px; }
+        .pos-history-main {
+            min-width: 0;
+        }
+        .pos-history-title-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .pos-history-title-row strong {
+            margin: 0;
+            font-size: 15px;
+        }
+        .pos-history-title-row .pos-history-meta {
+            white-space: nowrap;
+        }
+        .pos-history-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .pos-mini-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #dbe5f0;
+            background: #f7fafc;
+            color: #304256;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .pos-amount {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #13263e;
+            white-space: nowrap;
+        }
+        .pos-inline-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .pos-inline-actions .button {
+            min-height: auto;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
         .pos-breakdown-grid {
             display: grid;
             gap: 20px;
@@ -184,6 +250,12 @@
         @media (max-width: 760px) {
             .pos-session-hero { padding: 20px 18px; }
             .pos-session-hero h2 { font-size: 26px; }
+            .pos-history-item.is-compact {
+                grid-template-columns: 1fr;
+            }
+            .pos-inline-actions {
+                justify-content: flex-start;
+            }
         }
     </style>
 
@@ -195,7 +267,7 @@
                 <div class="pos-status-chip">{{ $session->status === 'open' ? 'Session ouverte' : 'Session cloturee' }}</div>
                 <div class="pos-view-tabs">
                     @if ($session->status === 'open')
-                        <a href="{{ route('pos.sales.create') }}" class="pos-view-tab">Caisse</a>
+                        <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="pos-view-tab">Caisse</a>
                     @else
                         <a href="{{ route('pos.index') }}" class="pos-view-tab">Caisse</a>
                     @endif
@@ -207,7 +279,7 @@
                 <a href="{{ route('pos.report', ['date' => $session->opened_at?->toDateString(), 'warehouse_id' => $session->warehouse_id, 'cash_account_id' => $session->cash_account_id]) }}" class="button button-secondary">Rapport du jour</a>
                 <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Comptage imprimable</a>
                 @if ($session->status === 'open')
-                    <a href="{{ route('pos.sales.create') }}" class="button button-primary">Nouvelle vente comptoir</a>
+                    <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="button button-primary">Nouvelle vente comptoir</a>
                 @endif
             </div>
         </section>
@@ -252,7 +324,7 @@
                 </div>
             </section>
 
-            <section class="pos-session-panel">
+            <section id="cloture-session" class="pos-session-panel">
                 <div class="pos-session-head">
                     <div>
                         <h3>Cloture detaillee par mode</h3>
@@ -401,17 +473,23 @@
                 <span class="badge badge-warning">{{ $pendingDrafts->count() }} en attente</span>
             </div>
             <div class="pos-session-body">
-                <div class="pos-history-list">
+                <div class="pos-history-list is-compact">
                     @forelse ($pendingDrafts as $draft)
-                        <div class="pos-history-item">
-                            <div>
-                                <strong>{{ $draft->label }}</strong>
-                                <div class="pos-history-meta">{{ $draft->customer?->name ?? 'Client comptoir' }} · {{ $draft->sale_date?->format('d/m/Y') }} · {{ number_format((float) $draft->total, 0, ',', ' ') }} XOF</div>
-                                <div class="help">{{ $draft->items_count }} article(s) · Mode {{ $methodOptions[$draft->method] ?? $draft->method }}</div>
-                                <div class="help">Derniere activite : {{ $draft->last_activity_at?->format('d/m/Y H:i') ?? '-' }} · {{ $draft->updater?->name ?? $draft->creator?->name ?? 'Operateur' }}</div>
+                        <div class="pos-history-item is-compact">
+                            <div class="pos-history-main">
+                                <div class="pos-history-title-row">
+                                    <strong>{{ $draft->label }}</strong>
+                                    <div class="pos-amount">{{ number_format((float) $draft->total, 0, ',', ' ') }} XOF</div>
+                                </div>
+                                <div class="pos-history-meta">{{ $draft->customer?->name ?? 'Client comptoir' }} · {{ $draft->sale_date?->format('d/m/Y') }} · {{ $methodOptions[$draft->method] ?? $draft->method }}</div>
+                                <div class="pos-history-tags">
+                                    <span class="pos-mini-chip">{{ $draft->items_count }} article(s)</span>
+                                    <span class="pos-mini-chip">Maj {{ $draft->last_activity_at?->format('d/m H:i') ?? '-' }}</span>
+                                    <span class="pos-mini-chip">{{ $draft->updater?->name ?? $draft->creator?->name ?? 'Operateur' }}</span>
+                                </div>
                             </div>
-                            <div style="display:grid; gap:8px; justify-items:end;">
-                                <a href="{{ route('pos.sales.create', ['draft' => $draft->id]) }}" class="button button-primary">Reprendre</a>
+                            <div class="pos-inline-actions">
+                                <a href="{{ route('pos.sales.create', ['session' => $session->id, 'draft' => $draft->id]) }}" class="button button-primary">Reprendre</a>
                             </div>
                         </div>
                     @empty
@@ -433,26 +511,31 @@
                     </div>
                 </div>
                 <div class="pos-session-body">
-                    <div class="pos-history-list">
+                    <div class="pos-history-list is-compact">
                         @forelse ($recentInvoices as $invoice)
                             @php($refundedAmount = (float) $invoice->posReturns->sum('total'))
-                            <div class="pos-history-item">
-                                <div>
-                                    <strong>{{ $invoice->invoice_number }}</strong>
+                            <div class="pos-history-item is-compact">
+                                <div class="pos-history-main">
+                                    <div class="pos-history-title-row">
+                                        <strong>{{ $invoice->invoice_number }}</strong>
+                                        <div class="pos-amount">{{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</div>
+                                    </div>
                                     <div class="pos-history-meta">{{ $invoice->invoice_date?->format('d/m/Y') }} · {{ $invoice->customer?->name }}</div>
-                                    <div class="help">Total : {{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</div>
-                                    @if ((float) $invoice->discount_total > 0)
-                                        <div class="help">Remise : {{ number_format((float) $invoice->discount_total, 0, ',', ' ') }} XOF</div>
-                                    @endif
-                                    @if ($refundedAmount > 0)
-                                        <div class="help">Retour cumule : {{ number_format($refundedAmount, 0, ',', ' ') }} XOF</div>
-                                    @endif
+                                    <div class="pos-history-tags">
+                                        <span class="pos-mini-chip">Ticket</span>
+                                        @if ((float) $invoice->discount_total > 0)
+                                            <span class="pos-mini-chip">Remise {{ number_format((float) $invoice->discount_total, 0, ',', ' ') }} XOF</span>
+                                        @endif
+                                        @if ($refundedAmount > 0)
+                                            <span class="pos-mini-chip">Retour {{ number_format($refundedAmount, 0, ',', ' ') }} XOF</span>
+                                        @endif
+                                    </div>
                                 </div>
-                                <div style="display:grid; gap:8px; justify-items:end;">
+                                <div class="pos-inline-actions">
                                     <a href="{{ route('pos.receipt', $invoice) }}" class="button button-secondary">Ticket</a>
                                     <a href="{{ route('pos.receipt.thermal', $invoice) }}" class="button button-secondary">Thermique</a>
                                     @if ($session->status === 'open')
-                                        <a href="{{ route('pos.returns.create', $invoice) }}" class="button button-secondary">Retour</a>
+                                        <a href="{{ route('pos.returns.create', ['sale' => $invoice, 'session' => $session->id]) }}" class="button button-secondary">Retour</a>
                                     @endif
                                 </div>
                             </div>
@@ -474,14 +557,19 @@
                     </div>
                 </div>
                 <div class="pos-session-body">
-                    <div class="pos-history-list">
+                    <div class="pos-history-list is-compact">
                         @forelse ($recentReturns as $return)
-                            <div class="pos-history-item">
-                                <div>
-                                    <strong>{{ $return->return_number }}</strong>
+                            <div class="pos-history-item is-compact">
+                                <div class="pos-history-main">
+                                    <div class="pos-history-title-row">
+                                        <strong>{{ $return->return_number }}</strong>
+                                        <div class="pos-amount">{{ number_format((float) $return->total, 0, ',', ' ') }} XOF</div>
+                                    </div>
                                     <div class="pos-history-meta">{{ $return->invoice?->invoice_number }} · {{ $return->return_date?->format('d/m/Y') }}</div>
-                                    <div class="help">Montant : {{ number_format((float) $return->total, 0, ',', ' ') }} XOF</div>
-                                    <div class="help">Echange : {{ $return->exchangeInvoice?->invoice_number ?? 'Aucun' }}</div>
+                                    <div class="pos-history-tags">
+                                        <span class="pos-mini-chip">Remboursement</span>
+                                        <span class="pos-mini-chip">Echange {{ $return->exchangeInvoice?->invoice_number ?? 'Aucun' }}</span>
+                                    </div>
                                 </div>
                                 <div class="pos-history-meta">{{ $return->payment?->cashAccount?->name ?? 'Sans remboursement' }}</div>
                             </div>
@@ -529,3 +617,5 @@
     });
     </script>
 @endsection
+
+

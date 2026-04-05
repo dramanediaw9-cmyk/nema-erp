@@ -68,21 +68,41 @@
             <tbody>
             @forelse ($entries as $entry)
                 @php
-                    $sourceLabel = match ($entry->source_type) {
-                        \App\Modules\Sales\Models\SalesInvoice::class => 'Vente',
-                        \App\Modules\Purchases\Models\PurchaseBill::class => 'Achat',
-                        \App\Modules\Expenses\Models\Expense::class => 'Depense',
-                        \App\Modules\Treasury\Models\Payment::class => 'Paiement',
+                    $sourceLabel = match (true) {
+                        (bool) $entry->is_reversal => 'Contrepassation',
+                        $entry->source_type === \App\Modules\Sales\Models\SalesInvoice::class => 'Vente',
+                        $entry->source_type === \App\Modules\Purchases\Models\PurchaseBill::class => 'Achat',
+                        $entry->source_type === \App\Modules\Expenses\Models\Expense::class => 'Depense',
+                        $entry->source_type === \App\Modules\Treasury\Models\Payment::class => 'Paiement',
                         default => 'Autre',
                     };
                 @endphp
                 <tr>
-                    <td><strong>{{ $entry->journal_number }}</strong></td>
+                    <td>
+                        <strong>{{ $entry->journal_number }}</strong>
+                        @if ($entry->reversalEntry)
+                            <div class="muted" style="margin-top:4px; font-size:12px;">Contrepassee</div>
+                        @endif
+                    </td>
                     <td>{{ $entry->entry_date?->format('d/m/Y') }}</td>
                     <td>{{ $entry->journal_code }}</td>
-                    <td>{{ $sourceLabel }}</td>
-                    <td>{{ $entry->reference }}</td>
-                    <td>{{ $entry->description }}</td>
+                    <td>
+                        <div>{{ $sourceLabel }}</div>
+                        @if ($entry->is_reversal)
+                            <span class="badge badge-warning">Controle</span>
+                        @elseif ($entry->reversalEntry)
+                            <span class="badge badge-muted">Archivee par contrepassation</span>
+                        @endif
+                    </td>
+                    <td>{{ $entry->reference ?: '-' }}</td>
+                    <td>
+                        <div>{{ $entry->description }}</div>
+                        @if ($entry->is_reversal && $entry->reversalOf)
+                            <div class="muted" style="margin-top:4px; font-size:12px;">Annule l ecriture {{ $entry->reversalOf->journal_number }}</div>
+                        @elseif ($entry->reversalEntry)
+                            <div class="muted" style="margin-top:4px; font-size:12px;">Contrepassee par {{ $entry->reversalEntry->journal_number }}</div>
+                        @endif
+                    </td>
                     <td>{{ number_format((float) $entry->total_debit, 0, ',', ' ') }} XOF</td>
                     <td>{{ number_format((float) $entry->total_credit, 0, ',', ' ') }} XOF</td>
                     <td><a href="{{ route('accounting.journal-entries.show', $entry) }}">Voir</a></td>

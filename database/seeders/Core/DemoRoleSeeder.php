@@ -47,18 +47,22 @@ class DemoRoleSeeder extends Seeder
                 'dashboard.view',
                 'approvals.view',
                 'reports.view',
+                'reports.margin.view',
                 'budgets.view',
                 'notifications.view',
                 'notifications.outbound.view',
                 'companies.view',
                 'branches.view',
+                'branches.cross_scope',
                 'users.view',
                 'roles.view',
                 'settings.view',
+                'settings.integrations.manage',
                 'customers.view',
                 'suppliers.view',
                 'categories.view',
                 'products.view',
+                'products.cost.view',
                 'stock.view',
                 'stock_counts.view',
                 'warehouses.view',
@@ -70,7 +74,10 @@ class DemoRoleSeeder extends Seeder
                 'pos.view',
                 'sales.view',
                 'sales.approve',
+                'sales.cancel',
+                'sales.price_override',
                 'credit_notes.view',
+                'credit_notes.issue',
                 'collections.view',
                 'collections.manage',
                 'purchase_requests.view',
@@ -83,10 +90,12 @@ class DemoRoleSeeder extends Seeder
                 'reconciliations.view',
                 'ops.view',
                 'payments.view',
+                'payments.validate',
                 'expense_categories.view',
                 'expenses.view',
                 'expenses.approve',
                 'accounting.view',
+                'accounting.reverse',
                 'fixed_assets.view',
                 'accounting.manage_periods',
                 'activity_logs.view',
@@ -181,7 +190,6 @@ class DemoRoleSeeder extends Seeder
         );
     }
 }
-
 
 
 

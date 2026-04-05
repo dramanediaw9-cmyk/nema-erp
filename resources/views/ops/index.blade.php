@@ -4,6 +4,12 @@
 @section('page-title', 'Operations')
 
 @section('content')
+    @php
+        $backupCheck = collect($report['checks'])->firstWhere('key', 'backups');
+        $logsSummary = $appMonitoring['logs'];
+        $failedJobsSummary = $appMonitoring['failed_jobs'];
+    @endphp
+
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Sante systeme</h2>
@@ -49,13 +55,40 @@
                 <div class="summary-box">
                     <strong>Commandes utiles</strong>
                     <div class="muted" style="margin-top:8px;">`php artisan nema:ops:health-check --store`</div>
+                    <div class="muted">`php artisan nema:ops:backup-run --keep=7`</div>
+                    <div class="muted">`php artisan nema:ops:backup-verify`</div>
+                    <div class="muted">`php artisan nema:ops:monitor-app`</div>
+                    <div class="muted">`php artisan nema:notifications:sync-internal`</div>
+                    <div class="muted">`php artisan nema:notifications:dispatch-outbound --limit=50`</div>
+                    <div class="muted">`php artisan nema:integrations:dispatch-outbox --limit=50`</div>
                     <div class="muted">`php artisan nema:ops:outbox-retry-failed --limit=50`</div>
                     <div class="muted">`php artisan nema:ops:outbox-prune --days=30`</div>
                     <div class="muted">`php artisan schedule:list`</div>
                 </div>
+                @if ($backupCheck)
+                    <div class="summary-box">
+                        <strong>Sauvegardes locales</strong>
+                        <div class="chip-row" style="margin-top:8px;">
+                            <span class="badge {{ $backupCheck['status'] === 'ok' ? 'badge-success' : ($backupCheck['status'] === 'fail' ? 'badge-muted' : 'badge-warning') }}">{{ strtoupper($backupCheck['status']) }}</span>
+                            @if (! empty($backupCheck['meta']['created_at']))
+                                <span class="badge badge-muted">{{ \Illuminate\Support\Carbon::parse($backupCheck['meta']['created_at'])->format('d/m/Y H:i') }}</span>
+                            @endif
+                        </div>
+                        <div class="muted" style="margin-top:8px;">{{ $backupCheck['message'] }}</div>
+                        <div class="help" style="margin-top:8px;">{{ $backupCheck['meta']['tables_checked'] ?? 0 }}/{{ $backupCheck['meta']['tables_expected'] ?? 0 }} table(s) verifiee(s) · {{ $backupCheck['meta']['verified_rows'] ?? 0 }} ligne(s) relues</div>
+                        <div class="help" style="margin-top:8px;">{{ $backupCheck['meta']['assets_checked'] ?? 0 }}/{{ $backupCheck['meta']['assets_expected'] ?? 0 }} dossier(s) assets controles · {{ $backupCheck['meta']['asset_files_verified'] ?? 0 }} fichier(s)</div>
+                        @if (! empty($backupCheck['meta']['directory']))
+                            <div class="help" style="margin-top:8px;">Emplacement : {{ $backupCheck['meta']['directory'] }}</div>
+                        @endif
+                    </div>
+                @endif
                 <div class="summary-box">
-                    <strong>Pipeline</strong>
-                    <div class="muted" style="margin-top:8px;">Workflow CI genere dans `.github/workflows/ci.yml`.</div>
+                    <strong>Webhook outbox</strong>
+                    <div class="chip-row" style="margin-top:8px;">
+                        <span class="badge {{ $outboxWebhook['enabled'] ? 'badge-success' : 'badge-muted' }}">{{ $outboxWebhook['enabled'] ? 'Actif' : 'Inactif' }}</span>
+                        <span class="badge badge-muted">Timeout {{ $outboxWebhook['timeout'] }}s</span>
+                    </div>
+                    <div class="muted" style="margin-top:8px;">{{ $outboxWebhook['url'] ?: 'Aucune URL configuree' }}</div>
                 </div>
                 <div class="summary-box">
                     <strong>Historique recent</strong>
@@ -71,7 +104,103 @@
         </section>
     </div>
 
-    <section class="card">
+    <section class="card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+            <div>
+                <h3 class="section-title">Surveillance applicative</h3>
+                <div class="muted">Lecture rapide des logs applicatifs et des jobs en echec pour attraper les incidents avant qu ils ne deviennent metier.</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <span class="badge {{ $appMonitoring['status'] === 'ok' ? 'badge-success' : ($appMonitoring['status'] === 'fail' ? 'badge-muted' : 'badge-warning') }}">Monitoring : {{ strtoupper($appMonitoring['status']) }}</span>
+                <span class="badge {{ $logsSummary['status'] === 'ok' ? 'badge-success' : ($logsSummary['status'] === 'fail' ? 'badge-muted' : 'badge-warning') }}">Logs : {{ $logsSummary['signals_count'] ?? 0 }}</span>
+                <span class="badge {{ $failedJobsSummary['status'] === 'ok' ? 'badge-success' : ($failedJobsSummary['status'] === 'fail' ? 'badge-muted' : 'badge-warning') }}">Jobs en echec : {{ $failedJobsSummary['count'] ?? 0 }}</span>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="summary-box">
+                <strong>Logs applicatifs</strong>
+                <div class="muted" style="margin-top:8px;">{{ $logsSummary['message'] }}</div>
+                <div class="help" style="margin-top:8px;">{{ $logsSummary['line_count'] ?? 0 }} ligne(s) lues · {{ $logsSummary['critical_count'] ?? 0 }} signal(s) critiques · {{ $logsSummary['exception_mentions'] ?? 0 }} mention(s) d exception</div>
+                @if (! empty($logsSummary['path']))
+                    <div class="help" style="margin-top:8px;">Fichier : {{ $logsSummary['path'] }}</div>
+                @endif
+                @if (! empty($logsSummary['last_signal_excerpt']))
+                    <div class="help" style="margin-top:8px;">Dernier signal : {{ $logsSummary['last_signal_at'] }} · {{ $logsSummary['last_signal_excerpt'] }}</div>
+                @endif
+                @if (! empty($logsSummary['recent_signals']))
+                    <ul class="summary-list" style="margin-top:12px;">
+                        @foreach ($logsSummary['recent_signals'] as $signal)
+                            <li>{{ $signal['occurred_at'] }} · {{ $signal['level'] }} · {{ $signal['message'] }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+            <div class="summary-box">
+                <strong>Jobs en echec</strong>
+                <div class="muted" style="margin-top:8px;">{{ $failedJobsSummary['message'] }}</div>
+                <div class="help" style="margin-top:8px;">{{ $failedJobsSummary['recent_count'] ?? 0 }} echec(s) sur 24 h · dernier a {{ $failedJobsSummary['last_failed_at'] ?: 'n/a' }}</div>
+                @if (! empty($failedJobsSummary['recent_jobs']))
+                    <ul class="summary-list" style="margin-top:12px;">
+                        @foreach ($failedJobsSummary['recent_jobs'] as $job)
+                            <li>#{{ $job['id'] }} · {{ $job['queue'] }} · {{ $job['failed_at'] }} · {{ $job['exception'] }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        </div>
+    </section>
+
+    <section class="card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+            <div>
+                <h3 class="section-title">Restauration guidee</h3>
+                <div class="muted">La sauvegarde n a de valeur que si elle peut etre reprise. Ce bloc rappelle le dernier point de reprise et la sequence de redemarrage.</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <span class="badge {{ $backupVerification['status'] === 'ok' ? 'badge-success' : ($backupVerification['status'] === 'fail' ? 'badge-muted' : 'badge-warning') }}">Verification : {{ strtoupper($backupVerification['status']) }}</span>
+                @if (! empty($backupRestorePreview['created_at']))
+                    <span class="badge badge-muted">{{ \Illuminate\Support\Carbon::parse($backupRestorePreview['created_at'])->format('d/m/Y H:i') }}</span>
+                @endif
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="summary-box">
+                <strong>{{ $backupRestorePreview['title'] }}</strong>
+                <div class="muted" style="margin-top:8px;">{{ $backupRestorePreview['summary'] }}</div>
+                @if (! empty($backupRestorePreview['directory']))
+                    <div class="help" style="margin-top:8px;">Source : {{ $backupRestorePreview['directory'] }}</div>
+                @endif
+                @if (! empty($backupVerification['errors']))
+                    <div class="help" style="margin-top:12px; color:#9c3d2f;">Erreurs detectees :</div>
+                    <ul class="summary-list">
+                        @foreach ($backupVerification['errors'] as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if (! empty($backupVerification['warnings']))
+                    <div class="help" style="margin-top:12px;">Points de vigilance :</div>
+                    <ul class="summary-list">
+                        @foreach ($backupVerification['warnings'] as $warning)
+                            <li>{{ $warning }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+            <div class="summary-box">
+                <strong>Sequence conseillee</strong>
+                <ol class="summary-list" style="padding-left:18px;">
+                    @foreach ($backupRestorePreview['steps'] as $step)
+                        <li>{{ $step }}</li>
+                    @endforeach
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <section class="card" style="margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
             <div>
                 <h3 class="section-title">Outbox integration</h3>
@@ -80,6 +209,11 @@
             <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                 <span class="badge badge-warning">En attente : {{ $outboxSummary['pending'] }}</span>
                 <span class="badge {{ $outboxSummary['failed'] > 0 ? 'badge-warning' : 'badge-success' }}">En echec : {{ $outboxSummary['failed'] }}</span>
+                <span class="badge badge-muted">Publies : {{ $outboxSummary['published'] }}</span>
+                <form method="POST" action="{{ route('ops.outbox.process') }}">
+                    @csrf
+                    <button type="submit" class="button button-primary">Traiter la file</button>
+                </form>
                 @if ($outboxSummary['failed'] > 0)
                     <form method="POST" action="{{ route('ops.outbox.retry-failed') }}">
                         @csrf
@@ -89,9 +223,9 @@
             </div>
         </div>
 
-        @if ($outboxSummary['failed'] > 0 || $outboxSummary['pending'] > 0)
+        @if ($outboxSummary['failed'] > 0 || $outboxSummary['pending'] > 0 || $outboxSummary['published'] > 0)
             <div class="help" style="margin-bottom:16px;">
-                Plus ancien en attente : {{ $outboxSummary['oldest_pending_at'] ? \Illuminate\Support\Carbon::parse($outboxSummary['oldest_pending_at'])->format('d/m/Y H:i') : 'Aucun' }} · Dernier echec : {{ $outboxSummary['last_failed_at'] ? \Illuminate\Support\Carbon::parse($outboxSummary['last_failed_at'])->format('d/m/Y H:i') : 'Aucun' }}
+                Plus ancien en attente : {{ $outboxSummary['oldest_pending_at'] ? \Illuminate\Support\Carbon::parse($outboxSummary['oldest_pending_at'])->format('d/m/Y H:i') : 'Aucun' }} · Dernier echec : {{ $outboxSummary['last_failed_at'] ? \Illuminate\Support\Carbon::parse($outboxSummary['last_failed_at'])->format('d/m/Y H:i') : 'Aucun' }} · Derniere publication : {{ $outboxSummary['last_published_at'] ? \Illuminate\Support\Carbon::parse($outboxSummary['last_published_at'])->format('d/m/Y H:i') : 'Aucune' }}
             </div>
         @endif
 
@@ -106,6 +240,7 @@
                         <th>Tentatives</th>
                         <th>Disponible</th>
                         <th>Publie</th>
+                        <th>Derniere livraison</th>
                         <th>Derniere erreur</th>
                         <th>Action</th>
                     </tr>
@@ -120,6 +255,16 @@
                             <td>{{ $event->attempts }}</td>
                             <td>{{ $event->available_at?->format('d/m/Y H:i') ?: '-' }}</td>
                             <td>{{ $event->published_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                            <td>
+                                @if ($event->latestDelivery)
+                                    {{ strtoupper($event->latestDelivery->status) }}
+                                    @if ($event->latestDelivery->response_status)
+                                        · HTTP {{ $event->latestDelivery->response_status }}
+                                    @endif
+                                @else
+                                    -
+                                @endif
+                            </td>
                             <td>{{ $event->last_error ?: '-' }}</td>
                             <td>
                                 @if ($event->status === 'failed')
@@ -133,7 +278,49 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="muted">Aucun evenement outbox pour cette societe.</td></tr>
+                        <tr><td colspan="10" class="muted">Aucun evenement outbox pour cette societe.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+            <div>
+                <h3 class="section-title">Journal des livraisons</h3>
+                <div class="muted">Chaque tentative webhook est tracee avec la charge envoyee, le code HTTP et le message d erreur si besoin.</div>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tentative</th>
+                        <th>Evenement</th>
+                        <th>Statut</th>
+                        <th>URL cible</th>
+                        <th>HTTP</th>
+                        <th>Demande</th>
+                        <th>Reponse</th>
+                        <th>Erreur</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($deliveryLogs as $delivery)
+                        <tr>
+                            <td>#{{ $delivery->attempt_number }} · {{ $delivery->requested_at?->format('d/m/Y H:i') ?: '-' }}</td>
+                            <td>{{ $delivery->event?->event_name ?: 'Evenement supprime' }}</td>
+                            <td><span class="badge {{ $delivery->status === 'sent' ? 'badge-success' : 'badge-warning' }}">{{ $delivery->status }}</span></td>
+                            <td>{{ $delivery->target_url ?: '-' }}</td>
+                            <td>{{ $delivery->response_status ?: '-' }}</td>
+                            <td><code style="font-size:12px;">{{ json_encode($delivery->request_payload, JSON_UNESCAPED_UNICODE) }}</code></td>
+                            <td>{{ $delivery->response_body ?: '-' }}</td>
+                            <td>{{ $delivery->error_message ?: '-' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="8" class="muted">Aucune tentative de livraison pour le moment.</td></tr>
                     @endforelse
                 </tbody>
             </table>

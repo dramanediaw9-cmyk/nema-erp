@@ -52,6 +52,7 @@ class PosReturnFlowTest extends TestCase
                 'notes' => 'VENTE-RETOUR-TEST',
                 'discount_type' => 'fixed',
                 'discount_value' => 50,
+                'cash_received_amount' => 950,
                 'items' => [
                     [
                         'product_id' => $product->id,
@@ -155,6 +156,7 @@ class PosReturnFlowTest extends TestCase
                 'notes' => 'VENTE-ECHANGE-TEST',
                 'discount_type' => 'none',
                 'discount_value' => 0,
+                'cash_received_amount' => 400,
                 'items' => [
                     [
                         'product_id' => $productA->id,
@@ -257,3 +259,4 @@ class PosReturnFlowTest extends TestCase
             ->value('balance');
     }
 }
+

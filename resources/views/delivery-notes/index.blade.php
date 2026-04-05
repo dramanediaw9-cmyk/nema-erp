@@ -4,6 +4,82 @@
 @section('page-title', 'Bons de livraison')
 
 @section('content')
+    <style>
+        .records-table {
+            --table-cell-padding-y: 8px;
+            --table-cell-padding-x: 8px;
+            --row-note-size: 12px;
+            --row-action-gap: 6px;
+            --status-gap: 6px;
+        }
+        .records-table.is-detailed {
+            --table-cell-padding-y: 11px;
+            --table-cell-padding-x: 10px;
+            --row-note-size: 13px;
+            --row-action-gap: 10px;
+            --status-gap: 8px;
+        }
+        .records-table table th,
+        .records-table table td {
+            padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+            vertical-align: middle;
+        }
+        .records-table .row-note {
+            margin-top: 4px;
+            font-size: var(--row-note-size);
+        }
+        .records-table .row-actions {
+            display: flex;
+            gap: var(--row-action-gap);
+            flex-wrap: wrap;
+        }
+        .records-table .row-actions .button {
+            padding: 7px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .records-table .status-stack {
+            display: grid;
+            gap: var(--status-gap);
+        }
+        .table-tools {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .mode-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #fff;
+        }
+        .mode-switch .button {
+            padding: 7px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .mode-switch .button.is-active {
+            background: var(--brand);
+            color: #fff;
+        }
+        @media (max-width: 1200px) {
+            .records-table .col-optional-lg {
+                display: none;
+            }
+        }
+        @media (max-width: 980px) {
+            .records-table .col-optional-md {
+                display: none;
+            }
+        }
+    </style>
+
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Suivi des livraisons</h2>
@@ -60,15 +136,23 @@
         </form>
     </section>
 
-    <section class="card table-wrap">
+    <div class="table-tools">
+        <div class="muted">Mode d affichage memorise pour la liste des bons de livraison.</div>
+        <div class="mode-switch" data-display-controls="delivery-notes">
+            <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
+            <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+        </div>
+    </div>
+
+    <section class="card table-wrap records-table is-compact" data-display-table="delivery-notes">
         <table>
             <thead>
             <tr>
                 <th>Numero</th>
                 <th>Date</th>
-                <th>Commande</th>
+                <th class="col-optional-md">Commande</th>
                 <th>Client</th>
-                <th>Agence</th>
+                <th class="col-optional-lg">Agence</th>
                 <th>Statut</th>
                 <th>Total</th>
                 <th>Action</th>
@@ -84,11 +168,11 @@
                     <td>
                         <strong>{{ $deliveryNote->delivery_number }}</strong>
                         @if ($deliveryNote->notes)
-                            <div class="muted" style="font-size:13px;">{{ $deliveryNote->notes }}</div>
+                            <div class="muted row-note">{{ $deliveryNote->notes }}</div>
                         @endif
                     </td>
                     <td>{{ $deliveryNote->delivery_date?->format('d/m/Y') }}</td>
-                    <td>
+                    <td class="col-optional-md">
                         @if ($deliveryNote->salesOrder)
                             <a href="{{ route('orders.show', $deliveryNote->salesOrder) }}">{{ $deliveryNote->salesOrder->order_number }}</a>
                         @else
@@ -96,15 +180,19 @@
                         @endif
                     </td>
                     <td>{{ $deliveryNote->customer?->name }}</td>
-                    <td>{{ $deliveryNote->branch?->name }}</td>
-                    <td><span class="badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
-                    <td>{{ number_format((float) $deliveryNote->total, 0, ',', ' ') }} XOF</td>
+                    <td class="col-optional-lg">{{ $deliveryNote->branch?->name }}</td>
                     <td>
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                            <a href="{{ route('delivery-notes.show', $deliveryNote) }}" class="button button-secondary">Voir</a>
+                        <div class="status-stack">
+                            <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
                             @if ($deliveryNote->status === 'issued')
                                 <span class="badge badge-success">Pret a facturer</span>
                             @endif
+                        </div>
+                    </td>
+                    <td>{{ number_format((float) $deliveryNote->total, 0, ',', ' ') }} XOF</td>
+                    <td>
+                        <div class="row-actions">
+                            <a href="{{ route('delivery-notes.show', $deliveryNote) }}" class="button button-secondary">Voir</a>
                         </div>
                     </td>
                 </tr>
@@ -131,4 +219,36 @@
             <div style="margin-top:18px;">{{ $deliveryNotes->links() }}</div>
         @endif
     </section>
+
+    <script>
+        (() => {
+            const storageKey = 'nema.delivery_notes.display_mode';
+            const table = document.querySelector('[data-display-table="delivery-notes"]');
+            const controls = document.querySelector('[data-display-controls="delivery-notes"]');
+            const buttons = controls ? Array.from(controls.querySelectorAll('[data-mode]')) : [];
+
+            if (!table || !buttons.length) {
+                return;
+            }
+
+            const applyMode = (mode) => {
+                const nextMode = mode === 'detailed' ? 'detailed' : 'compact';
+                table.classList.remove('is-compact', 'is-detailed');
+                table.classList.add(nextMode === 'detailed' ? 'is-detailed' : 'is-compact');
+                buttons.forEach((button) => {
+                    button.classList.toggle('is-active', button.dataset.mode === nextMode);
+                });
+            };
+
+            applyMode(localStorage.getItem(storageKey) || 'compact');
+
+            buttons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const mode = button.dataset.mode === 'detailed' ? 'detailed' : 'compact';
+                    localStorage.setItem(storageKey, mode);
+                    applyMode(mode);
+                });
+            });
+        })();
+    </script>
 @endsection

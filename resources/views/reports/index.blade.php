@@ -10,30 +10,36 @@
         $thirtyStart = now()->subDays(29)->format('Y-m-d');
         $monthStart = now()->startOfMonth()->format('Y-m-d');
         $cashNet = (float) $treasury['in'] - (float) $treasury['out'];
+        $money = fn ($value) => number_format((float) $value, 0, ',', ' ') . ' XOF';
+        $deltaClass = fn (array $metric) => $metric['direction'] === 'up' ? 'badge-success' : ($metric['direction'] === 'down' ? 'badge-warning' : 'badge-muted');
+        $signalBorder = fn (string $level) => $level === 'danger' ? '#b42318' : ($level === 'warning' ? '#ca6702' : '#176b4d');
     @endphp
 
     <div class="page-head">
         <div>
-            <h2 style="margin:0;">Vue synthetique de l'activite</h2>
-            <div class="muted">Periode du {{ \Illuminate\Support\Carbon::parse($filters['date_from'])->format('d/m/Y') }} au {{ \Illuminate\Support\Carbon::parse($filters['date_to'])->format('d/m/Y') }} · agence {{ $branch?->name }}</div>
+            <h2 style="margin:0;">Rapports de pilotage</h2>
+            <div class="muted">Periode du {{ \Illuminate\Support\Carbon::parse($filters['date_from'])->format('d/m/Y') }} au {{ \Illuminate\Support\Carbon::parse($filters['date_to'])->format('d/m/Y') }} · perimetre {{ $scopeLabel }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('sales.export', $filters) }}" class="button button-secondary">CSV ventes</a>
-            <a href="{{ route('purchases.export', $filters) }}" class="button button-secondary">CSV achats</a>
-            <a href="{{ route('payments.export', $filters) }}" class="button button-secondary">CSV paiements</a>
-            <a href="{{ route('expenses.export', $filters) }}" class="button button-secondary">CSV depenses</a>
+            <a href="{{ route('sales.export', ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to'], 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">CSV ventes</a>
+            <a href="{{ route('purchases.export', ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to'], 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">CSV achats</a>
+            <a href="{{ route('payments.export', ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to'], 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">CSV paiements</a>
+            <a href="{{ route('expenses.export', ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to'], 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">CSV depenses</a>
         </div>
     </div>
 
     <section class="card" style="margin-bottom:20px;">
         <div class="filter-pills">
-            <a href="{{ route('reports.index', ['date_from' => $today, 'date_to' => $today]) }}" class="button button-secondary">Aujourd hui</a>
-            <a href="{{ route('reports.index', ['date_from' => $weekStart, 'date_to' => $today]) }}" class="button button-secondary">7 derniers jours</a>
-            <a href="{{ route('reports.index', ['date_from' => $thirtyStart, 'date_to' => $today]) }}" class="button button-secondary">30 derniers jours</a>
-            <a href="{{ route('reports.index', ['date_from' => $monthStart, 'date_to' => $today]) }}" class="button button-secondary">Mois en cours</a>
+            <a href="{{ route('reports.index', ['date_from' => $today, 'date_to' => $today, 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">Aujourd hui</a>
+            <a href="{{ route('reports.index', ['date_from' => $weekStart, 'date_to' => $today, 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">7 derniers jours</a>
+            <a href="{{ route('reports.index', ['date_from' => $thirtyStart, 'date_to' => $today, 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">30 derniers jours</a>
+            <a href="{{ route('reports.index', ['date_from' => $monthStart, 'date_to' => $today, 'branch_id' => $filters['branch_id']]) }}" class="button button-secondary">Mois en cours</a>
+            @if ($canAccessAllBranches)
+                <a href="{{ route('reports.index', ['date_from' => $filters['date_from'], 'date_to' => $filters['date_to'], 'branch_id' => null]) }}" class="button button-secondary">Toutes agences</a>
+            @endif
         </div>
 
-        <form method="GET" action="{{ route('reports.index') }}" class="form-grid" style="align-items:end;">
+        <form method="GET" action="{{ route('reports.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
             <div>
                 <label for="date_from">Date debut</label>
                 <input type="date" id="date_from" name="date_from" value="{{ $filters['date_from'] }}">
@@ -42,109 +48,347 @@
                 <label for="date_to">Date fin</label>
                 <input type="date" id="date_to" name="date_to" value="{{ $filters['date_to'] }}">
             </div>
-            <div class="full actions" style="margin-top:0; justify-content:flex-start;">
+            <div>
+                <label for="branch_id">Perimetre agence</label>
+                <select id="branch_id" name="branch_id">
+                    @if ($canAccessAllBranches)
+                        <option value="">Toutes les agences</option>
+                    @endif
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((int) ($filters['branch_id'] ?? 0) === $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+                @unless ($canAccessAllBranches)
+                    <div class="help" style="margin-top:6px;">Perimetre agence verrouille par tes permissions.</div>
+                @endunless
+            </div>
+            <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
                 <button type="submit" class="button button-primary">Actualiser le rapport</button>
-                <a href="{{ route('reports.index') }}" class="button button-secondary">Mois en cours</a>
+                <a href="{{ route('reports.index') }}" class="button button-secondary">Perimetre par defaut</a>
             </div>
         </form>
     </section>
 
+
+    @if (! empty($executiveBrief['items']))
+        <section class="card" style="margin-bottom:20px; background:linear-gradient(135deg, rgba(10,27,44,0.96) 0%, rgba(12,64,89,0.92) 52%, rgba(179,126,30,0.18) 100%); color:#eef8f8; border-color:rgba(12,64,89,0.18);">
+            <div class="page-head" style="margin-bottom:14px;">
+                <div>
+                    <h2 style="margin:0; color:#fff;">{{ $executiveBrief['headline'] }}</h2>
+                    <div style="margin-top:8px; color:rgba(238,248,248,0.78);">{{ $executiveBrief['summary'] }}</div>
+                </div>
+            </div>
+            <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+                @foreach ($executiveBrief['items'] as $item)
+                    <a href="{{ $item['action_url'] }}" class="card" style="display:block; background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.12); color:#eef8f8;">
+                        <span class="badge {{ $item['tone'] === 'danger' ? 'badge-warning' : ($item['tone'] === 'warning' ? 'badge-muted' : 'badge-success') }}">{{ strtoupper($item['tone']) }}</span>
+                        <strong style="display:block; margin-top:12px; color:#fff;">{{ $item['title'] }}</strong>
+                        <div style="margin-top:10px; color:rgba(238,248,248,0.78);">{{ $item['message'] }}</div>
+                        <div style="margin-top:12px; color:#fff4cf; font-weight:700;">{{ $item['action_label'] }}</div>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
     <div class="grid stats-grid" style="margin-bottom:20px;">
         <div class="card"><div class="muted">CA periode</div><div class="stat-value">{{ number_format($sales['total'], 0, ',', ' ') }}</div><div class="muted">{{ $sales['count'] }} facture(s)</div></div>
-        <div class="card"><div class="muted">Achats periode</div><div class="stat-value">{{ number_format($purchases['total'], 0, ',', ' ') }}</div><div class="muted">{{ $purchases['count'] }} facture(s)</div></div>
-        <div class="card"><div class="muted">Encaissements</div><div class="stat-value">{{ number_format($treasury['in'], 0, ',', ' ') }}</div><div class="muted">Flux entrants</div></div>
-        <div class="card"><div class="muted">Decaissements</div><div class="stat-value">{{ number_format($treasury['out'], 0, ',', ' ') }}</div><div class="muted">Flux sortants</div></div>
+        @if ($canViewMargin)
+            <div class="card"><div class="muted">Marge estimee</div><div class="stat-value">{{ number_format($grossMargin['margin'], 0, ',', ' ') }}</div><div class="muted">{{ number_format($grossMargin['rate'], 1, ',', ' ') }} % du CA</div></div>
+        @else
+            <div class="card"><div class="muted">Indicateurs sensibles</div><div class="stat-value" style="font-size:24px;">Masques</div><div class="muted">Marge et rentabilite reservees aux profils autorises</div></div>
+        @endif
         <div class="card"><div class="muted">Flux net</div><div class="stat-value">{{ number_format($cashNet, 0, ',', ' ') }}</div><div class="muted">Tresorerie sur la periode</div></div>
+        <div class="card"><div class="muted">Creances ouvertes</div><div class="stat-value">{{ number_format($receivables['total'], 0, ',', ' ') }}</div><div class="muted">{{ $receivables['count'] }} facture(s)</div></div>
+        <div class="card"><div class="muted">Achats periode</div><div class="stat-value">{{ number_format($purchases['total'], 0, ',', ' ') }}</div><div class="muted">{{ $purchases['count'] }} facture(s)</div></div>
         <div class="card"><div class="muted">Depenses periode</div><div class="stat-value">{{ number_format($expenses['total'], 0, ',', ' ') }}</div><div class="muted">{{ $expenses['count'] }} depense(s)</div></div>
         <div class="card"><div class="muted">Stock valorise</div><div class="stat-value">{{ number_format($stock['valuation'], 0, ',', ' ') }}</div><div class="muted">{{ $stock['product_count'] }} article(s)</div></div>
+        <div class="card"><div class="muted">Dettes fournisseurs</div><div class="stat-value">{{ number_format($payables['total'], 0, ',', ' ') }}</div><div class="muted">{{ $payables['count'] }} facture(s)</div></div>
     </div>
+
+    <section class="card" style="margin-bottom:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Comparaison periode precedente</h2>
+                <div class="muted">Reference du {{ \Illuminate\Support\Carbon::parse($comparison['window']['previous_from'])->format('d/m/Y') }} au {{ \Illuminate\Support\Carbon::parse($comparison['window']['previous_to'])->format('d/m/Y') }}</div>
+            </div>
+        </div>
+        <div class="grid stats-grid">
+            <div class="card">
+                <div class="muted">Ventes</div>
+                <div class="stat-value">{{ $money($comparison['sales']['current']) }}</div>
+                <div style="margin-top:8px;"><span class="badge {{ $deltaClass($comparison['sales']) }}">{{ number_format($comparison['sales']['delta_percent'], 1, ',', ' ') }} %</span></div>
+                <div class="muted" style="margin-top:8px;">Avant: {{ $money($comparison['sales']['previous']) }}</div>
+            </div>
+            @if ($canViewMargin)
+                <div class="card">
+                    <div class="muted">Marge estimee</div>
+                    <div class="stat-value">{{ $money($comparison['margin']['current']) }}</div>
+                    <div style="margin-top:8px;"><span class="badge {{ $deltaClass($comparison['margin']) }}">{{ number_format($comparison['margin']['delta_percent'], 1, ',', ' ') }} %</span></div>
+                    <div class="muted" style="margin-top:8px;">Avant: {{ $money($comparison['margin']['previous']) }}</div>
+                </div>
+            @endif
+            <div class="card">
+                <div class="muted">Flux net</div>
+                <div class="stat-value">{{ $money($comparison['cash_net']['current']) }}</div>
+                <div style="margin-top:8px;"><span class="badge {{ $deltaClass($comparison['cash_net']) }}">{{ number_format($comparison['cash_net']['delta_percent'], 1, ',', ' ') }} %</span></div>
+                <div class="muted" style="margin-top:8px;">Avant: {{ $money($comparison['cash_net']['previous']) }}</div>
+            </div>
+            <div class="card">
+                <div class="muted">Depenses</div>
+                <div class="stat-value">{{ $money($comparison['expenses']['current']) }}</div>
+                <div style="margin-top:8px;"><span class="badge {{ $deltaClass($comparison['expenses']) }}">{{ number_format($comparison['expenses']['delta_percent'], 1, ',', ' ') }} %</span></div>
+                <div class="muted" style="margin-top:8px;">Avant: {{ $money($comparison['expenses']['previous']) }}</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card" style="margin-bottom:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Signaux de pilotage</h2>
+                <div class="muted">Les points qui meritent une attention immediate sur le perimetre analyse.</div>
+            </div>
+        </div>
+        <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));">
+            @foreach ($signals as $signal)
+                <section class="card" style="padding:16px; border-left:6px solid {{ $signalBorder($signal['level']) }};">
+                    <strong>{{ $signal['title'] }}</strong>
+                    <div class="muted" style="margin-top:8px;">{{ $signal['message'] }}</div>
+                    <div style="margin-top:12px;">
+                        <a href="{{ $signal['action_url'] }}" class="button button-secondary">Ouvrir</a>
+                    </div>
+                </section>
+            @endforeach
+        </div>
+    </section>
 
     <div class="split">
         <section class="card">
-            <h2 style="margin-top:0;">Commercial et recouvrement</h2>
-            <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-                <div class="card" style="padding:16px;">
-                    <strong>Ventes de la periode</strong>
-                    <div class="muted" style="margin-top:8px;">Encaisse sur la periode : {{ number_format($sales['paid'], 0, ',', ' ') }} XOF.</div>
-                    <div class="muted">Reste a encaisser sur ces ventes : {{ number_format($sales['due'], 0, ',', ' ') }} XOF.</div>
-                </div>
-                <div class="card" style="padding:16px;">
-                    <strong>Creances ouvertes</strong>
-                    <div class="muted" style="margin-top:8px;">{{ $receivables['count'] }} facture(s) client encore ouvertes.</div>
-                    <div class="muted">Encours global : {{ number_format($receivables['total'], 0, ',', ' ') }} XOF.</div>
-                </div>
-            </div>
+            <h2 style="margin-top:0;">Top produits</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produit</th>
+                        <th>Quantite</th>
+                        <th>CA</th>
+                        @if ($canViewMargin)
+                            <th>Marge estimee</th>
+                        @endif
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse ($topProducts as $product)
+                    <tr>
+                        <td>
+                            <strong>{{ $product['name'] }}</strong>
+                            <div class="muted">{{ $product['sku'] }} · {{ $product['category_name'] ?: 'Sans categorie' }}</div>
+                        </td>
+                        <td>{{ number_format($product['qty'], 0, ',', ' ') }}</td>
+                        <td>{{ $money($product['amount']) }}</td>
+                        @if ($canViewMargin)
+                            <td>{{ $money($product['estimated_margin']) }}</td>
+                        @endif
+                    </tr>
+                @empty
+                    <tr><td colspan="{{ $canViewMargin ? 4 : 3 }}" class="muted">Aucune vente sur cette periode.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
         </section>
 
-        <section class="card">
-            <h2 style="margin-top:0;">Approvisionnements et dettes</h2>
-            <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-                <div class="card" style="padding:16px;">
-                    <strong>Achats de la periode</strong>
-                    <div class="muted" style="margin-top:8px;">Regle sur la periode : {{ number_format($purchases['paid'], 0, ',', ' ') }} XOF.</div>
-                    <div class="muted">Reste a regler sur ces achats : {{ number_format($purchases['due'], 0, ',', ' ') }} XOF.</div>
-                </div>
-                <div class="card" style="padding:16px;">
-                    <strong>Dettes fournisseurs</strong>
-                    <div class="muted" style="margin-top:8px;">{{ $payables['count'] }} facture(s) fournisseur encore ouvertes.</div>
-                    <div class="muted">Encours global : {{ number_format($payables['total'], 0, ',', ' ') }} XOF.</div>
-                </div>
-            </div>
-        </section>
+        @if ($canViewMargin)
+            <section class="card">
+                <h2 style="margin-top:0;">Marge par categorie</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Categorie</th>
+                            <th>CA</th>
+                            <th>Marge</th>
+                            <th>Taux</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($marginByCategory as $category)
+                        <tr>
+                            <td>
+                                <strong>{{ $category['category_name'] }}</strong>
+                                <div class="muted">{{ number_format($category['qty'], 0, ',', ' ') }} unite(s)</div>
+                            </td>
+                            <td>{{ $money($category['amount']) }}</td>
+                            <td>{{ $money($category['estimated_margin']) }}</td>
+                            <td>{{ number_format($category['rate'], 1, ',', ' ') }} %</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="muted">Aucune categorie valorisee sur cette periode.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </section>
+        @endif
     </div>
 
     <div class="split" style="margin-top:20px;">
         <section class="card">
-            <h2 style="margin-top:0;">Tresorerie et charges</h2>
-            <div class="muted" style="margin-bottom:14px;">{{ $treasury['count'] }} mouvement(s) de tresorerie sur la periode.</div>
+            <h2 style="margin-top:0;">Top clients</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Factures</th>
+                        <th>CA</th>
+                        <th>Reste</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse ($topCustomers as $customer)
+                    <tr>
+                        <td>
+                            <strong>{{ $customer['name'] }}</strong>
+                            <div class="muted">{{ $customer['code'] }}</div>
+                        </td>
+                        <td>{{ $customer['invoice_count'] }}</td>
+                        <td>{{ $money($customer['total']) }}</td>
+                        <td>{{ $money($customer['due']) }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4" class="muted">Aucun client facture sur cette periode.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </section>
+
+        @if ($canAccessAllBranches)
+            <section class="card">
+                <h2 style="margin-top:0;">Ventes par agence</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agence</th>
+                            <th>Factures</th>
+                            <th>CA</th>
+                            <th>Evolution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($salesByBranch as $branchRow)
+                        <tr>
+                            <td>
+                                <strong>{{ $branchRow['branch_name'] }}</strong>
+                                @if ($branchRow['is_selected'])
+                                    <span class="badge badge-muted">perimetre actif</span>
+                                @endif
+                                <div class="muted">Avant: {{ $money($branchRow['previous_total']) }}</div>
+                            </td>
+                            <td>{{ $branchRow['invoice_count'] }}</td>
+                            <td>{{ $money($branchRow['total']) }}</td>
+                            <td><span class="badge {{ $branchRow['direction'] === 'up' ? 'badge-success' : ($branchRow['direction'] === 'down' ? 'badge-warning' : 'badge-muted') }}">{{ number_format($branchRow['delta_percent'], 1, ',', ' ') }} %</span></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="muted">Aucune agence active pour ce rapport.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </section>
+        @endif
+    </div>
+
+    <section class="card" style="margin-top:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Performance fournisseurs</h2>
+                <div class="muted">Pilotage achats : ponctualite, execution et exposition financiere sur la periode.</div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fournisseur</th>
+                    <th>Score</th>
+                    <th>A temps</th>
+                    <th>Retard moyen</th>
+                    <th>Achats</th>
+                    <th>Reste</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse ($supplierPerformance as $supplier)
+                <tr>
+                    <td>
+                        <strong><a href="{{ route('suppliers.show', $supplier['supplier_id']) }}">{{ $supplier['supplier_name'] }}</a></strong>
+                        <div class="muted">{{ $supplier['supplier_code'] ?: 'Code n.c.' }} · {{ $supplier['orders_count'] }} commande(s)</div>
+                    </td>
+                    <td>
+                        <span class="badge {{ $supplier['score'] >= 85 ? 'badge-success' : ($supplier['score'] >= 55 ? 'badge-warning' : 'badge-danger') }}">{{ number_format((float) $supplier['score'], 1, ',', ' ') }}/100</span>
+                        <div class="muted" style="margin-top:6px;">{{ $supplier['score_label'] }}</div>
+                    </td>
+                    <td>{{ $supplier['on_time_rate'] !== null ? number_format((float) $supplier['on_time_rate'], 1, ',', ' ') . ' %' : 'n.c.' }}</td>
+                    <td>{{ $supplier['avg_delay_days'] !== null ? number_format((float) $supplier['avg_delay_days'], 1, ',', ' ') . ' j' : 'n.c.' }}</td>
+                    <td>{{ $money($supplier['spend_total']) }}</td>
+                    <td>{{ $money($supplier['open_balance']) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="muted">Aucun fournisseur avec historique achats sur cette periode.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </section>
+
+    <div class="split" style="margin-top:20px;">
+        <section class="card">
+            <h2 style="margin-top:0;">Tresorerie et dettes</h2>
             <table>
                 <tbody>
                 <tr>
                     <th style="width:50%;">Encaissements</th>
-                    <td>{{ number_format($treasury['in'], 0, ',', ' ') }} XOF</td>
+                    <td>{{ $money($treasury['in']) }}</td>
                 </tr>
                 <tr>
                     <th>Decaissements</th>
-                    <td>{{ number_format($treasury['out'], 0, ',', ' ') }} XOF</td>
+                    <td>{{ $money($treasury['out']) }}</td>
                 </tr>
                 <tr>
                     <th>Flux net</th>
-                    <td>{{ number_format($cashNet, 0, ',', ' ') }} XOF</td>
+                    <td>{{ $money($cashNet) }}</td>
                 </tr>
                 <tr>
-                    <th>Depenses saisies</th>
-                    <td>{{ number_format($expenses['total'], 0, ',', ' ') }} XOF</td>
+                    <th>Creances ouvertes</th>
+                    <td>{{ $money($receivables['total']) }}</td>
                 </tr>
                 <tr>
-                    <th>Depenses non payees</th>
-                    <td>{{ $expenses['unpaid'] }}</td>
+                    <th>Dettes fournisseurs</th>
+                    <td>{{ $money($payables['total']) }}</td>
                 </tr>
                 </tbody>
             </table>
         </section>
 
         <section class="card">
-            <h2 style="margin-top:0;">Stock et alertes</h2>
+            <h2 style="margin-top:0;">Produits dormants</h2>
             <table>
+                <thead>
+                    <tr>
+                        <th>Produit</th>
+                        <th>Stock</th>
+                        <th>Valeur</th>
+                    </tr>
+                </thead>
                 <tbody>
-                <tr>
-                    <th style="width:50%;">Articles stockes</th>
-                    <td>{{ $stock['product_count'] }}</td>
-                </tr>
-                <tr>
-                    <th>Valorisation stock</th>
-                    <td>{{ number_format($stock['valuation'], 0, ',', ' ') }} XOF</td>
-                </tr>
-                <tr>
-                    <th>Alertes stock faible</th>
-                    <td>{{ $stock['alerts'] }}</td>
-                </tr>
+                @forelse ($dormantProducts as $product)
+                    <tr>
+                        <td>
+                            <strong>{{ $product['name'] }}</strong>
+                            <div class="muted">{{ $product['sku'] }} · {{ $product['category_name'] }}</div>
+                        </td>
+                        <td>{{ number_format($product['current_stock'], 0, ',', ' ') }}</td>
+                        <td>{{ $money($product['stock_value']) }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="3" class="muted">Aucun produit dormant sur les 30 derniers jours.</td></tr>
+                @endforelse
                 </tbody>
             </table>
-            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="{{ route('stock.index') }}" class="button button-secondary">Voir le stock</a>
-                <a href="{{ route('stock.export') }}" class="button button-secondary">Exporter le stock</a>
-            </div>
         </section>
     </div>
 @endsection
+

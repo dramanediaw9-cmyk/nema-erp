@@ -30,7 +30,7 @@
         <form method="GET" action="{{ route('orders.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
             <div style="grid-column:span 2; min-width:220px;">
                 <label for="search">Recherche</label>
-                <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, client, agence, note...">
+                <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, client, ref client, source, commercial...">
             </div>
             <div>
                 <label for="date_from">Date debut</label>
@@ -77,8 +77,10 @@
                 <th>Livraison</th>
                 <th>Client</th>
                 <th>Agence</th>
+                <th>Depot</th>
                 <th>Statut</th>
                 <th>Progression</th>
+                <th>Reserve</th>
                 <th>Total</th>
                 <th>Action</th>
             </tr>
@@ -113,26 +115,50 @@
                     }
                     $orderedQty = (float) $order->items->sum('qty');
                     $deliveredQty = (float) $order->items->sum('delivered_qty');
+                    $reservedQty = in_array($order->status, ['confirmed', 'partial_delivered'], true)
+                        ? (float) $order->items->sum(fn ($item) => $item->remainingQty())
+                        : 0;
                     $progress = $orderedQty > 0 ? round(($deliveredQty / $orderedQty) * 100, 1) : 0;
                 @endphp
                 <tr>
                     <td>
                         <strong>{{ $order->order_number }}</strong>
+                        @if ($order->customer_reference)
+                            <div class="muted" style="font-size:13px;">Ref client : {{ $order->customer_reference }}</div>
+                        @endif
+                        @if ($order->source_document)
+                            <div class="muted" style="font-size:13px;">Source : {{ $order->source_document }}</div>
+                        @endif
                         @if ($order->notes)
                             <div class="muted" style="font-size:13px;">{{ $order->notes }}</div>
                         @endif
                     </td>
-                    <td>{{ $order->order_date?->format('d/m/Y') }}</td>
+                    <td>
+                        {{ $order->order_date?->format('d/m/Y') }}
+                        @if ($order->commitment_date)
+                            <div class="muted" style="margin-top:6px;">Engagement : {{ $order->commitment_date->format('d/m/Y') }}</div>
+                        @endif
+                    </td>
                     <td>
                         {{ $order->requested_delivery_date?->format('d/m/Y') ?? 'Non renseignee' }}
                         <div class="muted" style="margin-top:6px;">{{ $deliveryLabel }}</div>
                     </td>
-                    <td>{{ $order->customer?->name }}</td>
+                    <td>
+                        {{ $order->customer?->name }}
+                        @if ($order->salesperson_name)
+                            <div class="muted" style="margin-top:6px;">Commercial : {{ $order->salesperson_name }}</div>
+                        @endif
+                    </td>
                     <td>{{ $order->branch?->name }}</td>
+                    <td>{{ $order->warehouse?->name ?? 'Depot principal' }}</td>
                     <td><span class="badge {{ $statusClass }}">{{ $statusLabel }}</span></td>
                     <td>
                         <div>{{ number_format($progress, 1, ',', ' ') }} %</div>
                         <div class="muted" style="margin-top:6px;">{{ number_format($deliveredQty, 3, ',', ' ') }} / {{ number_format($orderedQty, 3, ',', ' ') }}</div>
+                    </td>
+                    <td>
+                        {{ number_format($reservedQty, 3, ',', ' ') }}
+                        <div class="muted" style="margin-top:6px;">Stock promis</div>
                     </td>
                     <td>{{ number_format((float) $order->total, 0, ',', ' ') }} XOF</td>
                     <td>
@@ -148,7 +174,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9">
+                    <td colspan="11">
                         <div class="empty-state">
                             <span class="badge badge-success">Aucune commande</span>
                             <h3>La base commandes est vide</h3>
