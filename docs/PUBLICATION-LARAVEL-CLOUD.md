@@ -96,6 +96,18 @@ composer run deploy:cloud
 
 Les caches `config`, `routes` et `views` sont volontairement generes pendant le **build** et non pendant le **deploy**.
 
+## Integration GitHub
+
+Le depot contient maintenant un workflow optionnel [deploy-laravel-cloud.yml](../.github/workflows/deploy-laravel-cloud.yml) qui peut declencher Laravel Cloud **apres une CI verte**.
+
+Pour l activer :
+
+1. recuperer le `deploy hook` depuis Laravel Cloud
+2. ajouter le secret GitHub `LARAVEL_CLOUD_DEPLOY_HOOK`
+3. laisser la CI valider `main`
+
+Sans ce secret, le workflow se contente d afficher qu il est ignore.
+
 ## Scheduler
 
 Le scheduler doit etre actif en production. Les commandes critiques deja planifiees sont :
