@@ -4,7 +4,10 @@ namespace App\Modules\Payroll\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Hr\Models\HrEmployee;
 use App\Modules\Payroll\Models\PayrollRun;
+use App\Modules\Payroll\Models\PayrollSlip;
+use App\Modules\Payroll\Services\PayrollSlipService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
@@ -14,7 +17,10 @@ use Illuminate\View\View;
 
 class PayrollController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly PayrollSlipService $payrollSlipService,
+    )
     {
     }
 
@@ -35,13 +41,26 @@ class PayrollController extends Controller
                 ->orderByDesc('period_end')
                 ->orderByDesc('id')
                 ->get(),
+            'employees' => HrEmployee::query()
+                ->with('department')
+                ->where('company_id', $companyId)
+                ->orderBy('full_name')
+                ->get(),
+            'slips' => PayrollSlip::query()
+                ->with(['payrollRun', 'employee.department', 'branch', 'lines'])
+                ->where('company_id', $companyId)
+                ->orderByDesc('id')
+                ->get(),
             'summary' => [
                 'runs' => (int) PayrollRun::query()->where('company_id', $companyId)->count(),
                 'draft_runs' => (int) PayrollRun::query()->where('company_id', $companyId)->where('status', 'draft')->count(),
                 'scheduled_net' => (float) PayrollRun::query()->where('company_id', $companyId)->sum('net_amount'),
                 'people_planned' => (int) PayrollRun::query()->where('company_id', $companyId)->sum('headcount'),
+                'ready_slips' => (int) PayrollSlip::query()->where('company_id', $companyId)->whereIn('status', ['review', 'ready'])->count(),
             ],
             'statusOptions' => $this->statusOptions(),
+            'slipStatusOptions' => $this->statusOptions(),
+            'payoutModeOptions' => $this->payoutModeOptions(),
         ]);
     }
 
@@ -89,6 +108,36 @@ class PayrollController extends Controller
         return redirect()->route('payroll.index')->with('success', 'Execution de paie enregistree avec succes.');
     }
 
+    public function storeSlip(Request $request, CurrentWorkspace $workspace): RedirectResponse
+    {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId, 403);
+
+        $payload = $request->validate([
+            'slip_number' => ['nullable', 'string', 'max:30', Rule::unique('payroll_slips', 'slip_number')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'payroll_run_id' => ['nullable', Rule::exists('payroll_runs', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'employee_id' => ['required', Rule::exists('hr_employees', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'base_salary' => ['nullable', 'numeric', 'min:0'],
+            'gross_amount' => ['nullable', 'numeric', 'min:0'],
+            'deductions_amount' => ['nullable', 'numeric', 'min:0'],
+            'employer_contributions_amount' => ['nullable', 'numeric', 'min:0'],
+            'net_amount' => ['nullable', 'numeric', 'min:0'],
+            'status' => ['required', Rule::in(array_keys($this->statusOptions()))],
+            'payout_mode' => ['required', Rule::in(array_keys($this->payoutModeOptions()))],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $slip = $this->payrollSlipService->createSlip($companyId, $request->user()?->id, $payload);
+
+        $this->activityLogger->log('payroll.slips.create', 'Creation bulletin paie', $slip, [
+            'slip_number' => $slip->slip_number,
+            'status' => $slip->status,
+        ]);
+
+        return redirect()->route('payroll.index')->with('success', 'Bulletin de paie enregistre avec succes.');
+    }
+
     private function statusOptions(): array
     {
         return [
@@ -96,6 +145,16 @@ class PayrollController extends Controller
             'review' => 'En revue',
             'ready' => 'Pret a payer',
             'paid' => 'Paye',
+        ];
+    }
+
+    private function payoutModeOptions(): array
+    {
+        return [
+            'bank' => 'Virement bancaire',
+            'cash' => 'Especes',
+            'mobile_money' => 'Mobile money',
+            'mixed' => 'Mixte',
         ];
     }
 

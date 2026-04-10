@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountingLocalizationController;
+use App\Http\Controllers\Api\V1\HrLeaveRequestController;
 use App\Http\Controllers\Api\V1\IntegrationEventController;
 use App\Http\Controllers\Api\V1\HrDepartmentController;
 use App\Http\Controllers\Api\V1\HrEmployeeController;
@@ -7,6 +9,8 @@ use App\Http\Controllers\Api\V1\PartnerController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlatformCapabilityController;
 use App\Http\Controllers\Api\V1\PayrollRunController;
+use App\Http\Controllers\Api\V1\PayrollSlipController;
+use App\Http\Controllers\Api\V1\ManufacturingBomController;
 use App\Http\Controllers\Api\V1\ProductionOrderController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\ProductController;
@@ -18,6 +22,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/workspace', WorkspaceController::class);
     Route::get('/platform/capabilities', PlatformCapabilityController::class);
+    Route::get('/accounting/localization', AccountingLocalizationController::class);
 
     Route::get('/products', [ProductController::class, 'index']);
 
@@ -42,13 +47,25 @@ Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/hr/employees/{hrEmployee}', [HrEmployeeController::class, 'show']);
     Route::post('/hr/employees', [HrEmployeeController::class, 'store']);
 
+    Route::get('/hr/leave-requests', [HrLeaveRequestController::class, 'index']);
+    Route::get('/hr/leave-requests/{leaveRequest}', [HrLeaveRequestController::class, 'show']);
+    Route::post('/hr/leave-requests', [HrLeaveRequestController::class, 'store']);
+
     Route::get('/payroll/runs', [PayrollRunController::class, 'index']);
     Route::get('/payroll/runs/{payrollRun}', [PayrollRunController::class, 'show']);
     Route::post('/payroll/runs', [PayrollRunController::class, 'store']);
 
+    Route::get('/payroll/slips', [PayrollSlipController::class, 'index']);
+    Route::get('/payroll/slips/{payrollSlip}', [PayrollSlipController::class, 'show']);
+    Route::post('/payroll/slips', [PayrollSlipController::class, 'store']);
+
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{project}', [ProjectController::class, 'show']);
     Route::post('/projects', [ProjectController::class, 'store']);
+
+    Route::get('/manufacturing/boms', [ManufacturingBomController::class, 'index']);
+    Route::get('/manufacturing/boms/{manufacturingBom}', [ManufacturingBomController::class, 'show']);
+    Route::post('/manufacturing/boms', [ManufacturingBomController::class, 'store']);
 
     Route::get('/production-orders', [ProductionOrderController::class, 'index']);
     Route::get('/production-orders/{productionOrder}', [ProductionOrderController::class, 'show']);

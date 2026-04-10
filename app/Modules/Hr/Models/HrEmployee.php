@@ -5,9 +5,11 @@ namespace App\Modules\Hr\Models;
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Payroll\Models\PayrollSlip;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HrEmployee extends Model
 {
@@ -53,6 +55,16 @@ class HrEmployee extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(HrDepartment::class, 'department_id');
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(HrLeaveRequest::class, 'employee_id');
+    }
+
+    public function payrollSlips(): HasMany
+    {
+        return $this->hasMany(PayrollSlip::class, 'employee_id');
     }
 
     public function creator(): BelongsTo

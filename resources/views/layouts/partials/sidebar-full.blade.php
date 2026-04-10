@@ -150,6 +150,7 @@
         <a class="nav-link {{ request()->routeIs('accounting.profit-loss.*') ? 'active' : '' }}" href="{{ route('accounting.profit-loss.index') }}">Resultat</a>
         <a class="nav-link {{ request()->routeIs('accounting.balance-sheet.*') ? 'active' : '' }}" href="{{ route('accounting.balance-sheet.index') }}">Bilan</a>
         <a class="nav-link {{ request()->routeIs('accounting.tax-report.*') ? 'active' : '' }}" href="{{ route('accounting.tax-report.index') }}">Fiscalite</a>
+        <a class="nav-link {{ request()->routeIs('accounting.ohada.*') ? 'active' : '' }}" href="{{ route('accounting.ohada.index') }}">Localisation OHADA</a>
         @allowed('fixed_assets.view')
             <a class="nav-link {{ request()->routeIs('fixed-assets.*') ? 'active' : '' }}" href="{{ route('fixed-assets.index') }}">Immobilisations</a>
         @endallowed

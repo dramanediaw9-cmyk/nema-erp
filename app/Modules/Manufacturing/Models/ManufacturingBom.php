@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Payroll\Models;
+namespace App\Modules\Manufacturing\Models;
 
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
@@ -10,21 +10,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PayrollRun extends Model
+class ManufacturingBom extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'company_id',
         'branch_id',
-        'run_number',
-        'label',
-        'period_start',
-        'period_end',
-        'scheduled_pay_date',
-        'headcount',
-        'gross_amount',
-        'net_amount',
+        'code',
+        'item_name',
+        'output_quantity',
         'status',
         'notes',
         'created_by',
@@ -34,12 +29,7 @@ class PayrollRun extends Model
     protected function casts(): array
     {
         return [
-            'period_start' => 'date',
-            'period_end' => 'date',
-            'scheduled_pay_date' => 'date',
-            'headcount' => 'integer',
-            'gross_amount' => 'decimal:2',
-            'net_amount' => 'decimal:2',
+            'output_quantity' => 'decimal:3',
         ];
     }
 
@@ -53,6 +43,16 @@ class PayrollRun extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    public function lines(): HasMany
+    {
+        return $this->hasMany(ManufacturingBomLine::class)->orderBy('sequence');
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(ProductionOrder::class, 'bill_of_material_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -61,10 +61,5 @@ class PayrollRun extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
-    }
-
-    public function slips(): HasMany
-    {
-        return $this->hasMany(PayrollSlip::class);
     }
 }

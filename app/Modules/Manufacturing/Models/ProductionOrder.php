@@ -18,9 +18,12 @@ class ProductionOrder extends Model
         'branch_id',
         'order_number',
         'reference',
+        'bill_of_material_id',
         'item_name',
         'planned_quantity',
         'completed_quantity',
+        'material_cost_estimate',
+        'actual_material_cost',
         'planned_start_date',
         'due_date',
         'status',
@@ -35,6 +38,8 @@ class ProductionOrder extends Model
         return [
             'planned_quantity' => 'decimal:3',
             'completed_quantity' => 'decimal:3',
+            'material_cost_estimate' => 'decimal:2',
+            'actual_material_cost' => 'decimal:2',
             'planned_start_date' => 'date',
             'due_date' => 'date',
         ];
@@ -48,6 +53,11 @@ class ProductionOrder extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function billOfMaterial(): BelongsTo
+    {
+        return $this->belongsTo(ManufacturingBom::class, 'bill_of_material_id');
     }
 
     public function creator(): BelongsTo

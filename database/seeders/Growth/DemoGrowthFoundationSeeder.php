@@ -8,8 +8,11 @@ use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
+use App\Modules\Hr\Models\HrLeaveRequest;
+use App\Modules\Manufacturing\Models\ManufacturingBom;
 use App\Modules\Manufacturing\Models\ProductionOrder;
 use App\Modules\Payroll\Models\PayrollRun;
+use App\Modules\Payroll\Models\PayrollSlip;
 use App\Modules\Projects\Models\Project;
 use Illuminate\Database\Seeder;
 
@@ -49,7 +52,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
-        HrEmployee::query()->updateOrCreate(
+        $awa = HrEmployee::query()->updateOrCreate(
             ['company_id' => $company->id, 'employee_number' => 'EMP-2026-00001'],
             [
                 'branch_id' => $branch->id,
@@ -69,7 +72,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
-        HrEmployee::query()->updateOrCreate(
+        $mamadou = HrEmployee::query()->updateOrCreate(
             ['company_id' => $company->id, 'employee_number' => 'EMP-2026-00002'],
             [
                 'branch_id' => $branch->id,
@@ -89,7 +92,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
-        PayrollRun::query()->updateOrCreate(
+        $payrollRun = PayrollRun::query()->updateOrCreate(
             ['company_id' => $company->id, 'run_number' => 'PAY-'.now()->format('Y').'-0001'],
             [
                 'branch_id' => $branch->id,
@@ -106,6 +109,51 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'updated_by' => $manager->id,
             ]
         );
+
+        HrLeaveRequest::query()->updateOrCreate(
+            ['company_id' => $company->id, 'leave_number' => 'CONGE-'.now()->format('Y').'-0001'],
+            [
+                'branch_id' => $branch->id,
+                'employee_id' => $awa->id,
+                'leave_type' => 'annual',
+                'start_date' => now()->addDays(3)->toDateString(),
+                'end_date' => now()->addDays(5)->toDateString(),
+                'total_days' => 3,
+                'status' => 'approved',
+                'coverage_plan' => 'Rotation caisse assuree par equipe retail BKO 2.',
+                'notes' => 'Conge valide avec passation de caisse et suivi WhatsApp.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        $payrollSlip = PayrollSlip::query()->updateOrCreate(
+            ['company_id' => $company->id, 'slip_number' => 'BUL-'.now()->format('Y').'-00001'],
+            [
+                'branch_id' => $branch->id,
+                'payroll_run_id' => $payrollRun->id,
+                'employee_id' => $awa->id,
+                'base_salary' => 325000,
+                'gross_amount' => 365000,
+                'deductions_amount' => 42000,
+                'employer_contributions_amount' => 58500,
+                'net_amount' => 323000,
+                'status' => 'review',
+                'payout_mode' => 'bank',
+                'notes' => 'Bulletin pilote avec prime performance et retenues standards.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        $payrollSlip->lines()->delete();
+        $payrollSlip->lines()->createMany([
+            ['line_type' => 'earning', 'code' => 'SALAIRE_BASE', 'label' => 'Salaire de base', 'amount' => 325000, 'sequence' => 1],
+            ['line_type' => 'earning', 'code' => 'PRIMES', 'label' => 'Prime performance retail', 'amount' => 40000, 'sequence' => 2],
+            ['line_type' => 'deduction', 'code' => 'RETENUES', 'label' => 'Retenues salariales', 'amount' => 42000, 'sequence' => 3],
+            ['line_type' => 'employer_charge', 'code' => 'CHARGES_PATRONALES', 'label' => 'Charges patronales', 'amount' => 58500, 'sequence' => 4],
+            ['line_type' => 'net', 'code' => 'NET_A_PAYER', 'label' => 'Net a payer', 'amount' => 323000, 'sequence' => 5],
+        ]);
 
         Project::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'PRJ-'.now()->format('Y').'-0001'],
@@ -125,14 +173,38 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
+        $bom = ManufacturingBom::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'BOM-'.now()->format('Y').'-0001'],
+            [
+                'branch_id' => $branch->id,
+                'item_name' => 'Kit promo Ramadan',
+                'output_quantity' => 1,
+                'status' => 'active',
+                'notes' => 'Nomenclature standard pour kit retail Ramadan.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        $bom->lines()->delete();
+        $bom->lines()->createMany([
+            ['component_code' => 'SKU-HUILE-1L', 'component_name' => 'Huile 1L', 'quantity' => 2, 'unit' => 'u', 'wastage_rate' => 0, 'sequence' => 1],
+            ['component_code' => 'SKU-SUCRE-1KG', 'component_name' => 'Sucre 1kg', 'quantity' => 2, 'unit' => 'u', 'wastage_rate' => 1.5, 'sequence' => 2],
+            ['component_code' => 'EMB-CARTON', 'component_name' => 'Carton kraft', 'quantity' => 1, 'unit' => 'u', 'wastage_rate' => 0, 'sequence' => 3],
+            ['component_code' => 'EMB-ETIQ', 'component_name' => 'Etiquette promo', 'quantity' => 1, 'unit' => 'u', 'wastage_rate' => 0, 'sequence' => 4],
+        ]);
+
         ProductionOrder::query()->updateOrCreate(
             ['company_id' => $company->id, 'order_number' => 'OF-'.now()->format('Y').'-0001'],
             [
                 'branch_id' => $branch->id,
                 'reference' => 'KIT-RAMADAN-01',
+                'bill_of_material_id' => $bom->id,
                 'item_name' => 'Kit promo Ramadan',
                 'planned_quantity' => 500,
                 'completed_quantity' => 180,
+                'material_cost_estimate' => 2450000,
+                'actual_material_cost' => 910000,
                 'planned_start_date' => now()->subDays(5)->toDateString(),
                 'due_date' => now()->addDays(4)->toDateString(),
                 'status' => 'in_progress',

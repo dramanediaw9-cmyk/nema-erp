@@ -27,8 +27,13 @@ class ChartOfAccountsService
     public function defaults(): array
     {
         return [
+            ['code' => '101000', 'name' => 'Capital social', 'type' => 'equity'],
+            ['code' => '218300', 'name' => 'Materiel et outillage', 'type' => 'asset'],
+            ['code' => '311000', 'name' => 'Stocks de marchandises', 'type' => 'asset'],
             ['code' => '411000', 'name' => 'Clients', 'type' => 'asset'],
             ['code' => '401000', 'name' => 'Fournisseurs', 'type' => 'liability'],
+            ['code' => '421000', 'name' => 'Personnel remunerations dues', 'type' => 'liability'],
+            ['code' => '431000', 'name' => 'Organismes sociaux', 'type' => 'liability'],
             ['code' => '443100', 'name' => 'TVA collectee', 'type' => 'liability'],
             ['code' => '445100', 'name' => 'TVA deductible', 'type' => 'asset'],
             ['code' => '447100', 'name' => 'Retenues et taxes a reverser', 'type' => 'liability'],
@@ -40,6 +45,8 @@ class ChartOfAccountsService
             ['code' => '606300', 'name' => 'Fournitures et petit materiel', 'type' => 'expense'],
             ['code' => '613000', 'name' => 'Loyers', 'type' => 'expense'],
             ['code' => '625100', 'name' => 'Carburant et transport', 'type' => 'expense'],
+            ['code' => '661100', 'name' => 'Remunerations directes versees', 'type' => 'expense'],
+            ['code' => '662100', 'name' => 'Charges sociales patronales', 'type' => 'expense'],
             ['code' => '707000', 'name' => 'Ventes de marchandises', 'type' => 'income'],
         ];
     }

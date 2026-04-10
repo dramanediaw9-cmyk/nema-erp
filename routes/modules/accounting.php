@@ -5,6 +5,7 @@ use App\Modules\Accounting\Http\Controllers\AccountingPeriodController;
 use App\Modules\Accounting\Http\Controllers\BalanceController;
 use App\Modules\Accounting\Http\Controllers\FinancialReportController;
 use App\Modules\Accounting\Http\Controllers\JournalEntryController;
+use App\Modules\Accounting\Http\Controllers\OhadaController;
 use App\Modules\Accounting\Http\Controllers\TaxReportController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,4 +81,8 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/comptabilite/fiscalite', [TaxReportController::class, 'index'])
         ->middleware('permission:accounting.view')
         ->name('accounting.tax-report.index');
+
+    Route::get('/comptabilite/localisation-ohada', [OhadaController::class, 'index'])
+        ->middleware('permission:accounting.view')
+        ->name('accounting.ohada.index');
 });

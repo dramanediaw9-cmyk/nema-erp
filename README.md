@@ -23,11 +23,12 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - categories de depenses
 - depenses simples
 - comptabilite de base avec plan comptable, journaux et balance
+- localisation OHADA / SYSCOHADA visible avec ponts fiscalite, paie et production
 - plateforme produit, packaging et endpoint de capacites API
-- capital humain avec departements et collaborateurs
-- executions de paie
+- capital humain avec departements, collaborateurs et conges
+- executions de paie avec bulletins et lignes salariales
 - projets operationnels
-- ordres de production
+- ordres de production avec nomenclatures et couts matieres
 - commerce unifie et canaux digitaux
 - dashboard administrateur enrichi
 - imports CSV et impressions
@@ -242,8 +243,8 @@ La vague `Growth Foundation` ouvre maintenant les 4 chantiers strategiques du pr
 
 - largeur fonctionnelle avec RH, paie, projets, production et commerce unifie
 - packaging produit avec scripts d exploitation, checks et documentation
-- ecosysteme avec endpoint `GET /api/v1/platform/capabilities`
-- profondeur initiale sur des modules additionnels a enrichir par vagues
+- ecosysteme avec endpoints `GET /api/v1/platform/capabilities` et `GET /api/v1/accounting/localization`
+- profondeur metier initiale avec conges RH, bulletins de paie, nomenclatures et localisation OHADA visible
 
 ## Publication cloud
 

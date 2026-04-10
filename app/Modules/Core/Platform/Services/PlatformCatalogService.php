@@ -7,8 +7,11 @@ use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
+use App\Modules\Hr\Models\HrLeaveRequest;
+use App\Modules\Manufacturing\Models\ManufacturingBom;
 use App\Modules\Manufacturing\Models\ProductionOrder;
 use App\Modules\Payroll\Models\PayrollRun;
+use App\Modules\Payroll\Models\PayrollSlip;
 use App\Modules\Projects\Models\Project;
 
 class PlatformCatalogService
@@ -51,10 +54,14 @@ class PlatformCatalogService
                         ['name' => 'payments', 'path' => '/api/v1/payments'],
                         ['name' => 'hr-departments', 'path' => '/api/v1/hr/departments'],
                         ['name' => 'hr-employees', 'path' => '/api/v1/hr/employees'],
+                        ['name' => 'hr-leave-requests', 'path' => '/api/v1/hr/leave-requests'],
                         ['name' => 'payroll-runs', 'path' => '/api/v1/payroll/runs'],
+                        ['name' => 'payroll-slips', 'path' => '/api/v1/payroll/slips'],
                         ['name' => 'projects', 'path' => '/api/v1/projects'],
+                        ['name' => 'manufacturing-boms', 'path' => '/api/v1/manufacturing/boms'],
                         ['name' => 'production-orders', 'path' => '/api/v1/production-orders'],
                         ['name' => 'commerce-channels', 'path' => '/api/v1/commerce/channels'],
+                        ['name' => 'accounting-localization', 'path' => '/api/v1/accounting/localization'],
                         ['name' => 'integration-events', 'path' => '/api/v1/integration-events'],
                         ['name' => 'platform-capabilities', 'path' => '/api/v1/platform/capabilities'],
                     ],
@@ -86,7 +93,7 @@ class PlatformCatalogService
                     'label' => 'Capital humain',
                     'route_name' => 'hr.index',
                     'path' => '/capital-humain',
-                    'description' => 'Departements, employes, contrats et cycles de paie.',
+                    'description' => 'Departements, employes, contrats, conges et couverture operationnelle.',
                     'count' => $companyId ? HrEmployee::query()->where('company_id', $companyId)->count() : 0,
                 ],
                 [
@@ -94,7 +101,7 @@ class PlatformCatalogService
                     'label' => 'Paie',
                     'route_name' => 'payroll.index',
                     'path' => '/paie',
-                    'description' => 'Executions de paie, calendrier et masses salariales.',
+                    'description' => 'Executions de paie, bulletins, lignes de paie et preparation du paiement.',
                     'count' => $companyId ? PayrollRun::query()->where('company_id', $companyId)->count() : 0,
                 ],
                 [
@@ -110,7 +117,7 @@ class PlatformCatalogService
                     'label' => 'Production',
                     'route_name' => 'manufacturing.index',
                     'path' => '/production',
-                    'description' => 'Ordres de fabrication, quantites et jalons atelier.',
+                    'description' => 'Ordres de fabrication, nomenclatures, quantites et couts matieres.',
                     'count' => $companyId ? ProductionOrder::query()->where('company_id', $companyId)->count() : 0,
                 ],
                 [
@@ -127,6 +134,9 @@ class PlatformCatalogService
                 'outbox_pending' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'pending')->count() : 0,
                 'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
                 'departments' => $companyId ? HrDepartment::query()->where('company_id', $companyId)->count() : 0,
+                'leave_requests' => $companyId ? HrLeaveRequest::query()->where('company_id', $companyId)->count() : 0,
+                'payroll_slips' => $companyId ? PayrollSlip::query()->where('company_id', $companyId)->count() : 0,
+                'manufacturing_boms' => $companyId ? ManufacturingBom::query()->where('company_id', $companyId)->count() : 0,
             ],
         ];
     }

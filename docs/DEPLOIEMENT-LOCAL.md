@@ -57,3 +57,11 @@ Apres migration et seed, l application expose aussi :
 - `Projets`
 - `Production`
 - `Commerce unifie`
+- `Comptabilite > Localisation OHADA`
+
+Les modules approfondis incluent aussi :
+
+- demandes de conge RH
+- bulletins de paie et lignes salariales
+- nomenclatures et couts matieres de production
+- endpoint API `GET /api/v1/accounting/localization`

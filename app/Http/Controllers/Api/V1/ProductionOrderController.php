@@ -24,7 +24,7 @@ class ProductionOrderController
         $search = $request->string('search')->trim()->value();
 
         $orders = ProductionOrder::query()
-            ->with('branch')
+            ->with(['branch', 'billOfMaterial'])
             ->where('company_id', $company->id)
             ->when($request->integer('branch_id') > 0, fn (Builder $query) => $query->where('branch_id', $request->integer('branch_id')))
             ->when(in_array($status, ['planned', 'in_progress', 'quality', 'completed', 'on_hold'], true), fn (Builder $query) => $query->where('status', $status))
@@ -52,7 +52,7 @@ class ProductionOrderController
         $actor = $this->resolveApiUser($request, $company->id);
         abort_unless($actor->hasPermission('manufacturing.view'), 403);
 
-        return response()->json($productionOrder->load(['branch', 'creator']));
+        return response()->json($productionOrder->load(['branch', 'creator', 'billOfMaterial']));
     }
 
     public function store(Request $request): JsonResponse
@@ -64,10 +64,13 @@ class ProductionOrderController
         $data = $request->validate([
             'order_number' => ['nullable', 'string', 'max:30', Rule::unique('production_orders', 'order_number')->where(fn ($query) => $query->where('company_id', $company->id))],
             'reference' => ['nullable', 'string', 'max:255'],
+            'bill_of_material_id' => ['nullable', Rule::exists('manufacturing_boms', 'id')->where(fn ($query) => $query->where('company_id', $company->id))],
             'item_name' => ['required', 'string', 'max:255'],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $company->id))],
             'planned_quantity' => ['required', 'numeric', 'min:0.001'],
             'completed_quantity' => ['nullable', 'numeric', 'min:0'],
+            'material_cost_estimate' => ['nullable', 'numeric', 'min:0'],
+            'actual_material_cost' => ['nullable', 'numeric', 'min:0'],
             'planned_start_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
             'status' => ['nullable', Rule::in(['planned', 'in_progress', 'quality', 'completed', 'on_hold'])],
@@ -80,9 +83,12 @@ class ProductionOrderController
             'branch_id' => $data['branch_id'] ?? null,
             'order_number' => ($data['order_number'] ?? null) ?: $this->generateNumber($company->id),
             'reference' => $data['reference'] ?? null,
+            'bill_of_material_id' => $data['bill_of_material_id'] ?? null,
             'item_name' => $data['item_name'],
             'planned_quantity' => $data['planned_quantity'],
             'completed_quantity' => $data['completed_quantity'] ?? 0,
+            'material_cost_estimate' => $data['material_cost_estimate'] ?? 0,
+            'actual_material_cost' => $data['actual_material_cost'] ?? 0,
             'planned_start_date' => $data['planned_start_date'],
             'due_date' => $data['due_date'] ?? null,
             'status' => $data['status'] ?? 'planned',
@@ -92,7 +98,7 @@ class ProductionOrderController
             'updated_by' => $actor->id,
         ]);
 
-        return response()->json($order->load('branch'), 201);
+        return response()->json($order->load(['branch', 'billOfMaterial']), 201);
     }
 
     private function generateNumber(int $companyId): string

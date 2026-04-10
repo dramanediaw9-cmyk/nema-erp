@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Payroll\Models;
+namespace App\Modules\Hr\Models;
 
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
@@ -8,24 +8,22 @@ use App\Modules\Core\Company\Models\Company;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PayrollRun extends Model
+class HrLeaveRequest extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'company_id',
         'branch_id',
-        'run_number',
-        'label',
-        'period_start',
-        'period_end',
-        'scheduled_pay_date',
-        'headcount',
-        'gross_amount',
-        'net_amount',
+        'employee_id',
+        'leave_number',
+        'leave_type',
+        'start_date',
+        'end_date',
+        'total_days',
         'status',
+        'coverage_plan',
         'notes',
         'created_by',
         'updated_by',
@@ -34,12 +32,9 @@ class PayrollRun extends Model
     protected function casts(): array
     {
         return [
-            'period_start' => 'date',
-            'period_end' => 'date',
-            'scheduled_pay_date' => 'date',
-            'headcount' => 'integer',
-            'gross_amount' => 'decimal:2',
-            'net_amount' => 'decimal:2',
+            'start_date' => 'date',
+            'end_date' => 'date',
+            'total_days' => 'decimal:2',
         ];
     }
 
@@ -53,6 +48,11 @@ class PayrollRun extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(HrEmployee::class, 'employee_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -61,10 +61,5 @@ class PayrollRun extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
-    }
-
-    public function slips(): HasMany
-    {
-        return $this->hasMany(PayrollSlip::class);
     }
 }

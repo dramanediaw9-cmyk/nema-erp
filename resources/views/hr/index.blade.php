@@ -7,7 +7,7 @@
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Capital humain</h2>
-            <div class="muted">Premier socle RH: departements, collaborateurs, contrats et cycles de paie.</div>
+            <div class="muted">Socle RH operationnel: departements, collaborateurs, contrats, cycles de paie et gestion des conges.</div>
         </div>
     </div>
 
@@ -27,6 +27,7 @@
         <div class="card"><div class="muted">Collaborateurs</div><div class="stat-value">{{ $summary['employees'] }}</div></div>
         <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active_employees'] }}</div></div>
         <div class="card"><div class="muted">Paie mensuelle</div><div class="stat-value">{{ number_format($summary['monthly_payroll'], 0, ',', ' ') }} XOF</div></div>
+        <div class="card"><div class="muted">Conges ouverts</div><div class="stat-value">{{ $summary['open_leave_requests'] }}</div></div>
     </div>
 
     @allowed('hr.manage')
@@ -162,6 +163,74 @@
                 </div>
             </form>
         </div>
+
+        <form method="POST" action="{{ route('hr.leave-requests.store') }}" class="card form-grid" style="margin-bottom:18px;">
+            @csrf
+            <div class="full">
+                <h3 class="section-title">Nouvelle demande de conge</h3>
+            </div>
+            <div>
+                <label for="leave_number">Numero</label>
+                <input id="leave_number" name="leave_number" value="{{ old('leave_number') }}" placeholder="CONGE-2026-0001">
+            </div>
+            <div>
+                <label for="leave_employee">Collaborateur</label>
+                <select id="leave_employee" name="employee_id" required>
+                    <option value="">Selectionner</option>
+                    @foreach ($employees as $employee)
+                        <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>{{ $employee->full_name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="leave_branch">Agence</label>
+                <select id="leave_branch" name="branch_id">
+                    <option value="">Agence de l employe</option>
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="leave_type">Type</label>
+                <select id="leave_type" name="leave_type" required>
+                    @foreach ($leaveTypeOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(old('leave_type', 'annual') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="leave_start_date">Debut</label>
+                <input id="leave_start_date" name="start_date" type="date" value="{{ old('start_date', now()->toDateString()) }}" required>
+            </div>
+            <div>
+                <label for="leave_end_date">Fin</label>
+                <input id="leave_end_date" name="end_date" type="date" value="{{ old('end_date', now()->addDays(2)->toDateString()) }}" required>
+            </div>
+            <div>
+                <label for="leave_total_days">Jours</label>
+                <input id="leave_total_days" name="total_days" type="number" min="0.5" step="0.5" value="{{ old('total_days', 3) }}">
+            </div>
+            <div>
+                <label for="leave_status">Statut</label>
+                <select id="leave_status" name="status" required>
+                    @foreach ($leaveStatusOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(old('status', 'draft') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="full">
+                <label for="coverage_plan">Plan de couverture</label>
+                <input id="coverage_plan" name="coverage_plan" value="{{ old('coverage_plan') }}" placeholder="Relais caisse assure par l equipe BKO 2">
+            </div>
+            <div class="full">
+                <label for="leave_notes">Notes</label>
+                <textarea id="leave_notes" name="notes">{{ old('notes') }}</textarea>
+            </div>
+            <div class="full actions">
+                <button type="submit" class="button button-primary">Enregistrer la demande</button>
+            </div>
+        </form>
     @endallowed
 
     <div class="split">
@@ -229,4 +298,38 @@
             </div>
         </section>
     </div>
+
+    <section class="card" style="margin-top:18px;">
+        <h3 class="section-title">Conges et absences</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Numero</th>
+                    <th>Collaborateur</th>
+                    <th>Type</th>
+                    <th>Periode</th>
+                    <th>Jours</th>
+                    <th>Couverture</th>
+                    <th>Statut</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse ($leaveRequests as $leaveRequest)
+                    <tr>
+                        <td>{{ $leaveRequest->leave_number }}</td>
+                        <td>{{ $leaveRequest->employee?->full_name ?? '-' }}</td>
+                        <td>{{ $leaveTypeOptions[$leaveRequest->leave_type] ?? $leaveRequest->leave_type }}</td>
+                        <td>{{ $leaveRequest->start_date?->format('d/m/Y') }} - {{ $leaveRequest->end_date?->format('d/m/Y') }}</td>
+                        <td>{{ number_format((float) $leaveRequest->total_days, 1, ',', ' ') }}</td>
+                        <td>{{ $leaveRequest->coverage_plan ?: '-' }}</td>
+                        <td><span class="badge badge-muted">{{ $leaveStatusOptions[$leaveRequest->status] ?? $leaveRequest->status }}</span></td>
+                    </tr>
+                @empty
+                    <tr><td colspan="7" class="muted">Aucune demande de conge enregistree pour le moment.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
 @endsection

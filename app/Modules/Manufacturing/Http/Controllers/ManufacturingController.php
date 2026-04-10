@@ -4,7 +4,9 @@ namespace App\Modules\Manufacturing\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Manufacturing\Models\ManufacturingBom;
 use App\Modules\Manufacturing\Models\ProductionOrder;
+use App\Modules\Manufacturing\Services\ManufacturingBomService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
@@ -14,7 +16,10 @@ use Illuminate\View\View;
 
 class ManufacturingController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly ManufacturingBomService $manufacturingBomService,
+    )
     {
     }
 
@@ -30,10 +35,15 @@ class ManufacturingController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'orders' => ProductionOrder::query()
-                ->with('branch')
+                ->with(['branch', 'billOfMaterial'])
                 ->where('company_id', $companyId)
                 ->orderByDesc('planned_start_date')
                 ->orderByDesc('id')
+                ->get(),
+            'boms' => ManufacturingBom::query()
+                ->with(['branch', 'lines'])
+                ->where('company_id', $companyId)
+                ->orderBy('item_name')
                 ->get(),
             'summary' => [
                 'orders' => (int) ProductionOrder::query()->where('company_id', $companyId)->count(),
@@ -44,9 +54,11 @@ class ManufacturingController extends Controller
                     ->whereDate('due_date', '<', now()->toDateString())
                     ->count(),
                 'planned_qty' => (float) ProductionOrder::query()->where('company_id', $companyId)->sum('planned_quantity'),
+                'boms' => (int) ManufacturingBom::query()->where('company_id', $companyId)->count(),
             ],
             'statusOptions' => $this->statusOptions(),
             'routingOptions' => $this->routingOptions(),
+            'bomStatusOptions' => $this->bomStatusOptions(),
         ]);
     }
 
@@ -58,10 +70,13 @@ class ManufacturingController extends Controller
         $payload = $request->validate([
             'order_number' => ['nullable', 'string', 'max:30', Rule::unique('production_orders', 'order_number')->where(fn ($query) => $query->where('company_id', $companyId))],
             'reference' => ['nullable', 'string', 'max:255'],
+            'bill_of_material_id' => ['nullable', Rule::exists('manufacturing_boms', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'item_name' => ['required', 'string', 'max:255'],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'planned_quantity' => ['required', 'numeric', 'min:0.001'],
             'completed_quantity' => ['nullable', 'numeric', 'min:0'],
+            'material_cost_estimate' => ['nullable', 'numeric', 'min:0'],
+            'actual_material_cost' => ['nullable', 'numeric', 'min:0'],
             'planned_start_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
             'status' => ['required', Rule::in(array_keys($this->statusOptions()))],
@@ -74,9 +89,12 @@ class ManufacturingController extends Controller
             'branch_id' => $payload['branch_id'] ?? null,
             'order_number' => ($payload['order_number'] ?? null) ?: $this->generateOrderNumber($companyId),
             'reference' => $payload['reference'] ?? null,
+            'bill_of_material_id' => $payload['bill_of_material_id'] ?? null,
             'item_name' => $payload['item_name'],
             'planned_quantity' => $payload['planned_quantity'],
             'completed_quantity' => $payload['completed_quantity'] ?? 0,
+            'material_cost_estimate' => $payload['material_cost_estimate'] ?? 0,
+            'actual_material_cost' => $payload['actual_material_cost'] ?? 0,
             'planned_start_date' => $payload['planned_start_date'],
             'due_date' => $payload['due_date'] ?? null,
             'status' => $payload['status'],
@@ -92,6 +110,32 @@ class ManufacturingController extends Controller
         ]);
 
         return redirect()->route('manufacturing.index')->with('success', 'Ordre de production enregistre avec succes.');
+    }
+
+    public function storeBillOfMaterial(Request $request, CurrentWorkspace $workspace): RedirectResponse
+    {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId, 403);
+
+        $payload = $request->validate([
+            'code' => ['nullable', 'string', 'max:30', Rule::unique('manufacturing_boms', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'item_name' => ['required', 'string', 'max:255'],
+            'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'output_quantity' => ['required', 'numeric', 'min:0.001'],
+            'status' => ['required', Rule::in(array_keys($this->bomStatusOptions()))],
+            'components' => ['required', 'string'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $lines = $this->manufacturingBomService->parseComponentMatrix($payload['components']);
+        $bom = $this->manufacturingBomService->createBillOfMaterial($companyId, $request->user()?->id, $payload, $lines);
+
+        $this->activityLogger->log('manufacturing.boms.create', 'Creation nomenclature production', $bom, [
+            'code' => $bom->code,
+            'status' => $bom->status,
+        ]);
+
+        return redirect()->route('manufacturing.index')->with('success', 'Nomenclature enregistree avec succes.');
     }
 
     private function statusOptions(): array
@@ -112,6 +156,15 @@ class ManufacturingController extends Controller
             'assembly' => 'Assemblage',
             'packing' => 'Conditionnement',
             'dispatch' => 'Expedition',
+        ];
+    }
+
+    private function bomStatusOptions(): array
+    {
+        return [
+            'active' => 'Active',
+            'pilot' => 'Pilote',
+            'archived' => 'Archivee',
         ];
     }
 

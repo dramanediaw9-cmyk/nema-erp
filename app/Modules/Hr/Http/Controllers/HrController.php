@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
+use App\Modules\Hr\Models\HrLeaveRequest;
+use App\Modules\Hr\Services\HrLeaveService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
@@ -15,7 +17,10 @@ use Illuminate\View\View;
 
 class HrController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly HrLeaveService $hrLeaveService,
+    )
     {
     }
 
@@ -40,16 +45,25 @@ class HrController extends Controller
                 ->where('company_id', $companyId)
                 ->orderBy('full_name')
                 ->get(),
+            'leaveRequests' => HrLeaveRequest::query()
+                ->with(['employee.department', 'branch'])
+                ->where('company_id', $companyId)
+                ->orderByDesc('start_date')
+                ->orderByDesc('id')
+                ->get(),
             'summary' => [
                 'departments' => (int) HrDepartment::query()->where('company_id', $companyId)->count(),
                 'employees' => (int) HrEmployee::query()->where('company_id', $companyId)->count(),
                 'active_employees' => (int) HrEmployee::query()->where('company_id', $companyId)->where('status', 'active')->count(),
                 'monthly_payroll' => (float) HrEmployee::query()->where('company_id', $companyId)->where('payroll_cycle', 'monthly')->sum('base_salary'),
+                'open_leave_requests' => (int) HrLeaveRequest::query()->where('company_id', $companyId)->whereIn('status', ['draft', 'approved'])->count(),
             ],
             'departmentStatusOptions' => $this->departmentStatusOptions(),
             'employeeStatusOptions' => $this->employeeStatusOptions(),
             'contractOptions' => $this->contractOptions(),
             'payrollCycleOptions' => $this->payrollCycleOptions(),
+            'leaveTypeOptions' => $this->leaveTypeOptions(),
+            'leaveStatusOptions' => $this->leaveStatusOptions(),
         ]);
     }
 
@@ -137,6 +151,34 @@ class HrController extends Controller
         return redirect()->route('hr.index')->with('success', 'Collaborateur enregistre avec succes.');
     }
 
+    public function storeLeaveRequest(Request $request, CurrentWorkspace $workspace): RedirectResponse
+    {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId, 403);
+
+        $payload = $request->validate([
+            'leave_number' => ['nullable', 'string', 'max:30', Rule::unique('hr_leave_requests', 'leave_number')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'employee_id' => ['required', Rule::exists('hr_employees', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'leave_type' => ['required', Rule::in(array_keys($this->leaveTypeOptions()))],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'total_days' => ['nullable', 'numeric', 'min:0.5'],
+            'status' => ['required', Rule::in(array_keys($this->leaveStatusOptions()))],
+            'coverage_plan' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $leaveRequest = $this->hrLeaveService->createLeaveRequest($companyId, $request->user()?->id, $payload);
+
+        $this->activityLogger->log('hr.leave_requests.create', 'Creation demande conge', $leaveRequest, [
+            'leave_number' => $leaveRequest->leave_number,
+            'status' => $leaveRequest->status,
+        ]);
+
+        return redirect()->route('hr.index')->with('success', 'Demande de conge enregistree avec succes.');
+    }
+
     private function departmentStatusOptions(): array
     {
         return [
@@ -172,6 +214,26 @@ class HrController extends Controller
             'monthly' => 'Mensuel',
             'biweekly' => 'Quinzaine',
             'weekly' => 'Hebdomadaire',
+        ];
+    }
+
+    private function leaveTypeOptions(): array
+    {
+        return [
+            'annual' => 'Conge annuel',
+            'sick' => 'Conge maladie',
+            'special' => 'Conge special',
+            'unpaid' => 'Absence non remuneree',
+        ];
+    }
+
+    private function leaveStatusOptions(): array
+    {
+        return [
+            'draft' => 'Brouillon',
+            'approved' => 'Approuve',
+            'completed' => 'Termine',
+            'declined' => 'Refuse',
         ];
     }
 
