@@ -290,8 +290,8 @@ class PosController extends Controller
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
                     'total' => (float) $invoice->total,
-                    'receipt_url' => route('pos.receipt', $invoice),
-                    'thermal_receipt_url' => route('pos.receipt.thermal', $invoice),
+                    'receipt_url' => route('pos.receipt', $invoice, false),
+                    'thermal_receipt_url' => route('pos.receipt.thermal', $invoice, false),
                     'already_processed' => $alreadyProcessed,
                 ],
                 'payments' => $payments->map(fn ($payment) => [

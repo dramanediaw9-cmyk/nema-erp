@@ -225,6 +225,34 @@ class PosFlowTest extends TestCase
             'notes' => 'TEST-POS-CASH-LOW',
         ]);
     }
+
+    public function test_pos_sale_screen_renders_mobile_friendly_submission_guards(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.sales.create'));
+
+        $response->assertOk();
+
+        $html = $response->getContent();
+
+        $this->assertIsString($html);
+        $this->assertMatchesRegularExpression('/<form(?=[^>]*id="pos-sale-form")(?=[^>]*novalidate)[^>]*>/s', $html);
+        $this->assertMatchesRegularExpression('/<input(?=[^>]*id="cash_received_amount")(?=[^>]*inputmode="decimal")(?=[^>]*type="text")[^>]*>/s', $html);
+        $this->assertMatchesRegularExpression('/<button(?=[^>]*id="pos-submit-button")(?=[^>]*type="button")[^>]*>/s', $html);
+        $this->assertStringContainsString('action="/point-de-vente/vente"', $html);
+        $this->assertMatchesRegularExpression('/const serviceWorkerUrl = "\\\\?\/pos-sw\.js";/', $html);
+        $this->assertStringContainsString("saleForm.addEventListener('submit'", $html);
+        $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
+        $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
+    }
+
     public function test_cashier_can_record_mixed_pos_payment_and_show_change_on_receipts(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
@@ -370,6 +398,48 @@ class PosFlowTest extends TestCase
             ->where('pos_session_id', $session->id)
             ->where('reference', 'POS-OFFLINE-SYNC-001')
             ->count());
+    }
+
+    public function test_pos_json_sale_response_returns_relative_receipt_urls(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->postJson(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-JSON-RELATIVE-001',
+                'notes' => 'TEST-POS-JSON-RELATIVE',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket json relatif',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ]);
+
+        $response->assertCreated();
+
+        $receiptUrl = $response->json('invoice.receipt_url');
+        $thermalReceiptUrl = $response->json('invoice.thermal_receipt_url');
+
+        $this->assertIsString($receiptUrl);
+        $this->assertIsString($thermalReceiptUrl);
+        $this->assertStringStartsWith('/point-de-vente/tickets/', $receiptUrl);
+        $this->assertStringStartsWith('/point-de-vente/tickets/', $thermalReceiptUrl);
     }
 
     public function test_operations_officer_can_enter_another_open_branch_session_when_session_id_is_provided(): void

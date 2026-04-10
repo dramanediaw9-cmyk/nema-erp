@@ -1445,7 +1445,7 @@
                         <div class="pos-cart-context-chip">Lignes <strong id="pos-lines-chip">0 ligne</strong></div>
                     </div>
                 </div>
-                <form id="pos-sale-form" class="pos-sale-form" method="POST" action="{{ route('pos.sales.store') }}" novalidate>
+                <form id="pos-sale-form" class="pos-sale-form" method="POST" action="{{ route('pos.sales.store', [], false) }}" novalidate>
                     @csrf
                     <div class="pos-cart-body">
                         @if ($errors->any())
@@ -1618,13 +1618,10 @@
         const syncNowButton = document.getElementById('pos-sync-now');
         const installAppButton = document.getElementById('pos-install-app');
         const csrfToken = saleForm.querySelector('input[name="_token"]').value;
-        const saleStoreUrl = saleForm.action;
-        const draftStoreUrl = @json(route('pos.drafts.store'));
-        const draftDestroyBaseUrl = @json(url('/point-de-vente/brouillons'));
         const queueStorageKey = `nema-erp-pos-offline:${@json($session->id)}:queue`;
         const offlineDbName = 'nema-erp-pos-offline';
         const offlineDbStore = 'queue_store';
-        const serviceWorkerUrl = @json(asset('pos-sw.js'));
+        const serviceWorkerUrl = @json(parse_url(asset('pos-sw.js'), PHP_URL_PATH) ?: '/pos-sw.js');
         let pendingQueue = [];
         let syncInFlight = false;
         let deferredInstallPrompt = null;
@@ -1655,6 +1652,17 @@
             const parsed = Number(normalized);
             return Number.isFinite(parsed) ? parsed : fallback;
         };
+        const toAppRelativeUrl = (value, fallback = '/') => {
+            try {
+                const url = new URL(value || fallback, window.location.href);
+                return `${url.pathname}${url.search}${url.hash}` || fallback;
+            } catch (error) {
+                return fallback;
+            }
+        };
+        const saleStoreUrl = toAppRelativeUrl(saleForm.getAttribute('action') || saleForm.action, '/point-de-vente/vente');
+        const draftStoreUrl = toAppRelativeUrl(@json(route('pos.drafts.store', [], false)), '/point-de-vente/brouillons');
+        const draftDestroyUrlTemplate = toAppRelativeUrl(@json(route('pos.drafts.destroy', ['draft' => '__DRAFT__'], false)), '/point-de-vente/brouillons/__DRAFT__');
         const todayValue = saleDateInput.value || new Date().toISOString().slice(0, 10);
         const generateSyncKey = () => window.crypto?.randomUUID
             ? `pos-${window.crypto.randomUUID()}`
@@ -2274,7 +2282,7 @@
                 created_at: queued?.created_at || new Date().toISOString(),
                 last_error: queued?.last_error || '',
                 csrf_token: queued?.csrf_token || csrfToken,
-                store_url: queued?.store_url || saleStoreUrl,
+                store_url: toAppRelativeUrl(queued?.store_url || saleStoreUrl, saleStoreUrl),
                 payload: {
                     ...payload,
                     pos_sync_key: syncKey,
@@ -2617,7 +2625,7 @@
             if (!draftId) {
                 return;
             }
-            const response = await fetch(`${draftDestroyBaseUrl}/${draftId}`, {
+            const response = await fetch(draftDestroyUrlTemplate.replace('__DRAFT__', String(draftId)), {
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',

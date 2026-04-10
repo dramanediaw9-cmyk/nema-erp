@@ -20,7 +20,7 @@
 8. executer `npm run build`
 9. verifier `php artisan test`
 10. executer `powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1`
-11. lancer `php artisan serve`
+11. lancer `powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1`
 
 ## Checklist avant mise en service
 
@@ -40,5 +40,5 @@ C:\xampp\php\composer.bat install
 C:\xampp\php\php.exe artisan migrate --seed
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
-C:\xampp\php\php.exe artisan serve
+powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1
 ```
