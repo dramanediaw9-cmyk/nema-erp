@@ -77,5 +77,5 @@ jobs:
           cat storage/logs/ci-serve.log
           exit 1
 
-      - name: Run POS browser smoke test
-        run: npm run e2e:pos
+      - name: Run browser smoke tests
+        run: npm run e2e:smoke

@@ -42,5 +42,5 @@ C:\xampp\php\php.exe artisan migrate --seed
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1
-npm run e2e:pos
+npm run e2e:smoke
 ```

@@ -197,13 +197,21 @@ powershell -ExecutionPolicy Bypass -File .\scripts\backup-nema-erp.ps1
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1 -SkipBrowser
-npm run e2e:pos
+npm run e2e:smoke
 ```
 
-Pour lancer le meme smoke test dans Edge en local :
+Pour lancer un flux critique seul en local :
+
+```powershell
+npm run e2e:pos
+npm run e2e:portal
+```
+
+Pour lancer ces smokes dans Edge en local :
 
 ```powershell
 npm run e2e:pos:edge
+npm run e2e:portal:edge
 ```
 
 ## Publication cloud
