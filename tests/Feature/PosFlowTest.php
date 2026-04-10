@@ -372,6 +372,9 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString("saleForm.addEventListener('submit'", $html);
         $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
         $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
+        $this->assertStringContainsString('"available_qty":', $html);
+        $this->assertStringContainsString('Stock dispo', $html);
+        $this->assertStringContainsString('const availableProductQty = (productId, currentLineUid = null) => {', $html);
         $this->assertStringContainsString('HTMLFormElement.prototype.submit.call(saleForm);', $html);
         $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
     }

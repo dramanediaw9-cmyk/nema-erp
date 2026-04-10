@@ -5,6 +5,7 @@ namespace App\Modules\Pos\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Inventory\Models\Warehouse;
+use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Pos\Models\PosDraft;
 use App\Modules\Pos\Models\PosSession;
@@ -25,6 +26,7 @@ class PosController extends Controller
     public function __construct(
         private readonly PosService $posService,
         private readonly ActivityLogger $activityLogger,
+        private readonly StockService $stockService,
     ) {
     }
 
@@ -165,6 +167,9 @@ class PosController extends Controller
                 'unit' => $product->unit,
                 'category_id' => $product->category_id,
                 'category_name' => $product->category?->name,
+                'available_qty' => $product->type === 'stockable'
+                    ? round($this->stockService->saleableQuantity($product, $companyId, $branchId, $session->warehouse_id), 3)
+                    : null,
             ])->values(),
             'initialItems' => collect(old('items', []))->filter(fn ($item) => filled($item['product_id'] ?? null))->values()->all(),
             'initialPayments' => collect(old('payments', []))->filter(fn ($payment) => is_array($payment) && (filled($payment['amount'] ?? null) || filled($payment['method'] ?? null)))->values()->all(),

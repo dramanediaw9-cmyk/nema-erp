@@ -326,6 +326,13 @@
             border-color: #6d75ad;
             box-shadow: none;
         }
+        .pos-product.is-unavailable,
+        .pos-product:disabled {
+            opacity: .52;
+            cursor: not-allowed;
+            transform: none;
+            border-color: #5a607f;
+        }
         .pos-product-top {
             position: relative;
             display: block;
@@ -392,6 +399,11 @@
         }
         .badge-success { background: rgba(22, 163, 74, .85); color: #f0fdf4; }
         .badge-warning { background: rgba(217, 119, 6, .9); color: #fffbeb; }
+        .badge-danger { background: rgba(220, 38, 38, .88); color: #fff1f2; }
+        .pos-stock-line.is-empty {
+            color: #fecaca;
+            font-weight: 700;
+        }
         .pos-empty {
             padding: 30px 22px;
             text-align: center;
@@ -682,6 +694,10 @@
             letter-spacing: .06em;
             margin-top: 2px;
             justify-self: start;
+        }
+        .pos-line-tag.is-danger {
+            background: rgba(127, 29, 29, 0.7);
+            color: #fee2e2;
         }
         .pos-line-amount {
             color: #fff;
@@ -1143,6 +1159,11 @@
             border-color: rgba(181, 240, 232, 0.24);
             box-shadow: 0 20px 30px rgba(3, 9, 18, 0.28);
         }
+        .pos-product.is-unavailable,
+        .pos-product:disabled {
+            transform: none;
+            box-shadow: none;
+        }
         .pos-product-thumb {
             border-radius: 12px;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
@@ -1569,6 +1590,7 @@
         const initialDraftId = @json($activeDraftId);
         const initialPosSyncKey = @json(old('pos_sync_key'));
         const hasOldPosForm = @json($hasOldPosForm ?? false);
+        const sessionWarehouseName = @json($session->warehouse?->name ?? 'depot actif');
         const money = (value) => new Intl.NumberFormat('fr-FR').format(Math.round(Number(value) || 0)) + ' XOF';
         const searchInput = document.getElementById('pos-search');
         const feedback = document.getElementById('pos-feedback');
@@ -1648,6 +1670,16 @@
             const parsed = Number(value);
             return Number.isFinite(parsed) ? parsed : fallback;
         };
+        const formatQty = (value) => {
+            const amount = n(value, 0);
+            const rounded = Math.round(amount);
+            const hasDecimals = Math.abs(amount - rounded) > 0.0001;
+
+            return new Intl.NumberFormat('fr-FR', {
+                minimumFractionDigits: hasDecimals ? 3 : 0,
+                maximumFractionDigits: 3,
+            }).format(amount);
+        };
         const paymentAmount = (value, fallback = 0) => {
             const normalized = String(value ?? '').replace(/\s+/g, '').replace(',', '.');
             const parsed = Number(normalized);
@@ -1677,6 +1709,65 @@
             orders: [],
             activeOrderUid: null,
         };
+        const availableProductQty = (productId, currentLineUid = null) => {
+            const product = byId[String(productId)];
+            if (!product || product.type !== 'stockable') {
+                return Number.POSITIVE_INFINITY;
+            }
+
+            const reservedInCart = state.items.reduce((total, item) => {
+                if (String(item.product_id) !== String(productId) || item.uid === currentLineUid) {
+                    return total;
+                }
+
+                return total + n(item.qty, 0);
+            }, 0);
+
+            return Math.max(0, n(product.available_qty, 0) - reservedInCart);
+        };
+        const stockMessage = (product, availableQty) => {
+            const unit = product?.unit ? ` ${product.unit}` : '';
+            return `${product?.name || 'Cet article'} dispose de ${formatQty(availableQty)}${unit} en stock vendable dans ${sessionWarehouseName}.`;
+        };
+        const lineStockIssue = (line) => {
+            const product = byId[String(line?.product_id || '')];
+            if (!line || !product || product.type !== 'stockable') {
+                return null;
+            }
+
+            const availableQty = availableProductQty(line.product_id, line.uid);
+            const requestedQty = n(line.qty, 0);
+
+            if (requestedQty <= availableQty + 0.0001) {
+                return null;
+            }
+
+            return {
+                product,
+                availableQty,
+                requestedQty,
+            };
+        };
+        const clampLineQuantity = (line, desiredQty) => {
+            const product = byId[String(line?.product_id || '')];
+            const sanitizedQty = Math.max(0.001, n(desiredQty, 0));
+
+            if (!product || product.type !== 'stockable') {
+                return sanitizedQty;
+            }
+
+            const maxQty = availableProductQty(line.product_id, line.uid);
+            if (sanitizedQty <= maxQty + 0.0001) {
+                return sanitizedQty;
+            }
+
+            feedback.textContent = stockMessage(product, maxQty);
+
+            return maxQty > 0.0001 ? maxQty : sanitizedQty;
+        };
+        const currentOrderStockIssue = () => state.items
+            .map((line) => ({ line, issue: lineStockIssue(line) }))
+            .find((entry) => entry.issue)?.issue || null;
         const nextOrderNumber = () => state.orders.reduce((max, order) => {
             const match = String(order.label || '').match(/(\d+)$/);
             return Math.max(max, match ? Number(match[1]) : 0);
@@ -2921,11 +3012,22 @@
         };
 
         const addProduct = (product) => {
+            if (product.type === 'stockable' && availableProductQty(product.id) <= 0.0001) {
+                feedback.textContent = `${product.name} est en rupture sur ${sessionWarehouseName}.`;
+                renderProducts();
+                searchInput.focus();
+
+                return;
+            }
+
             const existing = state.items.find((item) => item.product_id === String(product.id) && item.discount_type === 'none' && n(item.discount_value) === 0);
             if (existing) {
-                existing.qty = n(existing.qty, 0) + 1;
+                const desiredQty = n(existing.qty, 0) + 1;
+                existing.qty = clampLineQuantity(existing, desiredQty);
                 state.selectedLine = existing.uid;
-                feedback.textContent = `${product.name} ajoute a nouveau au panier.`;
+                if (existing.qty >= desiredQty - 0.0001) {
+                    feedback.textContent = `${product.name} ajoute a nouveau au panier.`;
+                }
             } else {
                 const line = {
                     uid: `${Date.now()}-${Math.random()}`,
@@ -2954,6 +3056,9 @@
             }
             state.selectedLine = uid;
             line[key] = ['qty', 'unit_price', 'discount_value'].includes(key) ? n(value, 0) : value;
+            if (key === 'qty') {
+                line.qty = clampLineQuantity(line, line.qty);
+            }
             if (key === 'discount_type' && value === 'none') {
                 line.discount_value = 0;
             }
@@ -2985,7 +3090,7 @@
                 feedback.textContent = 'Selectionne une ligne du panier pour ajuster la quantite.';
                 return;
             }
-            line.qty = Math.max(0.001, n(line.qty, 0) + delta);
+            line.qty = clampLineQuantity(line, Math.max(0.001, n(line.qty, 0) + delta));
             resetBuffer();
             renderCart();
         };
@@ -3036,7 +3141,7 @@
                 line.discount_type = 'fixed';
             }
             if (state.keypadTarget === 'qty') {
-                line.qty = bufferNumber('qty');
+                line.qty = clampLineQuantity(line, bufferNumber('qty'));
             }
             if (state.keypadTarget === 'price') {
                 line.unit_price = bufferNumber('price');
@@ -3099,20 +3204,31 @@
                 return;
             }
 
-            productGrid.innerHTML = `<div class="pos-grid">${filtered.map((product) => `
-                <button type="button" class="pos-product" data-product-id="${product.id}">
+            productGrid.innerHTML = `<div class="pos-grid">${filtered.map((product) => {
+                const availableQty = product.type === 'stockable' ? n(product.available_qty, 0) : null;
+                const isUnavailable = product.type === 'stockable' && availableQty <= 0.0001;
+                const stockBadge = product.type === 'service'
+                    ? '<span class="badge badge-success">Service</span>'
+                    : `<span class="badge ${isUnavailable ? 'badge-danger' : 'badge-warning'}">${isUnavailable ? 'Rupture' : 'Stock'}</span>`;
+                const stockMeta = product.type === 'stockable'
+                    ? `<div class="meta pos-stock-line ${isUnavailable ? 'is-empty' : ''}">Stock dispo ${formatQty(availableQty)} ${esc(product.unit || '')}</div>`
+                    : `<div class="meta pos-stock-line">Disponible immediatement</div>`;
+
+                return `
+                <button type="button" class="pos-product ${isUnavailable ? 'is-unavailable' : ''}" data-product-id="${product.id}" ${isUnavailable ? 'disabled' : ''}>
                     <div class="pos-product-top">
                         <div class="pos-product-thumb ${product.image_url ? 'has-image' : `tone-${tone(product)}`}">${thumbHtml(product)}</div>
-                        <span class="badge ${product.type === 'service' ? 'badge-success' : 'badge-warning'}">${product.type === 'service' ? 'Service' : 'Stock'}</span>
+                        ${stockBadge}
                     </div>
                     <div>
                         <strong>${esc(product.name)}</strong>
                         <div class="meta">${esc(product.category_name || 'Sans categorie')} / ${esc(product.barcode || product.sku || 'Reference libre')}</div>
-                        <div class="meta">${esc(product.unit || '')}</div>
+                        ${stockMeta}
                     </div>
                     <div class="price">${money(product.price)}</div>
                 </button>
-            `).join('')}</div>`;
+            `;
+            }).join('')}</div>`;
             updateContext();
         };
 
@@ -3128,7 +3244,11 @@
             linesWrap.innerHTML = state.items.map((item) => {
                 const product = byId[item.product_id] || {};
                 const activeClass = item.uid === active?.uid ? 'is-selected' : '';
-                const tag = item.uid === active?.uid ? 'Ligne active' : 'Toucher pour selectionner';
+                const stockIssue = lineStockIssue(item);
+                const baseTag = item.uid === active?.uid ? 'Ligne active' : 'Toucher pour selectionner';
+                const stockTag = product.type === 'stockable'
+                    ? `Stock dispo ${formatQty(availableProductQty(item.product_id, item.uid))} ${esc(product.unit || '')}`
+                    : 'Disponible immediatement';
                 return `
                     <div class="pos-line ${activeClass}" data-line-card="${item.uid}">
                         <div class="pos-line-top">
@@ -3136,7 +3256,7 @@
                             <div class="pos-line-main">
                                 <div class="pos-line-title">${esc(item.description || product.name || 'Article')}</div>
                                 <div class="pos-line-meta">${esc(product.barcode || product.sku || 'Sans code')} / ${esc(product.category_name || 'Sans categorie')}</div>
-                                <div class="pos-line-tag">${tag}</div>
+                                <div class="pos-line-tag ${stockIssue ? 'is-danger' : ''}">${stockIssue ? stockMessage(stockIssue.product, stockIssue.availableQty) : `${baseTag} · ${stockTag}`}</div>
                             </div>
                             <div class="pos-line-amount">${money(lineTotal(item))}</div>
                             <button type="button" class="pos-remove" data-remove-line="${item.uid}">×</button>
@@ -3591,6 +3711,12 @@
                 feedback.textContent = 'Ajoute au moins un article avant de valider le ticket.';
                 revealSubmitIssue({ target: emptyState || productGrid || searchInput, focus: searchInput });
                 searchInput.focus();
+                return;
+            }
+            const stockIssue = currentOrderStockIssue();
+            if (stockIssue) {
+                feedback.textContent = stockMessage(stockIssue.product, stockIssue.availableQty);
+                revealSubmitIssue({ target: linesWrap });
                 return;
             }
             const paymentValidation = applyPaymentValidation(snapshot);
