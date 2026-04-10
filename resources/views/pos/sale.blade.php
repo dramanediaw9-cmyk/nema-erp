@@ -836,6 +836,12 @@
             cursor: not-allowed;
             opacity: .6;
         }
+        .pos-actions .button-primary.is-blocked {
+            background: linear-gradient(180deg, #a96d9b 0%, #83537f 100%);
+            border-color: #ba8cb2;
+            color: #fff6fd;
+            box-shadow: 0 0 0 1px rgba(255, 222, 248, 0.12);
+        }
         .pos-actions .button-secondary {
             background: #383d63;
             color: #eef0ff;
@@ -2025,9 +2031,30 @@
             paymentError.classList.toggle('is-visible', Boolean(validation.message));
             cashReceivedInput.classList.toggle('is-invalid', validation.cashInvalid);
             remainingOutput.closest('.pos-payment-total-row')?.classList.toggle('is-invalid', validation.remainingInvalid);
-            submitButton.disabled = !state.items.length || !validation.valid;
+            const blocked = !state.items.length || !validation.valid;
+            if (!syncInFlight) {
+                submitButton.disabled = false;
+            }
+            submitButton.classList.toggle('is-blocked', blocked && !syncInFlight);
+            submitButton.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+            submitButton.dataset.blocked = blocked ? 'true' : 'false';
             submitButton.title = validation.valid ? '' : validation.message;
             return validation;
+        };
+        const revealSubmitIssue = (options = {}) => {
+            const { target = null, focus = null } = options;
+            (target || paymentPanel || linesWrap)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+            if (focus && typeof focus.focus === 'function') {
+                window.setTimeout(() => {
+                    focus.focus({ preventScroll: true });
+                    if (typeof focus.select === 'function') {
+                        focus.select();
+                    }
+                }, 120);
+            }
         };
         const syncHiddenInputs = (order, snapshot) => {
             const paymentInputs = snapshot.payment.payments.map((payment, index) => `
@@ -3582,6 +3609,7 @@
             }
             if (!state.items.length) {
                 feedback.textContent = 'Ajoute au moins un article avant de valider le ticket.';
+                revealSubmitIssue({ target: emptyState || productGrid || searchInput, focus: searchInput });
                 searchInput.focus();
                 return;
             }
@@ -3589,7 +3617,9 @@
             if (!paymentValidation.valid) {
                 feedback.textContent = paymentValidation.message;
                 if (paymentValidation.cashInvalid) {
-                    cashReceivedInput.focus();
+                    revealSubmitIssue({ target: paymentPanel, focus: cashReceivedInput });
+                } else {
+                    revealSubmitIssue({ target: paymentPanel });
                 }
                 return;
             }
