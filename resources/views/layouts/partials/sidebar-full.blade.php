@@ -26,6 +26,9 @@
     @allowed('ops.view')
         <a class="nav-link {{ request()->routeIs('ops.*') ? 'active' : '' }}" href="{{ route('ops.index') }}">Operations</a>
     @endallowed
+    @allowed('platform.view')
+        <a class="nav-link {{ request()->routeIs('platform.*') ? 'active' : '' }}" href="{{ route('platform.index') }}">Plateforme</a>
+    @endallowed
     </section>
 
     <section class="nav-section">
@@ -150,6 +153,25 @@
         @allowed('fixed_assets.view')
             <a class="nav-link {{ request()->routeIs('fixed-assets.*') ? 'active' : '' }}" href="{{ route('fixed-assets.index') }}">Immobilisations</a>
         @endallowed
+    @endallowed
+    </section>
+
+    <section class="nav-section">
+    <div class="nav-title">Expansion</div>
+    @allowed('hr.view')
+        <a class="nav-link {{ request()->routeIs('hr.*') ? 'active' : '' }}" href="{{ route('hr.index') }}">Capital humain</a>
+    @endallowed
+    @allowed('payroll.view')
+        <a class="nav-link {{ request()->routeIs('payroll.*') ? 'active' : '' }}" href="{{ route('payroll.index') }}">Paie</a>
+    @endallowed
+    @allowed('projects.view')
+        <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">Projets</a>
+    @endallowed
+    @allowed('manufacturing.view')
+        <a class="nav-link {{ request()->routeIs('manufacturing.*') ? 'active' : '' }}" href="{{ route('manufacturing.index') }}">Production</a>
+    @endallowed
+    @allowed('commerce.view')
+        <a class="nav-link {{ request()->routeIs('commerce.*') ? 'active' : '' }}" href="{{ route('commerce.index') }}">Commerce unifie</a>
     @endallowed
     </section>
 

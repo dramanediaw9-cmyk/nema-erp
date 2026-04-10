@@ -23,6 +23,12 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - categories de depenses
 - depenses simples
 - comptabilite de base avec plan comptable, journaux et balance
+- plateforme produit, packaging et endpoint de capacites API
+- capital humain avec departements et collaborateurs
+- executions de paie
+- projets operationnels
+- ordres de production
+- commerce unifie et canaux digitaux
 - dashboard administrateur enrichi
 - imports CSV et impressions
 - journaux d'activite
@@ -44,6 +50,7 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - [Publication Laravel Cloud](docs/PUBLICATION-LARAVEL-CLOUD.md)
 - [Sauvegarde et restauration](docs/SAUVEGARDE-RESTAURATION.md)
 - [Checklist mise en service](docs/CHECKLIST-MISE-EN-SERVICE.md)
+- [Plateforme & ecosysteme](docs/PLATEFORME-ECOSYSTEME.md)
 
 ## Structure du projet
 
@@ -67,6 +74,11 @@ app/
     Treasury/
     Expenses/
     Accounting/
+    Hr/
+    Payroll/
+    Projects/
+    Manufacturing/
+    Commerce/
 resources/views/
   layouts/
   partials/
@@ -91,6 +103,12 @@ resources/views/
   expense-categories/
   expenses/
   accounting/
+  platform/
+  hr/
+  payroll/
+  projects/
+  manufacturing/
+  commerce/
   activity-logs/
 routes/modules/
 database/migrations/
@@ -217,6 +235,15 @@ npm run e2e:portal:edge
 npm run e2e:portal:order:edge
 npm run e2e:portal:payment:edge
 ```
+
+## Expansion produit
+
+La vague `Growth Foundation` ouvre maintenant les 4 chantiers strategiques du projet :
+
+- largeur fonctionnelle avec RH, paie, projets, production et commerce unifie
+- packaging produit avec scripts d exploitation, checks et documentation
+- ecosysteme avec endpoint `GET /api/v1/platform/capabilities`
+- profondeur initiale sur des modules additionnels a enrichir par vagues
 
 ## Publication cloud
 

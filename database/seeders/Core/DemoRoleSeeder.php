@@ -58,6 +58,7 @@ class DemoRoleSeeder extends Seeder
                 'roles.view',
                 'settings.view',
                 'settings.integrations.manage',
+                'platform.view',
                 'customers.view',
                 'suppliers.view',
                 'categories.view',
@@ -98,6 +99,11 @@ class DemoRoleSeeder extends Seeder
                 'accounting.reverse',
                 'fixed_assets.view',
                 'accounting.manage_periods',
+                'hr.view',
+                'payroll.view',
+                'projects.view',
+                'manufacturing.view',
+                'commerce.view',
                 'activity_logs.view',
             ])->pluck('id')->all()
         );
@@ -159,6 +165,15 @@ class DemoRoleSeeder extends Seeder
                 'reconciliations.manage',
                 'fixed_assets.view',
                 'fixed_assets.manage',
+                'hr.view',
+                'hr.manage',
+                'payroll.view',
+                'projects.view',
+                'projects.manage',
+                'manufacturing.view',
+                'manufacturing.manage',
+                'commerce.view',
+                'commerce.manage',
                 'activity_logs.view',
             ])->pluck('id')->all()
         );

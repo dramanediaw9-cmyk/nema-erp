@@ -46,3 +46,14 @@ npm run e2e:smoke
 npm run e2e:portal:order
 npm run e2e:portal:payment
 ```
+
+## Modules d expansion disponibles
+
+Apres migration et seed, l application expose aussi :
+
+- `Plateforme` pour lire readiness, packaging et capacites API
+- `Capital humain`
+- `Paie`
+- `Projets`
+- `Production`
+- `Commerce unifie`

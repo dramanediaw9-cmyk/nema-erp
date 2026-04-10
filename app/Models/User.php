@@ -79,7 +79,7 @@ class User extends Authenticatable
 
     public function hasPermission(string $permission): bool
     {
-        if ($this->hasRole('platform_admin')) {
+        if ($this->hasRole('platform_admin') || $this->hasRole('company_admin')) {
             return true;
         }
 
