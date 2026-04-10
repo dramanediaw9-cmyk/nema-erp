@@ -6,7 +6,8 @@
         "build": "vite build",
         "dev": "vite",
         "e2e": "playwright test",
-        "e2e:pos": "playwright test e2e/pos-smoke.spec.js --project=edge"
+        "e2e:pos": "playwright test e2e/pos-smoke.spec.js --project=chromium",
+        "e2e:pos:edge": "playwright test e2e/pos-smoke.spec.js --project=edge"
     },
     "devDependencies": {
         "@playwright/test": "^1.59.1",

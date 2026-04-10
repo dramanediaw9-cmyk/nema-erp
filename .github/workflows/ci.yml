@@ -32,7 +32,12 @@ jobs:
       - name: Prepare environment
         run: |
           cp .env.example .env
+          mkdir -p database
+          touch database/ci.sqlite
+          php -r "file_exists('.env') || exit(1); \$env = file_get_contents('.env'); \$overrides = ['APP_URL' => 'http://127.0.0.1:8000', 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => 'database/ci.sqlite', 'SESSION_DRIVER' => 'database', 'CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database']; foreach (\$overrides as \$key => \$value) { \$pattern = '/^'.preg_quote(\$key, '/').'=.*$/m'; \$line = \$key.'='.\$value; \$env = preg_match(\$pattern, \$env) ? preg_replace(\$pattern, \$line, \$env) : \$env.PHP_EOL.\$line; } file_put_contents('.env', \$env);"
           php artisan key:generate
+          php artisan migrate --seed --force
+          php artisan storage:link
 
       - name: Install frontend dependencies
         run: npm install
@@ -54,3 +59,23 @@ jobs:
 
       - name: Run tests
         run: php artisan test
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Laravel server
+        run: php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-serve.log 2>&1 &
+
+      - name: Wait for Laravel server
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat storage/logs/ci-serve.log
+          exit 1
+
+      - name: Run POS browser smoke test
+        run: npm run e2e:pos

@@ -17,6 +17,13 @@ export default defineConfig({
     },
     projects: [
         {
+            name: 'chromium',
+            use: {
+                ...devices['Desktop Chrome'],
+                browserName: 'chromium',
+            },
+        },
+        {
             name: 'edge',
             use: {
                 ...devices['Desktop Edge'],

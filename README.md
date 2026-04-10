@@ -200,6 +200,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1 -SkipBrows
 npm run e2e:pos
 ```
 
+Pour lancer le meme smoke test dans Edge en local :
+
+```powershell
+npm run e2e:pos:edge
+```
+
 ## Publication cloud
 
 Pour une vraie mise en ligne publique :
