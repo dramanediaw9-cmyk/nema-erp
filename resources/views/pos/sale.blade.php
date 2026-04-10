@@ -2301,6 +2301,7 @@
             }
             try {
                 const registration = await navigator.serviceWorker.register(serviceWorkerUrl);
+                await registration.update();
                 if (registration.waiting) {
                     registration.waiting.postMessage({ type: 'SKIP_WAITING' });
                 }
@@ -3466,6 +3467,17 @@
         });
 
         if ('serviceWorker' in navigator) {
+            let posSwReloaded = false;
+
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (posSwReloaded) {
+                    return;
+                }
+
+                posSwReloaded = true;
+                window.location.reload();
+            });
+
             navigator.serviceWorker.addEventListener('message', (event) => {
                 if (event.data?.type === 'pos-queue-updated') {
                     void hydratePendingQueueFromIndexedDb().then(() => {

@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'nema-pos-shell-v2';
-const RUNTIME_CACHE = 'nema-pos-runtime-v2';
+const SHELL_CACHE = 'nema-pos-shell-v3';
+const RUNTIME_CACHE = 'nema-pos-runtime-v3';
 const DB_NAME = 'nema-erp-pos-offline';
 const STORE_NAME = 'queue_store';
 const SYNC_TAG = 'nema-pos-sync';
