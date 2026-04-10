@@ -211,7 +211,14 @@ class SalesInvoiceService
         });
     }
 
-    public function assertCreatable(int $companyId, int $branchId, Collection $items, ?int $warehouseId = null, ?int $excludeOrderId = null): void
+    public function assertCreatable(
+        int $companyId,
+        int $branchId,
+        Collection $items,
+        ?int $warehouseId = null,
+        ?int $excludeOrderId = null,
+        bool $respectReservations = true,
+    ): void
     {
         $items->each(fn (array $item) => $item['product']->assertAvailableForSale('vente'));
         $groupedItems = $items
@@ -223,14 +230,27 @@ class SalesInvoiceService
             $product = $productItems->first()['product'];
             $requestedQuantity = (float) $productItems->sum('qty');
 
-            $this->stockService->assertReservableQuantity(
+            if ($respectReservations) {
+                $this->stockService->assertReservableQuantity(
+                    product: $product,
+                    companyId: $companyId,
+                    branchId: $branchId,
+                    quantity: $requestedQuantity,
+                    warehouseId: $warehouseId,
+                    context: 'vente',
+                    excludeOrderId: $excludeOrderId,
+                );
+
+                continue;
+            }
+
+            $this->stockService->assertSaleableQuantity(
                 product: $product,
                 companyId: $companyId,
                 branchId: $branchId,
                 quantity: $requestedQuantity,
                 warehouseId: $warehouseId,
-                context: 'vente',
-                excludeOrderId: $excludeOrderId,
+                context: 'vente comptoir',
             );
         }
     }

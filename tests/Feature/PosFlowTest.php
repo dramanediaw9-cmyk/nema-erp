@@ -7,6 +7,7 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Treasury\Models\CashAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -224,6 +225,79 @@ class PosFlowTest extends TestCase
             'company_id' => $user->company_id,
             'notes' => 'TEST-POS-CASH-LOW',
         ]);
+    }
+
+    public function test_pos_sale_uses_physical_stock_even_when_sales_orders_reserve_inventory(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+        $customer = \App\Modules\Partners\Models\Partner::query()
+            ->customers()
+            ->where('company_id', $user->company_id)
+            ->firstOrFail();
+
+        $physicalStock = $this->stockBalance($user->company_id, $user->branch_id, $product->id, $warehouse->id);
+        $this->assertGreaterThanOrEqual(2, $physicalStock);
+
+        $reservedQty = max(1, round($physicalStock - 1, 3));
+
+        $order = SalesOrder::query()->create([
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'customer_id' => $customer->id,
+            'order_number' => 'CMD-RESERVE-POS-001',
+            'order_date' => now()->toDateString(),
+            'requested_delivery_date' => now()->toDateString(),
+            'status' => 'confirmed',
+            'subtotal' => $reservedQty * 500,
+            'total' => $reservedQty * 500,
+            'confirmed_at' => now(),
+            'created_by' => $user->id,
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'description' => 'Reservation prioritaire',
+            'qty' => $reservedQty,
+            'delivered_qty' => 0,
+            'unit_price' => 500,
+            'line_total' => $reservedQty * 500,
+        ]);
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-RESERVE-BYPASS-001',
+                'notes' => 'TEST-POS-RESERVE-BYPASS',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 1000,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Vente comptoir reservee',
+                        'qty' => 2,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ]);
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'TEST-POS-RESERVE-BYPASS')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('pos.receipt', $invoice));
+        $this->assertSame('validated', $invoice->status);
     }
 
     public function test_pos_form_submission_can_redirect_directly_to_thermal_receipt(): void

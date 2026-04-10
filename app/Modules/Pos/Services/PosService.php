@@ -247,7 +247,14 @@ class PosService
                 : $this->walkInCustomer($session->company_id);
 
             $items = $this->salesInvoiceService->normalizeItems($session->company_id, $itemsInput, null, $user);
-            $this->salesInvoiceService->assertCreatable($session->company_id, $session->branch_id, $items, $session->warehouse_id);
+            $this->salesInvoiceService->assertCreatable(
+                $session->company_id,
+                $session->branch_id,
+                $items,
+                $session->warehouse_id,
+                null,
+                false,
+            );
 
             $invoice = $this->salesInvoiceService->createValidated(
                 companyId: $session->company_id,
