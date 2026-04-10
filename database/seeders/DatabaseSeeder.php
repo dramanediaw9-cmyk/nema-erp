@@ -12,6 +12,7 @@ use Database\Seeders\Core\DemoRoleSeeder;
 use Database\Seeders\Core\DemoUserSeeder;
 use Database\Seeders\Core\PermissionSeeder;
 use Database\Seeders\Expenses\DemoExpenseSeeder;
+use Database\Seeders\Growth\DemoGrowthFoundationSeeder;
 use Database\Seeders\Inventory\DemoStockSeeder;
 use Database\Seeders\Purchases\DemoPurchaseSeeder;
 use Database\Seeders\Sales\DemoSalesSeeder;
@@ -38,6 +39,7 @@ class DatabaseSeeder extends Seeder
             DemoSupplierPaymentSeeder::class,
             DemoSalesSeeder::class,
             DemoExpenseSeeder::class,
+            DemoGrowthFoundationSeeder::class,
             DemoAccountingSeeder::class,
         ]);
     }

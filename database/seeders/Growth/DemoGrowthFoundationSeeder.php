@@ -1,0 +1,178 @@
+<?php
+
+namespace Database\Seeders\Growth;
+
+use App\Models\User;
+use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Core\Company\Models\Company;
+use App\Modules\Hr\Models\HrDepartment;
+use App\Modules\Hr\Models\HrEmployee;
+use App\Modules\Manufacturing\Models\ProductionOrder;
+use App\Modules\Payroll\Models\PayrollRun;
+use App\Modules\Projects\Models\Project;
+use Illuminate\Database\Seeder;
+
+class DemoGrowthFoundationSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $branch = Branch::query()->where('company_id', $company->id)->where('code', 'BKO')->firstOrFail();
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $retailDepartment = HrDepartment::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'DEP-0001'],
+            [
+                'branch_id' => $branch->id,
+                'name' => 'Operations retail',
+                'manager_name' => 'Chef reseau Bamako',
+                'headcount_target' => 18,
+                'status' => 'active',
+                'notes' => 'Equipe magasin, supervision terrain et service client.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        $logisticsDepartment = HrDepartment::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'DEP-0002'],
+            [
+                'branch_id' => $branch->id,
+                'name' => 'Logistique et stock',
+                'manager_name' => 'Coordinateur depot',
+                'headcount_target' => 10,
+                'status' => 'scaling',
+                'notes' => 'Equipe magasin central, approvisionnements et mise en rayon.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        HrEmployee::query()->updateOrCreate(
+            ['company_id' => $company->id, 'employee_number' => 'EMP-2026-00001'],
+            [
+                'branch_id' => $branch->id,
+                'department_id' => $retailDepartment->id,
+                'full_name' => 'Awa Diallo',
+                'email' => 'awa.diallo@nema-erp.test',
+                'phone' => '+22370010001',
+                'job_title' => 'Responsable caisse et experience client',
+                'contract_type' => 'permanent',
+                'hire_date' => now()->subMonths(10)->toDateString(),
+                'status' => 'active',
+                'payroll_cycle' => 'monthly',
+                'base_salary' => 325000,
+                'notes' => 'Pilote le front office et la formation des caissiers.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        HrEmployee::query()->updateOrCreate(
+            ['company_id' => $company->id, 'employee_number' => 'EMP-2026-00002'],
+            [
+                'branch_id' => $branch->id,
+                'department_id' => $logisticsDepartment->id,
+                'full_name' => 'Mamadou Coulibaly',
+                'email' => 'mamadou.coulibaly@nema-erp.test',
+                'phone' => '+22370010002',
+                'job_title' => 'Superviseur depot principal',
+                'contract_type' => 'permanent',
+                'hire_date' => now()->subMonths(7)->toDateString(),
+                'status' => 'active',
+                'payroll_cycle' => 'monthly',
+                'base_salary' => 285000,
+                'notes' => 'Suit les receptions, inventaires et reappro automatiques.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        PayrollRun::query()->updateOrCreate(
+            ['company_id' => $company->id, 'run_number' => 'PAY-'.now()->format('Y').'-0001'],
+            [
+                'branch_id' => $branch->id,
+                'label' => 'Paie pilote Avril '.now()->year,
+                'period_start' => now()->startOfMonth()->toDateString(),
+                'period_end' => now()->endOfMonth()->toDateString(),
+                'scheduled_pay_date' => now()->endOfMonth()->toDateString(),
+                'headcount' => 2,
+                'gross_amount' => 760000,
+                'net_amount' => 610000,
+                'status' => 'review',
+                'notes' => 'Simulation de paie pour le perimetre de demonstration.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        Project::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'PRJ-'.now()->format('Y').'-0001'],
+            [
+                'branch_id' => $branch->id,
+                'name' => 'Ouverture canal B2B Mopti',
+                'customer_name' => 'Reseau Delta Market',
+                'owner_id' => $manager->id,
+                'start_date' => now()->subWeeks(2)->toDateString(),
+                'target_end_date' => now()->addWeeks(6)->toDateString(),
+                'status' => 'active',
+                'progress' => 35,
+                'budget_amount' => 4800000,
+                'notes' => 'Projet de lancement commercial avec stock tampon et animation terrain.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        ProductionOrder::query()->updateOrCreate(
+            ['company_id' => $company->id, 'order_number' => 'OF-'.now()->format('Y').'-0001'],
+            [
+                'branch_id' => $branch->id,
+                'reference' => 'KIT-RAMADAN-01',
+                'item_name' => 'Kit promo Ramadan',
+                'planned_quantity' => 500,
+                'completed_quantity' => 180,
+                'planned_start_date' => now()->subDays(5)->toDateString(),
+                'due_date' => now()->addDays(4)->toDateString(),
+                'status' => 'in_progress',
+                'routing_stage' => 'packing',
+                'notes' => 'Assemblage de paniers promo pour reseau retail et commandes WhatsApp.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannel::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'CH-0001'],
+            [
+                'branch_id' => $branch->id,
+                'name' => 'Boutique WhatsApp Bamako',
+                'channel_type' => 'mobile',
+                'status' => 'active',
+                'connector_name' => 'WhatsApp Commerce',
+                'settlement_mode' => 'mobile_money',
+                'target_monthly_revenue' => 3500000,
+                'notes' => 'Canal conversationnel pilote pour commandes et encaissements Wave.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannel::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'CH-0002'],
+            [
+                'branch_id' => $branch->id,
+                'name' => 'Retail grossiste Bamako',
+                'channel_type' => 'b2b',
+                'status' => 'active',
+                'connector_name' => 'Back-office devis/commandes',
+                'settlement_mode' => 'mixed',
+                'target_monthly_revenue' => 12000000,
+                'notes' => 'Canal comptes cle pour reseau semi-grossiste.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+    }
+}

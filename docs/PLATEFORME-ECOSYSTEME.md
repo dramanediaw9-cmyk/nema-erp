@@ -27,6 +27,7 @@ Ce document decrit la premiere vague qui ouvre les 4 chantiers strategiques du p
 
 - authentification API par `Bearer token` ou `X-Api-Key`
 - ressources `workspace`, `products`, `partners`, `sales-invoices`, `payments`, `integration-events`
+- ressources metier d expansion `hr/departments`, `hr/employees`, `payroll/runs`, `projects`, `production-orders`, `commerce/channels`
 - endpoint de capacites `platform/capabilities` pour exposer le socle aux integrateurs
 - outbox d integration pour brancher middleware, BI ou SI tiers
 
