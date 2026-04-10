@@ -38,7 +38,6 @@ test('cashier can open POS session, validate a sale, and open the thermal ticket
     ]);
 
     await expect(page.getByText('TICKET CAISSE')).toBeVisible();
-    await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-    await expect(page).toHaveURL(/\/point-de-vente\/tickets\/\d+$/);
-    await expect(page.getByText('Ticket caisse')).toBeVisible();
+    await expect(page.getByText('Si l\'impression ne se lance pas sur cet appareil')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ticket detaille' })).toBeVisible();
 });

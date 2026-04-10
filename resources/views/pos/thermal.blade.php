@@ -29,6 +29,21 @@
             font-weight: 700;
             font-size: 12px;
         }
+        .notice {
+            width: min(72mm, calc(100% - 24px));
+            margin: 0 auto 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #fff4d6;
+            border: 1px solid #f5d77a;
+            color: #7a2e0b;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .notice strong {
+            display: block;
+            margin-bottom: 4px;
+        }
         .ticket {
             width: 72mm;
             margin: 0 auto 16px;
@@ -49,7 +64,7 @@
         .item-total { text-align: right; font-weight: 700; }
         @media print {
             body { background: #fff; }
-            .toolbar { display: none; }
+            .toolbar, .notice { display: none; }
             .ticket { box-shadow: none; margin: 0 auto; }
         }
     </style>
@@ -59,9 +74,16 @@
 
     <div class="toolbar">
         <button type="button" class="button" onclick="window.print()">Imprimer</button>
-        <a href="{{ $nextReceiptUrl }}" class="button">Apercu</a>
+        <a href="{{ $nextReceiptUrl }}" class="button">Ticket detaille</a>
         <a href="javascript:history.back()" class="button">Retour</a>
     </div>
+
+    @if (request()->boolean('from_pos'))
+        <div class="notice" id="print-notice">
+            <strong>Ticket pret a imprimer</strong>
+            <span>Si l'impression ne se lance pas sur cet appareil, appuyez sur "Imprimer".</span>
+        </div>
+    @endif
 
     @php($payments = $payments ?? collect())
     @php($payment = $payment ?? null)
@@ -133,18 +155,27 @@
 
     @if (request()->boolean('auto_print'))
         <script>
-            const nextReceiptUrl = @json($nextReceiptUrl);
+            const printNotice = document.getElementById('print-notice');
+            const supportsFinePointer = typeof window.matchMedia === 'function'
+                ? window.matchMedia('(pointer: fine)').matches
+                : false;
+            const hasTouchInput = Number.isFinite(navigator.maxTouchPoints)
+                ? navigator.maxTouchPoints > 0
+                : false;
+            const canAutoPrint = supportsFinePointer && !hasTouchInput;
+
+            if (printNotice && !canAutoPrint) {
+                printNotice.querySelector('strong').textContent = 'Ticket affiche';
+            }
 
             window.addEventListener('load', () => {
+                if (!canAutoPrint) {
+                    return;
+                }
+
                 window.setTimeout(() => {
                     window.print();
                 }, 150);
-            });
-
-            window.addEventListener('afterprint', () => {
-                if (nextReceiptUrl) {
-                    window.location.replace(nextReceiptUrl);
-                }
             });
         </script>
     @endif

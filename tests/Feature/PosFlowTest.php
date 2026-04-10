@@ -257,6 +257,59 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString('from_pos: 1', $html);
     }
 
+    public function test_thermal_receipt_keeps_print_actions_visible_for_touch_devices(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-THERMAL-MOBILE-001',
+                'notes' => 'TEST-POS-THERMAL-MOBILE',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket thermique mobile',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'TEST-POS-THERMAL-MOBILE')
+            ->firstOrFail();
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.receipt.thermal', $invoice).'?auto_print=1&from_pos=1&next='.urlencode(route('pos.receipt', $invoice)));
+
+        $response->assertOk()
+            ->assertSeeText('Ticket pret a imprimer')
+            ->assertSeeText('appuyez sur')
+            ->assertSeeText('Ticket detaille');
+
+        $html = $response->getContent();
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString('const canAutoPrint = supportsFinePointer && !hasTouchInput;', $html);
+        $this->assertStringNotContainsString("window.addEventListener('afterprint'", $html);
+    }
+
     public function test_cashier_can_record_mixed_pos_payment_and_show_change_on_receipts(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
