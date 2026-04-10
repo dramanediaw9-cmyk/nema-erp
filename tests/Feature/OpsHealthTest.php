@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Mail\OpsTestMail;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -183,5 +185,55 @@ class OpsHealthTest extends TestCase
 
         $this->assertDatabaseMissing('integration_events', ['id' => $oldPublished->id]);
         $this->assertDatabaseHas('integration_events', ['id' => $pending->id]);
+    }
+
+    public function test_company_admin_can_send_a_test_email_from_ops_page(): void
+    {
+        Mail::fake();
+        config()->set('mail.default', 'smtp');
+
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession([
+            'current_tenant_id' => $user->tenant_id,
+            'current_company_id' => $user->company_id,
+            'current_branch_id' => $user->branch_id,
+        ]);
+
+        $this->from(route('ops.index'))
+            ->post(route('ops.mail-test'), [
+                'email' => 'destinataire@example.com',
+                'subject' => 'Test SMTP ERP',
+            ])
+            ->assertRedirect(route('ops.index'))
+            ->assertSessionHas('success');
+
+        Mail::assertSent(OpsTestMail::class, function (OpsTestMail $mail): bool {
+            return $mail->hasTo('destinataire@example.com')
+                && $mail->subjectLine === 'Test SMTP ERP';
+        });
+    }
+
+    public function test_test_email_action_is_blocked_while_mailer_is_log(): void
+    {
+        Mail::fake();
+        config()->set('mail.default', 'log');
+
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession([
+            'current_tenant_id' => $user->tenant_id,
+            'current_company_id' => $user->company_id,
+            'current_branch_id' => $user->branch_id,
+        ]);
+
+        $this->from(route('ops.index'))
+            ->post(route('ops.mail-test'), [
+                'email' => 'destinataire@example.com',
+            ])
+            ->assertRedirect(route('ops.index'))
+            ->assertSessionHasErrors('mail_test');
+
+        Mail::assertNothingSent();
     }
 }

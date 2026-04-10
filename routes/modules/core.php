@@ -86,6 +86,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/operations/outbox/relancer-echecs', [OperationsController::class, 'retryFailedOutbox'])
         ->middleware('permission:ops.view')
         ->name('ops.outbox.retry-failed');
+    Route::post('/operations/email/test', [OperationsController::class, 'sendTestEmail'])
+        ->middleware('permission:ops.view')
+        ->name('ops.mail-test');
     Route::post('/alertes/lire-tout', [NotificationController::class, 'readAll'])
         ->middleware('permission:notifications.view')
         ->name('notifications.read-all');

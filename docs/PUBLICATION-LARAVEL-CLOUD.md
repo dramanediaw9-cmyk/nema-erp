@@ -129,6 +129,32 @@ Le coeur actuel de l application repose surtout sur le scheduler. Un worker de q
 php artisan queue:work --tries=3 --timeout=120 --max-time=3600
 ```
 
+## Mail reel
+
+Le projet supporte deja un envoi reel via `SMTP`.
+
+Variables minimales a poser dans Laravel Cloud :
+
+```env
+MAIL_MAILER=smtp
+MAIL_SCHEME=tls
+MAIL_HOST=smtp.fournisseur.tld
+MAIL_PORT=587
+MAIL_USERNAME=ton_login_smtp
+MAIL_PASSWORD=ton_mot_de_passe_smtp
+MAIL_FROM_ADDRESS=no-reply@ton-domaine.tld
+MAIL_FROM_NAME="Nema ERP"
+```
+
+Une fois ces variables configurees :
+
+1. redeployer l environnement
+2. ouvrir `Operations`
+3. utiliser le bloc `Email sortant`
+4. lancer `Envoyer un test email`
+
+Tant que `MAIL_MAILER=log`, le bouton reste volontairement bloque pour eviter une fausse impression de production.
+
 ## Stockage des fichiers
 
 En production cloud :

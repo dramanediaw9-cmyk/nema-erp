@@ -91,6 +91,25 @@
                     <div class="muted" style="margin-top:8px;">{{ $outboxWebhook['url'] ?: 'Aucune URL configuree' }}</div>
                 </div>
                 <div class="summary-box">
+                    <strong>Email sortant</strong>
+                    <div class="chip-row" style="margin-top:8px;">
+                        <span class="badge {{ config('mail.default') === 'log' ? 'badge-warning' : 'badge-success' }}">Mailer {{ config('mail.default') }}</span>
+                        <span class="badge badge-muted">{{ config('mail.from.address') ?: 'From non defini' }}</span>
+                    </div>
+                    <div class="muted" style="margin-top:8px;">
+                        Utilise ce test pour verifier le SMTP reel apres configuration cloud.
+                    </div>
+                    @error('mail_test')
+                        <div class="help" style="margin-top:10px; color:#9c3d2f;">{{ $message }}</div>
+                    @enderror
+                    <form method="POST" action="{{ route('ops.mail-test') }}" style="margin-top:12px; display:grid; gap:10px;">
+                        @csrf
+                        <input type="email" name="email" value="{{ old('email', auth()->user()?->email) }}" placeholder="email@exemple.com" required>
+                        <input type="text" name="subject" value="{{ old('subject', 'Test email - '.config('app.name')) }}" maxlength="120" placeholder="Objet du test">
+                        <button type="submit" class="button button-secondary">Envoyer un test email</button>
+                    </form>
+                </div>
+                <div class="summary-box">
                     <strong>Historique recent</strong>
                     <ul class="summary-list">
                         @forelse ($snapshots as $snapshot)

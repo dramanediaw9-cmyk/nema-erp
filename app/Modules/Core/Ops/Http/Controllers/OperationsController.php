@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Ops\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OpsTestMail;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Integrations\Models\IntegrationEventDelivery;
@@ -14,6 +15,8 @@ use App\Modules\Core\Ops\Services\SystemHealthService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class OperationsController extends Controller
@@ -107,5 +110,42 @@ class OperationsController extends Controller
         ]);
 
         return back()->with('success', $count > 0 ? $count.' evenement(s) outbox reprogramme(s).' : 'Aucun evenement outbox en echec a relancer.');
+    }
+
+    public function sendTestEmail(Request $request, CurrentWorkspace $workspace): RedirectResponse
+    {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId, 403);
+
+        $company = Company::query()->findOrFail($companyId);
+        $payload = $request->validate([
+            'email' => ['required', 'email:rfc', 'max:255'],
+            'subject' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        if (config('mail.default') === 'log') {
+            return back()->withErrors([
+                'mail_test' => 'Le mailer actif est encore en mode log. Configure un SMTP reel dans Laravel Cloud avant de lancer ce test.',
+            ]);
+        }
+
+        $recipient = strtolower(trim((string) $payload['email']));
+        $subject = trim((string) ($payload['subject'] ?? ''));
+        $subject = $subject !== '' ? $subject : 'Test email - '.$company->name;
+
+        Mail::to($recipient)->send(new OpsTestMail(
+            companyName: $company->name,
+            recipient: $recipient,
+            subjectLine: $subject,
+            sentBy: (string) optional($request->user())->email,
+        ));
+
+        $this->activityLogger->log('ops.mail.test', 'Envoi email de test', $company, [
+            'recipient' => $recipient,
+            'subject' => $subject,
+            'mailer' => config('mail.default'),
+        ]);
+
+        return back()->with('success', 'Email de test envoye vers '.$recipient.'.');
     }
 }
