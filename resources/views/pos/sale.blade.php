@@ -1445,7 +1445,7 @@
                         <div class="pos-cart-context-chip">Lignes <strong id="pos-lines-chip">0 ligne</strong></div>
                     </div>
                 </div>
-                <form id="pos-sale-form" class="pos-sale-form" method="POST" action="{{ route('pos.sales.store') }}">
+                <form id="pos-sale-form" class="pos-sale-form" method="POST" action="{{ route('pos.sales.store') }}" novalidate>
                     @csrf
                     <div class="pos-cart-body">
                         @if ($errors->any())
@@ -1505,7 +1505,7 @@
                             <div class="pos-payment-grid">
                                 <div>
                                     <label for="cash_received_amount">Montant recu en especes</label>
-                                    <input id="cash_received_amount" name="cash_received_amount" type="number" min="0" step="0.01" value="{{ old('cash_received_amount', $initialCashReceivedAmount ?? 0) }}">
+                                    <input id="cash_received_amount" name="cash_received_amount" type="text" inputmode="decimal" autocomplete="off" value="{{ old('cash_received_amount', $initialCashReceivedAmount ?? 0) }}">
                                     <div class="pos-payment-help">Renseigne seulement ce que le client remet en cash. La monnaie a rendre se calcule automatiquement.</div>
                                     @error('cash_received_amount')<div class="field-error">{{ $message }}</div>@enderror
                                 </div>
@@ -1547,7 +1547,7 @@
                         <div class="pos-actions">
                             <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Retour session</a>
                             <button type="button" id="pos-save-draft" class="button button-secondary">Mettre en attente</button>
-                            <button type="submit" id="pos-submit-button" class="button button-primary">Valider et encaisser</button>
+                            <button type="button" id="pos-submit-button" class="button button-primary">Valider et encaisser</button>
                         </div>
                     </div>
                 </form>
@@ -3599,8 +3599,7 @@
             }
         });
 
-        saleForm.addEventListener('submit', (event) => {
-            event.preventDefault();
+        const attemptSaleSubmission = () => {
             const order = syncActiveOrderFromForm();
             const snapshot = orderSnapshot(order);
             sourceDraftInput.value = order.draft_id ? String(order.draft_id) : '';
@@ -3624,6 +3623,15 @@
                 return;
             }
             void submitCurrentSale(order, snapshot);
+        };
+
+        saleForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            attemptSaleSubmission();
+        });
+        submitButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            attemptSaleSubmission();
         });
 
         void registerPosServiceWorker();
