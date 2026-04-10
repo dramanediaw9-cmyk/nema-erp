@@ -3,6 +3,19 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+$mysqlSslCaAttribute = PHP_VERSION_ID >= 80500
+    ? Mysql::ATTR_SSL_CA
+    : PDO::MYSQL_ATTR_SSL_CA;
+
+$mysqlSslVerifyServerCertAttribute = PHP_VERSION_ID >= 80500 && defined(Mysql::class.'::ATTR_SSL_VERIFY_SERVER_CERT')
+    ? constant(Mysql::class.'::ATTR_SSL_VERIFY_SERVER_CERT')
+    : (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT') ? PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT : null);
+
+$mysqlSslVerifyServerCert = env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT');
+$mysqlSslVerifyServerCert = $mysqlSslVerifyServerCert === null
+    ? null
+    : filter_var($mysqlSslVerifyServerCert, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
 return [
 
     /*
@@ -60,8 +73,9 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+                $mysqlSslCaAttribute => env('MYSQL_ATTR_SSL_CA'),
+                $mysqlSslVerifyServerCertAttribute => $mysqlSslVerifyServerCert,
+            ], static fn ($value) => $value !== null) : [],
         ],
 
         'mariadb' => [
@@ -80,8 +94,9 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+                $mysqlSslCaAttribute => env('MYSQL_ATTR_SSL_CA'),
+                $mysqlSslVerifyServerCertAttribute => $mysqlSslVerifyServerCert,
+            ], static fn ($value) => $value !== null) : [],
         ],
 
         'pgsql' => [
