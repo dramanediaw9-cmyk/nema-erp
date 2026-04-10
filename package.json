@@ -6,11 +6,13 @@
         "build": "vite build",
         "dev": "vite",
         "e2e": "playwright test",
-        "e2e:smoke": "playwright test e2e/pos-smoke.spec.js e2e/sales-portal-smoke.spec.js --project=chromium",
+        "e2e:smoke": "playwright test e2e/pos-smoke.spec.js e2e/sales-portal-smoke.spec.js e2e/invoice-payment-portal-smoke.spec.js --project=chromium",
         "e2e:pos": "playwright test e2e/pos-smoke.spec.js --project=chromium",
         "e2e:pos:edge": "playwright test e2e/pos-smoke.spec.js --project=edge",
         "e2e:portal": "playwright test e2e/sales-portal-smoke.spec.js --project=chromium",
-        "e2e:portal:edge": "playwright test e2e/sales-portal-smoke.spec.js --project=edge"
+        "e2e:portal:edge": "playwright test e2e/sales-portal-smoke.spec.js --project=edge",
+        "e2e:portal:payment": "playwright test e2e/invoice-payment-portal-smoke.spec.js --project=chromium",
+        "e2e:portal:payment:edge": "playwright test e2e/invoice-payment-portal-smoke.spec.js --project=edge"
     },
     "devDependencies": {
         "@playwright/test": "^1.59.1",
