@@ -32,18 +32,13 @@ test('cashier can open POS session, validate a sale, and open the thermal ticket
     await page.locator('[data-product-id]').first().click();
     await page.locator('#cash_received_amount').fill('999999');
 
-    await page.getByRole('button', { name: 'Valider et encaisser' }).click();
+    const [thermalPage] = await Promise.all([
+        page.waitForEvent('popup'),
+        page.getByRole('button', { name: 'Valider et encaisser' }).click(),
+    ]);
 
     await expect(page).toHaveURL(/\/point-de-vente\/tickets\/\d+$/);
     await expect(page.getByText('Ticket caisse')).toBeVisible();
-
-    const thermalLink = page.getByRole('link', { name: 'Version thermique' });
-    await expect(thermalLink).toBeVisible();
-
-    const thermalHref = await thermalLink.getAttribute('href');
-    expect(thermalHref).toBeTruthy();
-
-    await page.goto(thermalHref);
-    await expect(page).toHaveURL(/\/point-de-vente\/tickets\/\d+\/thermique$/);
-    await expect(page.getByText('TICKET CAISSE')).toBeVisible();
+    await thermalPage.waitForURL(/\/point-de-vente\/tickets\/\d+\/thermique\?auto_print=1&from_pos=1$/);
+    await expect(thermalPage.getByText('TICKET CAISSE')).toBeVisible();
 });

@@ -251,6 +251,10 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString("saleForm.addEventListener('submit'", $html);
         $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
         $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
+        $this->assertStringContainsString('const openThermalReceiptPopup = () => {', $html);
+        $this->assertStringContainsString("window.open('', 'nema-pos-thermal'", $html);
+        $this->assertStringContainsString('auto_print: 1', $html);
+        $this->assertStringContainsString('from_pos: 1', $html);
     }
 
     public function test_cashier_can_record_mixed_pos_payment_and_show_change_on_receipts(): void

@@ -128,5 +128,21 @@
         <div class="center muted">Merci pour votre achat</div>
         <div class="center muted">Nema ERP</div>
     </div>
+
+    @if (request()->boolean('auto_print'))
+        <script>
+            window.addEventListener('load', () => {
+                window.setTimeout(() => {
+                    window.print();
+                }, 150);
+            });
+
+            window.addEventListener('afterprint', () => {
+                if (window.opener && @json(request()->boolean('from_pos'))) {
+                    window.opener.focus();
+                }
+            });
+        </script>
+    @endif
 </body>
 </html>
