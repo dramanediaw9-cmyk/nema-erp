@@ -205,6 +205,7 @@ Pour lancer un flux critique seul en local :
 ```powershell
 npm run e2e:pos
 npm run e2e:portal
+npm run e2e:portal:order
 npm run e2e:portal:payment
 ```
 
@@ -213,6 +214,7 @@ Pour lancer ces smokes dans Edge en local :
 ```powershell
 npm run e2e:pos:edge
 npm run e2e:portal:edge
+npm run e2e:portal:order:edge
 npm run e2e:portal:payment:edge
 ```
 

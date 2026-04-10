@@ -43,5 +43,6 @@ C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1
 npm run e2e:smoke
+npm run e2e:portal:order
 npm run e2e:portal:payment
 ```
