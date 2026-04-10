@@ -1542,6 +1542,7 @@
                         <input type="hidden" id="source_draft_id" name="source_draft_id" value="{{ old('source_draft_id', $activeDraftId) }}">
                         <input type="hidden" id="pos_session_id" name="pos_session_id" value="{{ $session->id }}">
                         <input type="hidden" id="pos_sync_key" name="pos_sync_key" value="{{ old('pos_sync_key') }}">
+                        <input type="hidden" name="print_thermal" value="1">
                         <div id="pos-hidden-inputs"></div>
 
                         <div class="pos-actions">
@@ -1659,22 +1660,6 @@
             } catch (error) {
                 return fallback;
             }
-        };
-        const withQueryParams = (value, params = {}) => {
-            const base = toAppRelativeUrl(value, '/');
-            const [path, queryString = ''] = String(base).split('?', 2);
-            const query = new URLSearchParams(queryString);
-
-            Object.entries(params).forEach(([key, rawValue]) => {
-                if (rawValue === null || rawValue === undefined || rawValue === false || rawValue === '') {
-                    return;
-                }
-                query.set(key, String(rawValue));
-            });
-
-            const serialized = query.toString();
-
-            return serialized ? `${path}?${serialized}` : path;
         };
         const saleStoreUrl = toAppRelativeUrl(saleForm.getAttribute('action') || saleForm.action, '/point-de-vente/vente');
         const draftStoreUrl = toAppRelativeUrl(@json(route('pos.drafts.store', [], false)), '/point-de-vente/brouillons');
@@ -2471,45 +2456,9 @@
             submitButton.disabled = true;
             submitButton.textContent = 'Encaissement...';
 
-            try {
-                const response = await fetch(saleStoreUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify(salePayload(order)),
-                });
-                const data = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    throw new Error(extractResponseMessage(data, 'Impossible d enregistrer ce ticket pour le moment.'));
-                }
-
-                const receiptUrl = toAppRelativeUrl(data?.invoice?.receipt_url || saleStoreUrl, saleStoreUrl);
-                const thermalReceiptUrl = toAppRelativeUrl(data?.invoice?.thermal_receipt_url || data?.invoice?.receipt_url || saleStoreUrl, receiptUrl);
-                const printableThermalUrl = withQueryParams(thermalReceiptUrl, {
-                    auto_print: 1,
-                    next: receiptUrl,
-                    from_pos: 1,
-                });
-
-                window.location.href = printableThermalUrl;
-            } catch (error) {
-                const networkIssue = !window.navigator.onLine || error?.name === 'TypeError';
-                syncInFlight = false;
-                updateOfflineUi();
-
-                if (networkIssue) {
-                    queueCurrentSale(order, snapshot);
-                    return;
-                }
-
-                submitButton.disabled = false;
-                feedback.textContent = error?.message || 'Une erreur est survenue pendant l encaissement.';
-            }
+            window.setTimeout(() => {
+                HTMLFormElement.prototype.submit.call(saleForm);
+            }, 0);
         };
         const syncPendingSales = async ({ automatic = false } = {}) => {
             if (syncInFlight || !window.navigator.onLine || !pendingQueue.length) {

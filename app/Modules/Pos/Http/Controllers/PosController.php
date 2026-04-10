@@ -307,6 +307,16 @@ class PosController extends Controller
             ? 'Ticket deja enregistre, ouverture du ticket existant.'
             : 'Ticket enregistre et encaisse avec succes.';
 
+        if ($request->boolean('print_thermal')) {
+            $thermalUrl = route('pos.receipt.thermal', $invoice).'?'.http_build_query([
+                'auto_print' => 1,
+                'from_pos' => 1,
+                'next' => route('pos.receipt', $invoice),
+            ]);
+
+            return redirect()->to($thermalUrl)->with('success', $message);
+        }
+
         return redirect()->route('pos.receipt', $invoice)->with('success', $message);
     }
 

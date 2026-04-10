@@ -226,6 +226,52 @@ class PosFlowTest extends TestCase
         ]);
     }
 
+    public function test_pos_form_submission_can_redirect_directly_to_thermal_receipt(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-THERMAL-REDIRECT-001',
+                'notes' => 'TEST-POS-THERMAL-REDIRECT',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'print_thermal' => 1,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket redirection thermique',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ]);
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'TEST-POS-THERMAL-REDIRECT')
+            ->firstOrFail();
+
+        $expectedRedirect = route('pos.receipt.thermal', $invoice).'?'.http_build_query([
+            'auto_print' => 1,
+            'from_pos' => 1,
+            'next' => route('pos.receipt', $invoice),
+        ]);
+
+        $response->assertRedirect($expectedRedirect);
+    }
+
     public function test_pos_sale_screen_renders_mobile_friendly_submission_guards(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
@@ -248,13 +294,12 @@ class PosFlowTest extends TestCase
         $this->assertMatchesRegularExpression('/<button(?=[^>]*id="pos-submit-button")(?=[^>]*type="button")[^>]*>/s', $html);
         $this->assertStringContainsString('action="/point-de-vente/vente"', $html);
         $this->assertMatchesRegularExpression('/const serviceWorkerUrl = "\\\\?\/pos-sw\.js";/', $html);
+        $this->assertStringContainsString('name="print_thermal" value="1"', $html);
         $this->assertStringContainsString("saleForm.addEventListener('submit'", $html);
         $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
         $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
+        $this->assertStringContainsString('HTMLFormElement.prototype.submit.call(saleForm);', $html);
         $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
-        $this->assertStringContainsString('auto_print: 1', $html);
-        $this->assertStringContainsString('next: receiptUrl', $html);
-        $this->assertStringContainsString('from_pos: 1', $html);
     }
 
     public function test_thermal_receipt_keeps_print_actions_visible_for_touch_devices(): void
