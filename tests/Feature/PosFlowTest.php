@@ -251,9 +251,9 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString("saleForm.addEventListener('submit'", $html);
         $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
         $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
-        $this->assertStringContainsString('const openThermalReceiptPopup = () => {', $html);
-        $this->assertStringContainsString("window.open('', 'nema-pos-thermal'", $html);
+        $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
         $this->assertStringContainsString('auto_print: 1', $html);
+        $this->assertStringContainsString('next: receiptUrl', $html);
         $this->assertStringContainsString('from_pos: 1', $html);
     }
 

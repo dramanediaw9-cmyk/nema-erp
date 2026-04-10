@@ -2460,70 +2460,12 @@
             feedback.textContent = lastSyncMessage;
             searchInput.focus();
         };
-        const openThermalReceiptPopup = () => {
-            try {
-                const popup = window.open('', 'nema-pos-thermal', 'popup=yes,width=420,height=860');
-                if (!popup) {
-                    return null;
-                }
-
-                popup.document.write(`
-                    <!DOCTYPE html>
-                    <html lang="fr">
-                    <head>
-                        <meta charset="utf-8">
-                        <title>Preparation ticket thermique</title>
-                        <style>
-                            body {
-                                margin: 0;
-                                min-height: 100vh;
-                                display: grid;
-                                place-items: center;
-                                background: #0f172a;
-                                color: #e2e8f0;
-                                font-family: Arial, Helvetica, sans-serif;
-                            }
-                            .box {
-                                padding: 20px 24px;
-                                border-radius: 16px;
-                                background: rgba(15, 23, 42, 0.92);
-                                border: 1px solid rgba(148, 163, 184, 0.28);
-                                text-align: center;
-                                max-width: 280px;
-                            }
-                            strong {
-                                display: block;
-                                margin-bottom: 8px;
-                                font-size: 15px;
-                            }
-                            span {
-                                color: #cbd5e1;
-                                font-size: 12px;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="box">
-                            <strong>Preparation du ticket</strong>
-                            <span>Le ticket thermique va s ouvrir automatiquement...</span>
-                        </div>
-                    </body>
-                    </html>
-                `);
-                popup.document.close();
-
-                return popup;
-            } catch (error) {
-                return null;
-            }
-        };
         const submitCurrentSale = async (order, snapshot) => {
             if (!window.navigator.onLine) {
                 queueCurrentSale(order, snapshot);
                 return;
             }
 
-            const thermalPopup = openThermalReceiptPopup();
             syncInFlight = true;
             updateOfflineUi();
             submitButton.disabled = true;
@@ -2550,24 +2492,15 @@
                 const thermalReceiptUrl = toAppRelativeUrl(data?.invoice?.thermal_receipt_url || data?.invoice?.receipt_url || saleStoreUrl, receiptUrl);
                 const printableThermalUrl = withQueryParams(thermalReceiptUrl, {
                     auto_print: 1,
+                    next: receiptUrl,
                     from_pos: 1,
                 });
 
-                if (thermalPopup) {
-                    thermalPopup.location.replace(printableThermalUrl);
-                } else {
-                    feedback.textContent = 'Ticket encaisse. Autorise les fenetres popup pour ouvrir automatiquement le ticket thermique.';
-                }
-
-                window.location.href = receiptUrl;
+                window.location.href = printableThermalUrl;
             } catch (error) {
                 const networkIssue = !window.navigator.onLine || error?.name === 'TypeError';
                 syncInFlight = false;
                 updateOfflineUi();
-
-                if (thermalPopup && !thermalPopup.closed) {
-                    thermalPopup.close();
-                }
 
                 if (networkIssue) {
                     queueCurrentSale(order, snapshot);

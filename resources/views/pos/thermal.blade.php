@@ -55,9 +55,11 @@
     </style>
 </head>
 <body>
+    @php($nextReceiptUrl = request('next') ?: route('pos.receipt', $invoice))
+
     <div class="toolbar">
         <button type="button" class="button" onclick="window.print()">Imprimer</button>
-        <a href="{{ route('pos.receipt', $invoice) }}" class="button">Apercu</a>
+        <a href="{{ $nextReceiptUrl }}" class="button">Apercu</a>
         <a href="javascript:history.back()" class="button">Retour</a>
     </div>
 
@@ -131,6 +133,8 @@
 
     @if (request()->boolean('auto_print'))
         <script>
+            const nextReceiptUrl = @json($nextReceiptUrl);
+
             window.addEventListener('load', () => {
                 window.setTimeout(() => {
                     window.print();
@@ -138,8 +142,8 @@
             });
 
             window.addEventListener('afterprint', () => {
-                if (window.opener && @json(request()->boolean('from_pos'))) {
-                    window.opener.focus();
+                if (nextReceiptUrl) {
+                    window.location.replace(nextReceiptUrl);
                 }
             });
         </script>
