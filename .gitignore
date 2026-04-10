@@ -12,10 +12,13 @@
 /.vscode
 /.zed
 /auth.json
+/.composer-cloud
 /node_modules
 /public/build
 /public/hot
 /public/storage
+/playwright-report
+/test-results
 /storage/*.key
 /storage/pail
 /storage/framework/views/*.php

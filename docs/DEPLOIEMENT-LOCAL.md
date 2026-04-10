@@ -21,6 +21,7 @@
 9. verifier `php artisan test`
 10. executer `powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1`
 11. lancer `powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1`
+12. si besoin, arreter le serveur avec `powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-erp.ps1`
 
 ## Checklist avant mise en service
 
@@ -41,4 +42,5 @@ C:\xampp\php\php.exe artisan migrate --seed
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1
+npm run e2e:pos
 ```

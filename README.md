@@ -172,6 +172,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1
 
 Ce script demarre MariaDB XAMPP si necessaire, lance Laravel sur `http://localhost:8000` et ouvre le navigateur.
 
+Pour arreter le serveur local :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-erp.ps1
+```
+
 ## Comptes de demonstration
 
 - `admin@nema-erp.test` / `password`
@@ -191,6 +197,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\backup-nema-erp.ps1
 C:\xampp\php\php.exe artisan test
 powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-erp.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1 -SkipBrowser
+npm run e2e:pos
 ```
 
 ## Publication cloud
