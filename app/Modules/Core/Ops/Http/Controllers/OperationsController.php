@@ -7,6 +7,7 @@ use App\Mail\OpsTestMail;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Integrations\Models\IntegrationEventDelivery;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Ops\Models\SystemHealthSnapshot;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
@@ -62,6 +63,14 @@ class OperationsController extends Controller
             'backupVerification' => $this->backupService->verify(),
             'backupRestorePreview' => $this->backupService->restorePreview(),
             'appMonitoring' => $this->applicationMonitoringService->summary(),
+            'integrationConnections' => IntegrationConnection::query()
+                ->with(['branch', 'owner'])
+                ->where('company_id', $company->id)
+                ->orderByRaw("CASE health_status WHEN 'critical' THEN 0 WHEN 'watch' THEN 1 ELSE 2 END")
+                ->orderByRaw("CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END")
+                ->orderBy('partner_name')
+                ->limit(12)
+                ->get(),
         ]);
     }
 

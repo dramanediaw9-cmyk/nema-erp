@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Core\Integrations\Models\ApiToken;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
 use App\Modules\Projects\Models\ProjectTask;
@@ -53,6 +54,19 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Boutique WhatsApp Bamako')
             ->assertJsonPath('data.0.execution_summary.open_actions', 2);
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/platform/connections?health_status=critical')
+            ->assertOk()
+            ->assertJsonPath('data.0.partner_name', 'Nema Middleware')
+            ->assertJsonPath('data.0.health_status', 'critical');
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/platform/openapi')
+            ->assertOk()
+            ->assertJsonPath('openapi', '3.0.3')
+            ->assertJsonPath('info.title', 'Nema ERP Integrator API')
+            ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires');
     }
 
     public function test_api_token_can_show_and_create_growth_records(): void
@@ -221,6 +235,42 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('id', $commerceActionId)
             ->assertJsonPath('status', 'done');
 
+        $connectionResponse = $this->withToken($plainToken)
+            ->postJson('/api/v1/platform/connections', [
+                'name' => 'Connecteur data warehouse',
+                'partner_name' => 'Fabric Lakehouse',
+                'owner_id' => $manager->id,
+                'connection_type' => 'bi',
+                'sync_mode' => 'outbound',
+                'status' => 'draft',
+                'health_status' => 'watch',
+                'external_reference' => 'fabric-warehouse-nema',
+                'last_sync_at' => now()->subDay()->toDateString(),
+                'last_health_at' => now()->toDateString(),
+                'scope_summary' => 'Ventes, achats, projections stock et marge.',
+                'notes' => 'Canal de replication analytique.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('partner_name', 'Fabric Lakehouse');
+
+        $connectionId = (int) $connectionResponse->json('id');
+
+        $this->withToken($plainToken)
+            ->patchJson('/api/v1/platform/connections/'.$connectionId.'/status', [
+                'status' => 'active',
+                'health_status' => 'healthy',
+            ])
+            ->assertOk()
+            ->assertJsonPath('id', $connectionId)
+            ->assertJsonPath('status', 'active')
+            ->assertJsonPath('health_status', 'healthy');
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/platform/connections/'.$connectionId)
+            ->assertOk()
+            ->assertJsonPath('id', $connectionId)
+            ->assertJsonPath('partner_name', 'Fabric Lakehouse');
+
         $this->withToken($plainToken)
             ->getJson('/api/v1/commerce/channels/'.$commerceChannelId)
             ->assertOk()
@@ -257,6 +307,12 @@ class ApiV1GrowthModuleTest extends TestCase
         $this->assertDatabaseHas('commerce_channels', [
             'company_id' => $manager->company_id,
             'name' => 'Marketplace B2C test',
+        ]);
+        $this->assertDatabaseHas('integration_connections', [
+            'company_id' => $manager->company_id,
+            'id' => $connectionId,
+            'partner_name' => 'Fabric Lakehouse',
+            'status' => 'active',
         ]);
         $this->assertDatabaseHas('commerce_channel_snapshots', [
             'company_id' => $manager->company_id,
@@ -314,6 +370,11 @@ class ApiV1GrowthModuleTest extends TestCase
             'company_id' => $manager->company_id,
             'title' => 'Corriger les echecs Wave sur commandes soir',
             'status' => 'in_progress',
+        ]);
+        $this->assertDatabaseHas('integration_connections', [
+            'company_id' => $manager->company_id,
+            'code' => 'INT-0001',
+            'partner_name' => 'Microsoft Power BI',
         ]);
     }
 

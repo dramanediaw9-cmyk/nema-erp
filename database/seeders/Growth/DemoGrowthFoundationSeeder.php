@@ -8,6 +8,7 @@ use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Commerce\Models\CommerceChannelSnapshot;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
 use App\Modules\Hr\Models\HrLeaveRequest;
@@ -394,6 +395,72 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'due_date' => now()->subDays(4)->toDateString(),
                 'completed_at' => now()->subDays(1),
                 'notes' => 'Script de relance termine avec offers de reactivation appliquees.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        IntegrationConnection::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'INT-0001'],
+            [
+                'tenant_id' => $company->tenant_id,
+                'branch_id' => $branch->id,
+                'owner_id' => $manager->id,
+                'name' => 'Power BI pilotage exec',
+                'partner_name' => 'Microsoft Power BI',
+                'connection_type' => 'bi',
+                'sync_mode' => 'outbound',
+                'status' => 'active',
+                'health_status' => 'healthy',
+                'external_reference' => 'workspace-nema-bko-exec',
+                'last_sync_at' => now()->subHours(2),
+                'last_health_at' => now()->subHours(1),
+                'scope_summary' => 'Ventes, tresorerie, stock et performance omnicanale.',
+                'notes' => 'Connecteur BI prioritaire pour le pilotage comite de direction.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        IntegrationConnection::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'INT-0002'],
+            [
+                'tenant_id' => $company->tenant_id,
+                'branch_id' => $branch->id,
+                'owner_id' => $awa->id,
+                'name' => 'Webhook paiements Wave',
+                'partner_name' => 'Wave Business',
+                'connection_type' => 'payment_gateway',
+                'sync_mode' => 'inbound',
+                'status' => 'active',
+                'health_status' => 'watch',
+                'external_reference' => 'wave-callback-bamako',
+                'last_sync_at' => now()->subHours(6),
+                'last_health_at' => now()->subMinutes(45),
+                'scope_summary' => 'Notifications de paiement, rapprochement et tickets POS.',
+                'notes' => 'Quelques callbacks retardes sur les pointes du soir.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        IntegrationConnection::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'INT-0003'],
+            [
+                'tenant_id' => $company->tenant_id,
+                'branch_id' => $branch->id,
+                'owner_id' => $mamadou->id,
+                'name' => 'Middleware stock grossistes',
+                'partner_name' => 'Nema Middleware',
+                'connection_type' => 'api',
+                'sync_mode' => 'bidirectional',
+                'status' => 'paused',
+                'health_status' => 'critical',
+                'external_reference' => 'mw-stock-grossistes',
+                'last_sync_at' => now()->subDays(2),
+                'last_health_at' => now()->subHours(2),
+                'scope_summary' => 'Stocks, commandes B2B, statuts de livraison et reappro.',
+                'notes' => 'A reprendre apres stabilisation du mapping entrepots.',
                 'created_by' => $manager->id,
                 'updated_by' => $manager->id,
             ]

@@ -5,6 +5,7 @@ namespace App\Modules\Core\Ops\Services;
 use App\Modules\Core\Approvals\Services\ApprovalSettingsService;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\ApiToken;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Ops\Models\SystemHealthSnapshot;
@@ -40,6 +41,7 @@ class SystemHealthService
             $this->outboxCheck($company),
             $this->outboundNotificationCheck($company),
             $this->apiTokenCheck($company),
+            $this->integrationConnectionsCheck($company),
         ];
 
         $warningCount = collect($checks)->where('status', 'warning')->count();
@@ -390,13 +392,90 @@ class SystemHealthService
             })
             ->count();
         $expired = (clone $query)->whereNotNull('expires_at')->where('expires_at', '<=', now())->count();
+        $expiringSoon = (clone $query)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '>', now())
+            ->where('expires_at', '<=', now()->addDays(7))
+            ->count();
+        $stale = (clone $query)
+            ->where(function ($builder): void {
+                $builder->whereNull('last_used_at')->orWhere('last_used_at', '<', now()->subDays(30));
+            })
+            ->count();
+
+        $status = $expired > 0 ? 'warning' : (($expiringSoon > 0 || $stale > 0) ? 'warning' : 'ok');
+        $message = $expired > 0
+            ? $expired.' jeton(s) API expires a nettoyer.'
+            : ($expiringSoon > 0
+                ? $expiringSoon.' jeton(s) API expirent dans moins de 7 jours.'
+                : ($stale > 0 ? $stale.' jeton(s) API sont inactifs ou jamais utilises.' : $active.' jeton(s) API actif(s).'));
 
         return [
             'key' => 'api_tokens',
             'label' => 'Jetons API',
-            'status' => $expired > 0 ? 'warning' : 'ok',
-            'message' => $expired > 0 ? $expired.' jeton(s) API expires a nettoyer.' : $active.' jeton(s) API actif(s).',
-            'meta' => ['active' => $active, 'expired' => $expired],
+            'status' => $status,
+            'message' => $message,
+            'meta' => [
+                'active' => $active,
+                'expired' => $expired,
+                'expiring_soon' => $expiringSoon,
+                'stale' => $stale,
+            ],
+        ];
+    }
+
+    private function integrationConnectionsCheck(?Company $company): array
+    {
+        $query = IntegrationConnection::query();
+
+        if ($company) {
+            $query->where('company_id', $company->id);
+        }
+
+        $active = (clone $query)->where('status', 'active')->count();
+        $criticalActive = (clone $query)->where('status', 'active')->where('health_status', 'critical')->count();
+        $watchActive = (clone $query)->where('status', 'active')->where('health_status', 'watch')->count();
+        $overdueHealth = (clone $query)
+            ->where('status', 'active')
+            ->where(function ($builder): void {
+                $builder->whereNull('last_health_at')->orWhere('last_health_at', '<', now()->subHours(48));
+            })
+            ->count();
+        $staleSync = (clone $query)
+            ->where('status', 'active')
+            ->whereIn('sync_mode', ['outbound', 'bidirectional'])
+            ->where(function ($builder): void {
+                $builder->whereNull('last_sync_at')->orWhere('last_sync_at', '<', now()->subHours(72));
+            })
+            ->count();
+        $criticalNames = (clone $query)
+            ->where('status', 'active')
+            ->where('health_status', 'critical')
+            ->orderBy('partner_name')
+            ->limit(5)
+            ->pluck('name')
+            ->all();
+
+        $status = $criticalActive > 0 ? 'fail' : (($overdueHealth > 0 || $staleSync > 0) ? 'warning' : 'ok');
+        $message = $criticalActive > 0
+            ? 'Au moins un connecteur actif est critique: '.implode(', ', $criticalNames).'.'
+            : (($overdueHealth > 0 || $staleSync > 0)
+                ? 'Des connecteurs actifs demandent un controle recent ou une resynchronisation.'
+                : $active.' connecteur(s) actif(s) sous controle.');
+
+        return [
+            'key' => 'integration_connections',
+            'label' => 'Connecteurs partenaires',
+            'status' => $status,
+            'message' => $message,
+            'meta' => [
+                'active' => $active,
+                'watch_active' => $watchActive,
+                'critical_active' => $criticalActive,
+                'overdue_health' => $overdueHealth,
+                'stale_sync' => $staleSync,
+                'critical_connections' => $criticalNames,
+            ],
         ];
     }
 

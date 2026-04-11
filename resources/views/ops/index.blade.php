@@ -173,6 +173,56 @@
     <section class="card" style="margin-bottom:18px;">
         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
             <div>
+                <h3 class="section-title">Connecteurs partenaires</h3>
+                <div class="muted">Vue rapide des integrations sensibles pour prioriser les resynchronisations, rotations de secrets et escalades.</div>
+            </div>
+            <a href="{{ route('platform.index') }}" class="button button-secondary">Ouvrir la plateforme</a>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Connexion</th>
+                        <th>Statut</th>
+                        <th>Sante</th>
+                        <th>Derniere synchro</th>
+                        <th>Dernier controle</th>
+                        <th>Responsable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($integrationConnections as $connection)
+                        <tr>
+                            <td>
+                                <strong>{{ $connection->name }}</strong>
+                                <div class="muted" style="font-size:12px;">{{ $connection->partner_name }} · {{ $connection->code }}</div>
+                            </td>
+                            <td>
+                                <span class="badge {{ $connection->status === 'active' ? 'badge-success' : ($connection->status === 'paused' ? 'badge-warning' : 'badge-muted') }}">
+                                    {{ strtoupper($connection->status) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {{ $connection->health_status === 'healthy' ? 'badge-success' : ($connection->health_status === 'watch' ? 'badge-warning' : 'badge-muted') }}">
+                                    {{ strtoupper($connection->health_status) }}
+                                </span>
+                            </td>
+                            <td>{{ $connection->last_sync_at?->format('d/m/Y H:i') ?: 'Jamais' }}</td>
+                            <td>{{ $connection->last_health_at?->format('d/m/Y H:i') ?: 'Jamais' }}</td>
+                            <td>{{ $connection->owner?->name ?: 'Non affecte' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="muted">Aucune connexion partenaire pour cette societe.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+            <div>
                 <h3 class="section-title">Restauration guidee</h3>
                 <div class="muted">La sauvegarde n a de valeur que si elle peut etre reprise. Ce bloc rappelle le dernier point de reprise et la sequence de redemarrage.</div>
             </div>

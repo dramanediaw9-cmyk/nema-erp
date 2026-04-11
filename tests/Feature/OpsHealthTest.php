@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Mail\OpsTestMail;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Core\Integrations\Models\ApiToken;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,7 +39,56 @@ class OpsHealthTest extends TestCase
             ->assertSee('Sauvegardes locales')
             ->assertSee('Restauration guidee')
             ->assertSee('Surveillance applicative')
+            ->assertSee('Connecteurs partenaires')
             ->assertSee('nema:ops:monitor-app');
+    }
+
+    public function test_health_report_flags_expiring_tokens_and_critical_connections(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        ApiToken::query()->create([
+            'tenant_id' => $company->tenant_id,
+            'company_id' => $company->id,
+            'name' => 'Jeton integration legacy',
+            'token_hash' => hash('sha256', 'legacy_ops_token'),
+            'last_used_at' => now()->subDays(45),
+            'expires_at' => now()->addDays(3),
+            'created_by' => $manager->id,
+        ]);
+
+        IntegrationConnection::query()->create([
+            'tenant_id' => $company->tenant_id,
+            'company_id' => $company->id,
+            'owner_id' => $manager->id,
+            'code' => 'INT-OPS-0001',
+            'name' => 'Connecteur logistique critique',
+            'partner_name' => 'Sahel Fulfillment',
+            'connection_type' => 'logistics',
+            'sync_mode' => 'bidirectional',
+            'status' => 'active',
+            'health_status' => 'critical',
+            'last_sync_at' => now()->subDays(5),
+            'last_health_at' => now()->subDays(4),
+            'scope_summary' => 'Expeditions, statuts et preuves de livraison.',
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+        ]);
+
+        $report = app(SystemHealthService::class)->report($company);
+        $tokenCheck = collect($report['checks'])->firstWhere('key', 'api_tokens');
+        $connectionCheck = collect($report['checks'])->firstWhere('key', 'integration_connections');
+
+        $this->assertNotNull($tokenCheck);
+        $this->assertSame('warning', $tokenCheck['status']);
+        $this->assertSame(1, (int) data_get($tokenCheck, 'meta.expiring_soon'));
+        $this->assertGreaterThanOrEqual(1, (int) data_get($tokenCheck, 'meta.stale'));
+
+        $this->assertNotNull($connectionCheck);
+        $this->assertSame('fail', $connectionCheck['status']);
+        $this->assertSame(1, (int) data_get($connectionCheck, 'meta.critical_active'));
+        $this->assertSame('fail', $report['overall_status']);
     }
 
     public function test_health_check_command_can_store_company_snapshot(): void

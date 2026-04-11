@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\V1\HrEmployeeController;
 use App\Http\Controllers\Api\V1\PartnerController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlatformCapabilityController;
+use App\Http\Controllers\Api\V1\PlatformConnectionController;
+use App\Http\Controllers\Api\V1\PlatformOpenApiController;
 use App\Http\Controllers\Api\V1\PayrollRunController;
 use App\Http\Controllers\Api\V1\PayrollSlipController;
 use App\Http\Controllers\Api\V1\ManufacturingBomController;
@@ -22,6 +24,11 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/workspace', WorkspaceController::class);
     Route::get('/platform/capabilities', PlatformCapabilityController::class);
+    Route::get('/platform/openapi', PlatformOpenApiController::class);
+    Route::get('/platform/connections', [PlatformConnectionController::class, 'index']);
+    Route::get('/platform/connections/{integrationConnection}', [PlatformConnectionController::class, 'show']);
+    Route::post('/platform/connections', [PlatformConnectionController::class, 'store']);
+    Route::match(['put', 'patch'], '/platform/connections/{integrationConnection}/status', [PlatformConnectionController::class, 'updateStatus']);
     Route::get('/accounting/localization', AccountingLocalizationController::class);
 
     Route::get('/products', [ProductController::class, 'index']);

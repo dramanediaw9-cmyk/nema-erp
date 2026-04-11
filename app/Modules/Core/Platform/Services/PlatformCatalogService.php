@@ -3,8 +3,10 @@
 namespace App\Modules\Core\Platform\Services;
 
 use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
+use App\Modules\Core\Integrations\Models\IntegrationInboundWebhook;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
 use App\Modules\Hr\Models\HrLeaveRequest;
@@ -18,6 +20,11 @@ class PlatformCatalogService
 {
     public function forCompany(?int $companyId): array
     {
+        $apiTokens = $companyId ? ApiToken::query()->with('creator')->where('company_id', $companyId)->orderByDesc('id')->limit(6)->get() : collect();
+        $outboxEvents = $companyId ? IntegrationEvent::query()->with('latestDelivery')->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
+        $inboundWebhooks = $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
+        $connections = $companyId ? IntegrationConnection::query()->with(['branch', 'owner'])->where('company_id', $companyId)->orderBy('partner_name')->orderBy('name')->get() : collect();
+
         return [
             'product' => [
                 'name' => config('app.name', 'Nema ERP'),
@@ -46,8 +53,18 @@ class PlatformCatalogService
                 'api' => [
                     'base_path' => '/api/v1',
                     'authentication' => ['Bearer token', 'X-Api-Key'],
+                    'documentation' => [
+                        'web_openapi_path' => '/plateforme/openapi.json',
+                        'api_openapi_path' => '/api/v1/platform/openapi',
+                        'curl_examples' => [
+                            'curl -H "Authorization: Bearer {token}" '.rtrim((string) url('/api/v1/platform/capabilities'), '/'),
+                            'curl -H "X-Api-Key: {token}" '.rtrim((string) url('/api/v1/platform/connections?status=active'), '/'),
+                            'curl -H "Authorization: Bearer {token}" '.rtrim((string) url('/api/v1/platform/openapi'), '/'),
+                        ],
+                    ],
                     'resources' => [
                         ['name' => 'workspace', 'path' => '/api/v1/workspace'],
+                        ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
                         ['name' => 'products', 'path' => '/api/v1/products'],
                         ['name' => 'partners', 'path' => '/api/v1/partners'],
                         ['name' => 'sales-invoices', 'path' => '/api/v1/sales-invoices'],
@@ -65,6 +82,63 @@ class PlatformCatalogService
                         ['name' => 'integration-events', 'path' => '/api/v1/integration-events'],
                         ['name' => 'platform-capabilities', 'path' => '/api/v1/platform/capabilities'],
                     ],
+                ],
+                'token_hygiene' => [
+                    'active' => $apiTokens->count(),
+                    'expiring_soon' => $apiTokens->filter(fn (ApiToken $token) => $token->expires_at && $token->expires_at->lte(now()->addDays(7)))->count(),
+                    'stale' => $apiTokens->filter(fn (ApiToken $token) => ! $token->last_used_at || $token->last_used_at->lt(now()->subDays(30)))->count(),
+                    'recent_tokens' => $apiTokens->map(fn (ApiToken $token) => [
+                        'name' => $token->name,
+                        'created_by' => $token->creator?->name,
+                        'last_used_at' => $token->last_used_at,
+                        'expires_at' => $token->expires_at,
+                    ])->all(),
+                ],
+                'connections' => [
+                    'summary' => [
+                        'total' => $connections->count(),
+                        'active' => $connections->where('status', 'active')->count(),
+                        'critical' => $connections->where('health_status', 'critical')->count(),
+                        'bidirectional' => $connections->where('sync_mode', 'bidirectional')->count(),
+                    ],
+                    'items' => $connections->map(fn (IntegrationConnection $connection) => [
+                        'id' => $connection->id,
+                        'code' => $connection->code,
+                        'name' => $connection->name,
+                        'partner_name' => $connection->partner_name,
+                        'connection_type' => $connection->connection_type,
+                        'sync_mode' => $connection->sync_mode,
+                        'status' => $connection->status,
+                        'health_status' => $connection->health_status,
+                        'external_reference' => $connection->external_reference,
+                        'last_sync_at' => $connection->last_sync_at,
+                        'last_health_at' => $connection->last_health_at,
+                        'scope_summary' => $connection->scope_summary,
+                        'notes' => $connection->notes,
+                        'branch_name' => $connection->branch?->name,
+                        'owner_name' => $connection->owner?->name,
+                    ])->all(),
+                ],
+                'monitoring' => [
+                    'outbox_pending' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'pending')->count() : 0,
+                    'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
+                    'inbound_accepted' => $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->where('status', 'accepted')->count() : 0,
+                    'inbound_rejected' => $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->where('status', 'rejected')->count() : 0,
+                    'recent_outbox' => $outboxEvents->map(fn (IntegrationEvent $event) => [
+                        'event_name' => $event->event_name,
+                        'status' => $event->status,
+                        'attempts' => $event->attempts,
+                        'last_error' => $event->last_error,
+                        'latest_delivery_status' => $event->latestDelivery?->status,
+                        'latest_delivery_target' => $event->latestDelivery?->target_url,
+                    ])->all(),
+                    'recent_inbound' => $inboundWebhooks->map(fn (IntegrationInboundWebhook $webhook) => [
+                        'source' => $webhook->source,
+                        'event_name' => $webhook->event_name,
+                        'status' => $webhook->status,
+                        'processed_at' => $webhook->processed_at,
+                        'error_message' => $webhook->error_message,
+                    ])->all(),
                 ],
                 'automation' => [
                     'outbox_commands' => [
@@ -133,6 +207,8 @@ class PlatformCatalogService
                 'api_tokens' => $companyId ? ApiToken::query()->where('company_id', $companyId)->count() : 0,
                 'outbox_pending' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'pending')->count() : 0,
                 'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
+                'integration_connections' => $companyId ? IntegrationConnection::query()->where('company_id', $companyId)->count() : 0,
+                'inbound_webhooks' => $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->count() : 0,
                 'departments' => $companyId ? HrDepartment::query()->where('company_id', $companyId)->count() : 0,
                 'leave_requests' => $companyId ? HrLeaveRequest::query()->where('company_id', $companyId)->count() : 0,
                 'payroll_slips' => $companyId ? PayrollSlip::query()->where('company_id', $companyId)->count() : 0,

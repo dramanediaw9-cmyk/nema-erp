@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Commerce\Models\CommerceChannelAction;
 use App\Modules\Commerce\Models\CommerceChannelSnapshot;
+use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
@@ -26,6 +27,7 @@ class GrowthFoundationTest extends TestCase
         $this->actingAs($user)->withSession($this->workspaceSession($user));
 
         $this->get(route('platform.index'))->assertOk()->assertSee('Socle produit et ecosysteme');
+        $this->get(route('platform.openapi'))->assertOk()->assertJsonPath('openapi', '3.0.3');
         $this->get(route('hr.index'))->assertOk()->assertSee('Capital humain');
         $this->get(route('payroll.index'))->assertOk()->assertSee('Executions de paie');
         $this->get(route('projects.index'))->assertOk()->assertSee('Pilotage projets');
@@ -178,7 +180,9 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/paie'])
             ->assertJsonFragment(['path' => '/projets'])
             ->assertJsonFragment(['path' => '/production'])
-            ->assertJsonFragment(['path' => '/commerce-unifie']);
+            ->assertJsonFragment(['path' => '/commerce-unifie'])
+            ->assertJsonFragment(['path' => '/api/v1/platform/openapi'])
+            ->assertJsonPath('catalog.metrics.integration_connections', 3);
     }
 
     public function test_manager_can_capture_commerce_channel_execution(): void
@@ -231,6 +235,45 @@ class GrowthFoundationTest extends TestCase
             'commerce_channel_id' => $channel->id,
             'title' => 'Industrialiser les relances paniers WhatsApp',
             'status' => 'done',
+        ]);
+    }
+
+    public function test_manager_can_register_platform_connection(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user));
+
+        $this->post(route('platform.connections.store'), [
+            'name' => 'Connecteur transport last mile',
+            'partner_name' => 'Mali Logistics Hub',
+            'owner_id' => $user->id,
+            'connection_type' => 'logistics',
+            'sync_mode' => 'outbound',
+            'status' => 'draft',
+            'health_status' => 'watch',
+            'external_reference' => 'logi-last-mile-bko',
+            'last_sync_at' => now()->subDay()->toDateString(),
+            'last_health_at' => now()->toDateString(),
+            'scope_summary' => 'Expeditions B2B et retours de livraison.',
+            'notes' => 'Pilote pour clients grands comptes Bamako.',
+        ])->assertRedirect(route('platform.index'));
+
+        $connection = IntegrationConnection::query()
+            ->where('company_id', $user->company_id)
+            ->where('name', 'Connecteur transport last mile')
+            ->firstOrFail();
+
+        $this->post(route('platform.connections.status', $connection), [
+            'status' => 'active',
+            'health_status' => 'healthy',
+        ])->assertRedirect(route('platform.index'));
+
+        $this->assertDatabaseHas('integration_connections', [
+            'company_id' => $user->company_id,
+            'name' => 'Connecteur transport last mile',
+            'status' => 'active',
+            'health_status' => 'healthy',
         ]);
     }
 
