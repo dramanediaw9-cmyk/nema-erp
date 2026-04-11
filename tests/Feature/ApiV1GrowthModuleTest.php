@@ -59,7 +59,8 @@ class ApiV1GrowthModuleTest extends TestCase
             ->getJson('/api/v1/platform/connections?health_status=critical')
             ->assertOk()
             ->assertJsonPath('data.0.partner_name', 'Nema Middleware')
-            ->assertJsonPath('data.0.health_status', 'critical');
+            ->assertJsonPath('data.0.health_status', 'critical')
+            ->assertJsonPath('data.0.secret_health_status', 'critical');
 
         $this->withToken($plainToken)
             ->getJson('/api/v1/platform/deployment-profile')
@@ -84,7 +85,8 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('info.title', 'Nema ERP Integrator API')
             ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires')
             ->assertJsonPath('paths./platform/deployment-profile.get.summary', 'Lire le profil de deploiement')
-            ->assertJsonPath('paths./platform/tenant-readiness.get.summary', 'Lire la readiness inter-societes');
+            ->assertJsonPath('paths./platform/tenant-readiness.get.summary', 'Lire la readiness inter-societes')
+            ->assertJsonPath('paths./platform/connections/{integrationConnection}/secrets.patch.summary', 'Mettre a jour la gouvernance des secrets');
     }
 
     public function test_api_token_can_show_and_create_growth_records(): void
@@ -284,6 +286,21 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('health_status', 'healthy');
 
         $this->withToken($plainToken)
+            ->patchJson('/api/v1/platform/connections/'.$connectionId.'/secrets', [
+                'authentication_mode' => 'oauth_client',
+                'secret_health_status' => 'watch',
+                'secret_owner_id' => $manager->id,
+                'secret_last_rotated_at' => now()->subDays(9)->toDateString(),
+                'secret_rotation_due_at' => now()->addDays(6)->toDateString(),
+                'secret_expires_at' => now()->addDays(14)->toDateString(),
+                'secret_notes' => 'Rotation prepensee avant ouverture production.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('id', $connectionId)
+            ->assertJsonPath('authentication_mode', 'oauth_client')
+            ->assertJsonPath('secret_health_status', 'watch');
+
+        $this->withToken($plainToken)
             ->getJson('/api/v1/platform/connections/'.$connectionId)
             ->assertOk()
             ->assertJsonPath('id', $connectionId)
@@ -357,6 +374,8 @@ class ApiV1GrowthModuleTest extends TestCase
             'id' => $connectionId,
             'partner_name' => 'Fabric Lakehouse',
             'status' => 'active',
+            'authentication_mode' => 'oauth_client',
+            'secret_health_status' => 'watch',
         ]);
         $this->assertDatabaseHas('deployment_profiles', [
             'company_id' => $manager->company_id,

@@ -30,6 +30,7 @@ class GrowthFoundationTest extends TestCase
         $this->get(route('platform.index'))->assertOk()->assertSee('Socle produit et ecosysteme');
         $this->get(route('platform.index'))->assertOk()->assertSee('Readiness deploiement');
         $this->get(route('platform.index'))->assertOk()->assertSee('Readiness inter-societes')->assertSee('Nema Retail Sud');
+        $this->get(route('platform.index'))->assertOk()->assertSee('Gouvernance secrets connecteurs');
         $this->get(route('platform.openapi'))->assertOk()->assertJsonPath('openapi', '3.0.3');
         $this->get(route('hr.index'))->assertOk()->assertSee('Capital humain');
         $this->get(route('payroll.index'))->assertOk()->assertSee('Executions de paie');
@@ -186,11 +187,13 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/commerce-unifie'])
             ->assertJsonFragment(['path' => '/api/v1/platform/deployment-profile'])
             ->assertJsonFragment(['path' => '/api/v1/platform/tenant-readiness'])
+            ->assertJsonFragment(['path' => '/api/v1/platform/connections/{integrationConnection}/secrets'])
             ->assertJsonFragment(['path' => '/api/v1/platform/openapi'])
             ->assertJsonPath('catalog.packaging.deployment_profile.deployment_mode', 'pilot')
             ->assertJsonPath('catalog.packaging.readiness.lifecycle_stage', 'pilot')
             ->assertJsonPath('catalog.packaging.tenant_readiness.active_companies', 2)
             ->assertJsonPath('catalog.packaging.tenant_readiness.portfolio_status', 'at_risk')
+            ->assertJsonPath('catalog.metrics.connection_secrets_critical', 1)
             ->assertJsonPath('catalog.metrics.integration_connections', 3);
     }
 
@@ -278,11 +281,23 @@ class GrowthFoundationTest extends TestCase
             'health_status' => 'healthy',
         ])->assertRedirect(route('platform.index'));
 
+        $this->put(route('platform.connections.secrets.update', $connection), [
+            'authentication_mode' => 'oauth_client',
+            'secret_health_status' => 'watch',
+            'secret_owner_id' => $user->id,
+            'secret_last_rotated_at' => now()->subDays(12)->toDateString(),
+            'secret_rotation_due_at' => now()->addDays(4)->toDateString(),
+            'secret_expires_at' => now()->addDays(10)->toDateString(),
+            'secret_notes' => 'Rotation planifiee avec le partenaire logistique.',
+        ])->assertRedirect(route('platform.index'));
+
         $this->assertDatabaseHas('integration_connections', [
             'company_id' => $user->company_id,
             'name' => 'Connecteur transport last mile',
             'status' => 'active',
             'health_status' => 'healthy',
+            'authentication_mode' => 'oauth_client',
+            'secret_health_status' => 'watch',
         ]);
     }
 

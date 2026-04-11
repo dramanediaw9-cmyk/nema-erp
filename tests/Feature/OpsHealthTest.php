@@ -40,6 +40,7 @@ class OpsHealthTest extends TestCase
             ->assertSee('Restauration guidee')
             ->assertSee('Surveillance applicative')
             ->assertSee('Connecteurs partenaires')
+            ->assertSee('Secrets des connecteurs')
             ->assertSee('nema:ops:monitor-app');
     }
 
@@ -62,16 +63,23 @@ class OpsHealthTest extends TestCase
             'tenant_id' => $company->tenant_id,
             'company_id' => $company->id,
             'owner_id' => $manager->id,
+            'secret_owner_id' => $manager->id,
             'code' => 'INT-OPS-0001',
             'name' => 'Connecteur logistique critique',
             'partner_name' => 'Sahel Fulfillment',
             'connection_type' => 'logistics',
+            'authentication_mode' => 'shared_secret',
             'sync_mode' => 'bidirectional',
             'status' => 'active',
             'health_status' => 'critical',
+            'secret_health_status' => 'watch',
             'last_sync_at' => now()->subDays(5),
             'last_health_at' => now()->subDays(4),
+            'secret_last_rotated_at' => now()->subDays(40),
+            'secret_rotation_due_at' => now()->subDays(2),
+            'secret_expires_at' => now()->addDays(2),
             'scope_summary' => 'Expeditions, statuts et preuves de livraison.',
+            'secret_notes' => 'Rotation ratee sur environnement de preprod.',
             'created_by' => $manager->id,
             'updated_by' => $manager->id,
         ]);
@@ -79,6 +87,7 @@ class OpsHealthTest extends TestCase
         $report = app(SystemHealthService::class)->report($company);
         $tokenCheck = collect($report['checks'])->firstWhere('key', 'api_tokens');
         $connectionCheck = collect($report['checks'])->firstWhere('key', 'integration_connections');
+        $secretCheck = collect($report['checks'])->firstWhere('key', 'integration_connection_secrets');
 
         $this->assertNotNull($tokenCheck);
         $this->assertSame('warning', $tokenCheck['status']);
@@ -88,6 +97,10 @@ class OpsHealthTest extends TestCase
         $this->assertNotNull($connectionCheck);
         $this->assertSame('fail', $connectionCheck['status']);
         $this->assertSame(1, (int) data_get($connectionCheck, 'meta.critical_active'));
+        $this->assertNotNull($secretCheck);
+        $this->assertSame('fail', $secretCheck['status']);
+        $this->assertSame(2, (int) data_get($secretCheck, 'meta.rotation_overdue'));
+        $this->assertSame(2, (int) data_get($secretCheck, 'meta.expiring_soon'));
         $this->assertSame('fail', $report['overall_status']);
     }
 

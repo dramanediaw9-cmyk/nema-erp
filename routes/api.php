@@ -34,6 +34,7 @@ Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/platform/connections/{integrationConnection}', [PlatformConnectionController::class, 'show']);
     Route::post('/platform/connections', [PlatformConnectionController::class, 'store']);
     Route::match(['put', 'patch'], '/platform/connections/{integrationConnection}/status', [PlatformConnectionController::class, 'updateStatus']);
+    Route::match(['put', 'patch'], '/platform/connections/{integrationConnection}/secrets', [PlatformConnectionController::class, 'updateSecrets']);
     Route::get('/accounting/localization', AccountingLocalizationController::class);
 
     Route::get('/products', [ProductController::class, 'index']);

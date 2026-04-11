@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
+use App\Modules\Core\Integrations\Services\IntegrationSecretGovernanceService;
 use App\Modules\Core\Platform\Services\DeploymentProfileService;
 use App\Modules\Core\Platform\Services\PlatformCatalogService;
 use App\Modules\Core\Platform\Services\PlatformOpenApiService;
@@ -23,6 +24,7 @@ class PlatformController extends Controller
         private readonly PlatformCatalogService $platformCatalogService,
         private readonly PlatformOpenApiService $platformOpenApiService,
         private readonly DeploymentProfileService $deploymentProfileService,
+        private readonly IntegrationSecretGovernanceService $integrationSecretGovernanceService,
         private readonly ActivityLogger $activityLogger,
     )
     {
@@ -45,10 +47,17 @@ class PlatformController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'secretOwners' => User::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'connectionTypeOptions' => $this->connectionTypeOptions(),
             'syncModeOptions' => $this->syncModeOptions(),
             'statusOptions' => $this->statusOptions(),
             'healthOptions' => $this->healthOptions(),
+            'authenticationModeOptions' => $this->integrationSecretGovernanceService->authenticationModes(),
+            'secretHealthOptions' => $this->integrationSecretGovernanceService->secretHealthOptions(),
             'deploymentOfferOptions' => $this->deploymentProfileService->optionValues('commercial_offer'),
             'deploymentModeOptions' => $this->deploymentProfileService->optionValues('deployment_mode'),
             'lifecycleStageOptions' => $this->deploymentProfileService->optionValues('lifecycle_stage'),
@@ -92,6 +101,13 @@ class PlatformController extends Controller
             'last_health_at' => ['nullable', 'date'],
             'scope_summary' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
+            'authentication_mode' => ['nullable', Rule::in(array_keys($this->integrationSecretGovernanceService->authenticationModes()))],
+            'secret_health_status' => ['nullable', Rule::in(array_keys($this->integrationSecretGovernanceService->secretHealthOptions()))],
+            'secret_owner_id' => ['nullable', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'secret_last_rotated_at' => ['nullable', 'date'],
+            'secret_rotation_due_at' => ['nullable', 'date'],
+            'secret_expires_at' => ['nullable', 'date'],
+            'secret_notes' => ['nullable', 'string'],
         ]);
 
         $connection = IntegrationConnection::query()->create([
@@ -106,10 +122,17 @@ class PlatformController extends Controller
             'sync_mode' => $payload['sync_mode'],
             'status' => $payload['status'],
             'health_status' => $payload['health_status'],
+            'authentication_mode' => $payload['authentication_mode'] ?? 'api_key',
+            'secret_health_status' => $payload['secret_health_status'] ?? 'watch',
+            'secret_owner_id' => $payload['secret_owner_id'] ?? null,
             'external_reference' => $payload['external_reference'] ?? null,
             'last_sync_at' => $payload['last_sync_at'] ?? null,
             'last_health_at' => $payload['last_health_at'] ?? null,
+            'secret_last_rotated_at' => $payload['secret_last_rotated_at'] ?? null,
+            'secret_rotation_due_at' => $payload['secret_rotation_due_at'] ?? null,
+            'secret_expires_at' => $payload['secret_expires_at'] ?? null,
             'scope_summary' => $payload['scope_summary'] ?? null,
+            'secret_notes' => $payload['secret_notes'] ?? null,
             'notes' => $payload['notes'] ?? null,
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
@@ -183,6 +206,31 @@ class PlatformController extends Controller
         ]);
 
         return redirect()->route('platform.index')->with('success', 'Statut connexion mis a jour.');
+    }
+
+    public function updateConnectionSecretGovernance(Request $request, CurrentWorkspace $workspace, IntegrationConnection $integrationConnection): RedirectResponse
+    {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId || $integrationConnection->company_id !== $companyId, 403);
+
+        $payload = $request->validate([
+            'authentication_mode' => ['required', Rule::in(array_keys($this->integrationSecretGovernanceService->authenticationModes()))],
+            'secret_health_status' => ['required', Rule::in(array_keys($this->integrationSecretGovernanceService->secretHealthOptions()))],
+            'secret_owner_id' => ['nullable', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'secret_last_rotated_at' => ['nullable', 'date'],
+            'secret_rotation_due_at' => ['nullable', 'date'],
+            'secret_expires_at' => ['nullable', 'date'],
+            'secret_notes' => ['nullable', 'string'],
+        ]);
+
+        $connection = $this->integrationSecretGovernanceService->applyToConnection($integrationConnection, $payload, $request->user());
+
+        $this->activityLogger->log('platform.connections.secret_governance', 'Mise a jour gouvernance secrets connecteur', $connection, [
+            'authentication_mode' => $connection->authentication_mode,
+            'secret_health_status' => $connection->secret_health_status,
+        ]);
+
+        return redirect()->route('platform.index')->with('success', 'Gouvernance des secrets mise a jour.');
     }
 
     private function connectionTypeOptions(): array

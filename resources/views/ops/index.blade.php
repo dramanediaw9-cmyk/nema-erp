@@ -8,6 +8,7 @@
         $backupCheck = collect($report['checks'])->firstWhere('key', 'backups');
         $logsSummary = $appMonitoring['logs'];
         $failedJobsSummary = $appMonitoring['failed_jobs'];
+        $secretProfiles = collect($secretGovernance['items'] ?? [])->keyBy('id');
     @endphp
 
     <div class="page-head">
@@ -179,6 +180,14 @@
             <a href="{{ route('platform.index') }}" class="button button-secondary">Ouvrir la plateforme</a>
         </div>
 
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:12px;">
+            <div class="summary-box"><strong>Secrets sains</strong><div class="muted" style="margin-top:8px;">{{ $secretGovernance['healthy'] ?? 0 }}</div></div>
+            <div class="summary-box"><strong>A surveiller</strong><div class="muted" style="margin-top:8px;">{{ $secretGovernance['watch'] ?? 0 }}</div></div>
+            <div class="summary-box"><strong>Critiques</strong><div class="muted" style="margin-top:8px;">{{ $secretGovernance['critical'] ?? 0 }}</div></div>
+            <div class="summary-box"><strong>Rotation overdue</strong><div class="muted" style="margin-top:8px;">{{ $secretGovernance['rotation_overdue'] ?? 0 }}</div></div>
+            <div class="summary-box"><strong>Expiration proche</strong><div class="muted" style="margin-top:8px;">{{ $secretGovernance['expiring_soon'] ?? 0 }}</div></div>
+        </div>
+
         <div class="table-wrap">
             <table>
                 <thead>
@@ -186,6 +195,7 @@
                         <th>Connexion</th>
                         <th>Statut</th>
                         <th>Sante</th>
+                        <th>Secrets</th>
                         <th>Derniere synchro</th>
                         <th>Dernier controle</th>
                         <th>Responsable</th>
@@ -193,6 +203,7 @@
                 </thead>
                 <tbody>
                     @forelse ($integrationConnections as $connection)
+                        @php($secretProfile = $secretProfiles->get($connection->id))
                         <tr>
                             <td>
                                 <strong>{{ $connection->name }}</strong>
@@ -208,12 +219,23 @@
                                     {{ strtoupper($connection->health_status) }}
                                 </span>
                             </td>
+                            <td>
+                                @if ($secretProfile)
+                                    <span class="badge {{ $secretProfile['computed_status'] === 'healthy' ? 'badge-success' : ($secretProfile['computed_status'] === 'watch' ? 'badge-warning' : 'badge-muted') }}">
+                                        {{ strtoupper($secretProfile['computed_status']) }}
+                                    </span>
+                                    <div class="muted" style="font-size:12px; margin-top:6px;">{{ $secretProfile['authentication_mode_label'] }}</div>
+                                    <div class="muted" style="font-size:12px;">{{ $secretProfile['message'] }}</div>
+                                @else
+                                    <span class="muted">n/a</span>
+                                @endif
+                            </td>
                             <td>{{ $connection->last_sync_at?->format('d/m/Y H:i') ?: 'Jamais' }}</td>
                             <td>{{ $connection->last_health_at?->format('d/m/Y H:i') ?: 'Jamais' }}</td>
                             <td>{{ $connection->owner?->name ?: 'Non affecte' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="muted">Aucune connexion partenaire pour cette societe.</td></tr>
+                        <tr><td colspan="7" class="muted">Aucune connexion partenaire pour cette societe.</td></tr>
                     @endforelse
                 </tbody>
             </table>

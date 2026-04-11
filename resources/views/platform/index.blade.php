@@ -11,6 +11,7 @@
         $readiness = $catalog['packaging']['readiness'];
         $tenantLandscape = $catalog['packaging']['tenant_landscape'];
         $tenantReadiness = $catalog['packaging']['tenant_readiness'] ?? null;
+        $secretGovernance = $catalog['ecosystem']['connections']['secret_governance'] ?? ['items' => []];
         $connectionTypeBadge = [
             'api' => 'badge-muted',
             'webhook' => 'badge-warning',
@@ -64,6 +65,7 @@
         <div class="card"><div class="muted">Societes actives</div><div class="stat-value">{{ $catalog['metrics']['tenant_active_companies'] ?: ($tenantLandscape['active_companies'] ?? 0) }}</div></div>
         <div class="card"><div class="muted">Jetons API</div><div class="stat-value">{{ $catalog['metrics']['api_tokens'] }}</div></div>
         <div class="card"><div class="muted">Connexions</div><div class="stat-value">{{ $catalog['metrics']['integration_connections'] }}</div></div>
+        <div class="card"><div class="muted">Secrets critiques</div><div class="stat-value">{{ $catalog['metrics']['connection_secrets_critical'] }}</div></div>
         <div class="card"><div class="muted">Outbox pending</div><div class="stat-value">{{ $catalog['metrics']['outbox_pending'] }}</div></div>
         <div class="card"><div class="muted">Inbound webhooks</div><div class="stat-value">{{ $catalog['metrics']['inbound_webhooks'] }}</div></div>
         <div class="card"><div class="muted">Nouveaux modules</div><div class="stat-value">{{ count($catalog['modules']) - 1 }}</div></div>
@@ -437,6 +439,12 @@
                 <div class="summary-box"><strong>Inbound rejected</strong><div class="muted" style="margin-top:8px;">{{ $catalog['ecosystem']['monitoring']['inbound_rejected'] }}</div></div>
             </div>
 
+            <div class="summary-box" style="margin-bottom:12px;">
+                <strong>Gouvernance secrets connecteurs</strong>
+                <div class="help" style="margin-top:8px;">{{ $secretGovernance['healthy'] ?? 0 }} sain(s) · {{ $secretGovernance['watch'] ?? 0 }} a surveiller · {{ $secretGovernance['critical'] ?? 0 }} critique(s)</div>
+                <div class="help" style="margin-top:8px;">{{ $secretGovernance['rotation_due_soon'] ?? 0 }} rotation(s) a planifier sous 7 jours · {{ $secretGovernance['rotation_overdue'] ?? 0 }} en retard · {{ $secretGovernance['expiring_soon'] ?? 0 }} expiration(s) proches</div>
+            </div>
+
             <div class="summary-box">
                 <strong>Jetons recents</strong>
                 <ul class="summary-list">
@@ -519,6 +527,31 @@
                 </select>
             </div>
             <div>
+                <label for="authentication_mode">Auth</label>
+                <select id="authentication_mode" name="authentication_mode">
+                    @foreach ($authenticationModeOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(old('authentication_mode', 'api_key') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="secret_health_status">Etat secret</label>
+                <select id="secret_health_status" name="secret_health_status">
+                    @foreach ($secretHealthOptions as $value => $label)
+                        <option value="{{ $value }}" @selected(old('secret_health_status', 'watch') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="secret_owner_id">Responsable secret</label>
+                <select id="secret_owner_id" name="secret_owner_id">
+                    <option value="">Non affecte</option>
+                    @foreach ($secretOwners as $secretOwner)
+                        <option value="{{ $secretOwner->id }}" @selected(old('secret_owner_id') == $secretOwner->id)>{{ $secretOwner->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
                 <label for="external_reference">Reference externe</label>
                 <input id="external_reference" name="external_reference" value="{{ old('external_reference') }}" placeholder="workspace, tenant, app id ou endpoint">
             </div>
@@ -530,9 +563,25 @@
                 <label for="last_health_at">Dernier controle</label>
                 <input id="last_health_at" name="last_health_at" type="date" value="{{ old('last_health_at') }}">
             </div>
+            <div>
+                <label for="secret_last_rotated_at">Derniere rotation</label>
+                <input id="secret_last_rotated_at" name="secret_last_rotated_at" type="date" value="{{ old('secret_last_rotated_at') }}">
+            </div>
+            <div>
+                <label for="secret_rotation_due_at">Rotation cible</label>
+                <input id="secret_rotation_due_at" name="secret_rotation_due_at" type="date" value="{{ old('secret_rotation_due_at') }}">
+            </div>
+            <div>
+                <label for="secret_expires_at">Expiration secret</label>
+                <input id="secret_expires_at" name="secret_expires_at" type="date" value="{{ old('secret_expires_at') }}">
+            </div>
             <div class="full">
                 <label for="scope_summary">Perimetre synchronise</label>
                 <textarea id="scope_summary" name="scope_summary" rows="2" placeholder="Ex: commandes, paiements, statuts de livraison, dashboard exec">{{ old('scope_summary') }}</textarea>
+            </div>
+            <div class="full">
+                <label for="secret_notes">Notes secret</label>
+                <textarea id="secret_notes" name="secret_notes" rows="2" placeholder="Politique de rotation, coffre-fort, contact partenaire">{{ old('secret_notes') }}</textarea>
             </div>
             <div class="full">
                 <label for="notes">Notes</label>
@@ -560,6 +609,7 @@
                     <tr>
                         <th>Connexion</th>
                         <th>Perimetre</th>
+                        <th>Secrets</th>
                         <th>Derniere synchro</th>
                         <th>Sante</th>
                         @if ($canManageIntegrations)
@@ -583,6 +633,17 @@
                                 <div class="muted" style="font-size:12px;">{{ $connection['scope_summary'] ?: 'Perimetre non precise' }}</div>
                                 @if ($connection['external_reference'])
                                     <div class="muted" style="font-size:12px;">Ref. {{ $connection['external_reference'] }}</div>
+                                @endif
+                            </td>
+                            <td>
+                                @php($secretProfile = $connection['secret_profile'] ?? null)
+                                @if ($secretProfile)
+                                    <span class="badge {{ $healthBadge[$secretProfile['computed_status']] ?? 'badge-muted' }}">{{ $secretProfile['computed_status_label'] }}</span>
+                                    <div class="muted" style="font-size:12px; margin-top:6px;">{{ $secretProfile['authentication_mode_label'] }}</div>
+                                    <div class="muted" style="font-size:12px;">{{ $secretProfile['message'] }}</div>
+                                    <div class="muted" style="font-size:12px;">Owner {{ $secretProfile['secret_owner_name'] ?: 'non affecte' }}</div>
+                                @else
+                                    <span class="muted">n/a</span>
                                 @endif
                             </td>
                             <td>
@@ -621,11 +682,82 @@
                             @endif
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $canManageIntegrations ? 5 : 4 }}" class="muted">Aucune connexion partenaire declaree pour le moment.</td></tr>
+                        <tr><td colspan="{{ $canManageIntegrations ? 6 : 5 }}" class="muted">Aucune connexion partenaire declaree pour le moment.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
             </div>
+
+            @if ($canManageIntegrations && ! empty($secretGovernance['items']))
+                <div class="summary-stack" style="margin-top:16px;">
+                    <h4 style="margin:0;">Gouvernance des secrets</h4>
+                    @foreach ($catalog['ecosystem']['connections']['items'] as $connection)
+                        @php($secretProfile = $connection['secret_profile'] ?? null)
+                        <form method="POST" action="{{ route('platform.connections.secrets.update', $connection['id']) }}" class="summary-box" style="display:grid; gap:10px;">
+                            @csrf
+                            @method('PUT')
+                            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                                <div>
+                                    <strong>{{ $connection['name'] }}</strong>
+                                    <div class="muted" style="margin-top:6px;">{{ $connection['partner_name'] }} · {{ $connection['code'] }}</div>
+                                </div>
+                                @if ($secretProfile)
+                                    <span class="badge {{ $healthBadge[$secretProfile['computed_status']] ?? 'badge-muted' }}">{{ strtoupper($secretProfile['computed_status']) }}</span>
+                                @endif
+                            </div>
+                            <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px;">
+                                <div>
+                                    <label for="authentication-mode-{{ $connection['id'] }}">Auth</label>
+                                    <select id="authentication-mode-{{ $connection['id'] }}" name="authentication_mode" required>
+                                        @foreach ($authenticationModeOptions as $value => $label)
+                                            <option value="{{ $value }}" @selected(old('authentication_mode', $connection['authentication_mode'] ?? ($secretProfile['authentication_mode'] ?? 'api_key')) === $value)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="secret-health-{{ $connection['id'] }}">Etat secret</label>
+                                    <select id="secret-health-{{ $connection['id'] }}" name="secret_health_status" required>
+                                        @foreach ($secretHealthOptions as $value => $label)
+                                            <option value="{{ $value }}" @selected(old('secret_health_status', $connection['secret_health_status'] ?? 'watch') === $value)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="secret-owner-{{ $connection['id'] }}">Responsable secret</label>
+                                    <select id="secret-owner-{{ $connection['id'] }}" name="secret_owner_id">
+                                        <option value="">Non affecte</option>
+                                        @foreach ($secretOwners as $secretOwner)
+                                            <option value="{{ $secretOwner->id }}" @selected((string) old('secret_owner_id', data_get($secretProfile, 'secret_owner_id', $connection['secret_owner_id'] ?? '')) === (string) $secretOwner->id)>{{ $secretOwner->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="secret-rotated-{{ $connection['id'] }}">Derniere rotation</label>
+                                    <input id="secret-rotated-{{ $connection['id'] }}" type="date" name="secret_last_rotated_at" value="{{ old('secret_last_rotated_at', optional(data_get($secretProfile, 'secret_last_rotated_at'))->toDateString()) }}">
+                                </div>
+                                <div>
+                                    <label for="secret-due-{{ $connection['id'] }}">Rotation cible</label>
+                                    <input id="secret-due-{{ $connection['id'] }}" type="date" name="secret_rotation_due_at" value="{{ old('secret_rotation_due_at', optional(data_get($secretProfile, 'secret_rotation_due_at'))->toDateString()) }}">
+                                </div>
+                                <div>
+                                    <label for="secret-expiry-{{ $connection['id'] }}">Expiration</label>
+                                    <input id="secret-expiry-{{ $connection['id'] }}" type="date" name="secret_expires_at" value="{{ old('secret_expires_at', optional(data_get($secretProfile, 'secret_expires_at'))->toDateString()) }}">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="secret-notes-{{ $connection['id'] }}">Notes secret</label>
+                                <textarea id="secret-notes-{{ $connection['id'] }}" name="secret_notes" rows="2">{{ old('secret_notes', data_get($secretProfile, 'notes')) }}</textarea>
+                            </div>
+                            @if ($secretProfile && ! empty($secretProfile['alerts']))
+                                <div class="help">{{ implode(' ', $secretProfile['alerts']) }}</div>
+                            @endif
+                            <div class="actions">
+                                <button type="submit" class="button button-secondary">Mettre a jour les secrets</button>
+                            </div>
+                        </form>
+                    @endforeach
+                </div>
+            @endif
         </section>
 
         <section class="card">

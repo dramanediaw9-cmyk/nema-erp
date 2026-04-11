@@ -7,6 +7,7 @@ use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
+use App\Modules\Core\Integrations\Services\IntegrationSecretGovernanceService;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Ops\Models\SystemHealthSnapshot;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,7 @@ class SystemHealthService
     public function __construct(
         private readonly ApprovalSettingsService $approvalSettingsService,
         private readonly IntegrationOutboxService $integrationOutboxService,
+        private readonly IntegrationSecretGovernanceService $integrationSecretGovernanceService,
         private readonly BackupService $backupService,
         private readonly ApplicationMonitoringService $applicationMonitoringService,
     ) {}
@@ -42,6 +44,7 @@ class SystemHealthService
             $this->outboundNotificationCheck($company),
             $this->apiTokenCheck($company),
             $this->integrationConnectionsCheck($company),
+            $this->integrationConnectionSecretsCheck($company),
         ];
 
         $warningCount = collect($checks)->where('status', 'warning')->count();
@@ -475,6 +478,56 @@ class SystemHealthService
                 'overdue_health' => $overdueHealth,
                 'stale_sync' => $staleSync,
                 'critical_connections' => $criticalNames,
+            ],
+        ];
+    }
+
+    private function integrationConnectionSecretsCheck(?Company $company): array
+    {
+        $query = IntegrationConnection::query()->with('secretOwner');
+
+        if ($company) {
+            $query->where('company_id', $company->id);
+        }
+
+        $summary = $this->integrationSecretGovernanceService->summary($query->get());
+        $critical = (int) ($summary['critical'] ?? 0);
+        $watch = (int) ($summary['watch'] ?? 0);
+        $overdue = (int) ($summary['rotation_overdue'] ?? 0);
+        $expired = (int) ($summary['expired'] ?? 0);
+
+        $status = $critical > 0
+            ? 'fail'
+            : (($watch > 0 || $overdue > 0 || $expired > 0) ? 'warning' : 'ok');
+
+        $topAlerts = collect($summary['items'] ?? [])
+            ->filter(fn (array $item): bool => ! empty($item['alerts']))
+            ->take(3)
+            ->map(fn (array $item): string => $item['name'].': '.$item['message'])
+            ->values()
+            ->all();
+
+        $message = $critical > 0
+            ? 'Au moins un secret de connecteur demande une rotation ou a expire.'
+            : (($watch > 0 || $overdue > 0 || $expired > 0)
+                ? 'Des secrets de connecteurs approchent leur echeance ou manquent de traçabilite.'
+                : 'Les secrets des connecteurs sont sous controle.');
+
+        return [
+            'key' => 'integration_connection_secrets',
+            'label' => 'Secrets des connecteurs',
+            'status' => $status,
+            'message' => $message,
+            'meta' => [
+                'total' => $summary['total'] ?? 0,
+                'healthy' => $summary['healthy'] ?? 0,
+                'watch' => $watch,
+                'critical' => $critical,
+                'rotation_due_soon' => $summary['rotation_due_soon'] ?? 0,
+                'rotation_overdue' => $overdue,
+                'expiring_soon' => $summary['expiring_soon'] ?? 0,
+                'expired' => $expired,
+                'top_alerts' => $topAlerts,
             ],
         ];
     }

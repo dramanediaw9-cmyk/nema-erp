@@ -19,4 +19,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/plateforme/connexions/{integrationConnection}/status', [PlatformController::class, 'updateConnectionStatus'])
         ->middleware('permission:settings.integrations.manage')
         ->name('platform.connections.status');
+    Route::put('/plateforme/connexions/{integrationConnection}/secrets', [PlatformController::class, 'updateConnectionSecretGovernance'])
+        ->middleware('permission:settings.integrations.manage')
+        ->name('platform.connections.secrets.update');
 });

@@ -67,9 +67,14 @@ class PlatformOpenApiService
                             'name' => ['type' => 'string', 'example' => 'Connecteur data warehouse'],
                             'partner_name' => ['type' => 'string', 'example' => 'Fabric Lakehouse'],
                             'connection_type' => ['type' => 'string', 'example' => 'bi'],
+                            'authentication_mode' => ['type' => 'string', 'example' => 'api_key'],
                             'sync_mode' => ['type' => 'string', 'example' => 'outbound'],
                             'status' => ['type' => 'string', 'example' => 'active'],
                             'health_status' => ['type' => 'string', 'example' => 'healthy'],
+                            'secret_health_status' => ['type' => 'string', 'example' => 'watch'],
+                            'secret_last_rotated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'secret_rotation_due_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'secret_expires_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                             'external_reference' => ['type' => 'string', 'nullable' => true, 'example' => 'fabric-warehouse-nema'],
                             'scope_summary' => ['type' => 'string', 'nullable' => true, 'example' => 'Ventes, achats, marges et projections stock.'],
                             'last_sync_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
@@ -244,6 +249,34 @@ class PlatformOpenApiService
                                     'properties' => [
                                         'status' => ['type' => 'string', 'example' => 'active'],
                                         'health_status' => ['type' => 'string', 'example' => 'healthy'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ]
+                ),
+            ],
+            '/platform/connections/{integrationConnection}/secrets' => [
+                'patch' => $this->operation(
+                    'platform',
+                    'Mettre a jour la gouvernance des secrets',
+                    'Met a jour le mode d authentification, la rotation, l expiration et le responsable des secrets du connecteur.',
+                    [$this->pathParameter('integrationConnection', 'integer', 'Identifiant de la connexion')],
+                    [
+                        'required' => true,
+                        'content' => [
+                            'application/json' => [
+                                'schema' => [
+                                    'type' => 'object',
+                                    'required' => ['authentication_mode', 'secret_health_status'],
+                                    'properties' => [
+                                        'authentication_mode' => ['type' => 'string', 'example' => 'oauth_client'],
+                                        'secret_health_status' => ['type' => 'string', 'example' => 'watch'],
+                                        'secret_owner_id' => ['type' => 'integer', 'nullable' => true, 'example' => 5],
+                                        'secret_last_rotated_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                                        'secret_rotation_due_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                                        'secret_expires_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                                        'secret_notes' => ['type' => 'string', 'nullable' => true, 'example' => 'Rotation planifiee avec le partenaire le 15 du mois.'],
                                     ],
                                 ],
                             ],

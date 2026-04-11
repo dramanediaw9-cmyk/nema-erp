@@ -9,6 +9,7 @@ use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Integrations\Models\IntegrationInboundWebhook;
+use App\Modules\Core\Integrations\Services\IntegrationSecretGovernanceService;
 use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
@@ -25,6 +26,7 @@ class PlatformCatalogService
         private readonly DeploymentProfileService $deploymentProfileService,
         private readonly DeploymentReadinessService $deploymentReadinessService,
         private readonly TenantReadinessService $tenantReadinessService,
+        private readonly IntegrationSecretGovernanceService $integrationSecretGovernanceService,
     ) {
     }
 
@@ -34,11 +36,12 @@ class PlatformCatalogService
         $apiTokens = $companyId ? ApiToken::query()->with('creator')->where('company_id', $companyId)->orderByDesc('id')->limit(6)->get() : collect();
         $outboxEvents = $companyId ? IntegrationEvent::query()->with('latestDelivery')->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
         $inboundWebhooks = $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
-        $connections = $companyId ? IntegrationConnection::query()->with(['branch', 'owner'])->where('company_id', $companyId)->orderBy('partner_name')->orderBy('name')->get() : collect();
+        $connections = $companyId ? IntegrationConnection::query()->with(['branch', 'owner', 'secretOwner'])->where('company_id', $companyId)->orderBy('partner_name')->orderBy('name')->get() : collect();
         $deploymentProfile = $company ? $this->deploymentProfileService->profileForCompany($company)->loadMissing('owner') : null;
         $deploymentLabels = $this->deploymentProfileService->labels();
         $readiness = ($company && $deploymentProfile) ? $this->deploymentReadinessService->summary($company, $deploymentProfile) : null;
         $tenantReadiness = $company ? $this->tenantReadinessService->summary($company) : null;
+        $secretGovernance = $this->integrationSecretGovernanceService->summary($connections);
 
         return [
             'product' => [
@@ -123,6 +126,7 @@ class PlatformCatalogService
                         ['name' => 'platform-deployment-profile', 'path' => '/api/v1/platform/deployment-profile'],
                         ['name' => 'platform-tenant-readiness', 'path' => '/api/v1/platform/tenant-readiness'],
                         ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
+                        ['name' => 'platform-connection-secrets', 'path' => '/api/v1/platform/connections/{integrationConnection}/secrets'],
                         ['name' => 'products', 'path' => '/api/v1/products'],
                         ['name' => 'partners', 'path' => '/api/v1/partners'],
                         ['name' => 'sales-invoices', 'path' => '/api/v1/sales-invoices'],
@@ -159,6 +163,7 @@ class PlatformCatalogService
                         'critical' => $connections->where('health_status', 'critical')->count(),
                         'bidirectional' => $connections->where('sync_mode', 'bidirectional')->count(),
                     ],
+                    'secret_governance' => $secretGovernance,
                     'items' => $connections->map(fn (IntegrationConnection $connection) => [
                         'id' => $connection->id,
                         'code' => $connection->code,
@@ -171,10 +176,15 @@ class PlatformCatalogService
                         'external_reference' => $connection->external_reference,
                         'last_sync_at' => $connection->last_sync_at,
                         'last_health_at' => $connection->last_health_at,
+                        'authentication_mode' => $connection->authentication_mode,
+                        'secret_health_status' => $connection->secret_health_status,
+                        'secret_profile' => $this->integrationSecretGovernanceService->profile($connection),
                         'scope_summary' => $connection->scope_summary,
                         'notes' => $connection->notes,
                         'branch_name' => $connection->branch?->name,
                         'owner_name' => $connection->owner?->name,
+                        'secret_owner_id' => $connection->secret_owner_id,
+                        'secret_owner_name' => $connection->secretOwner?->name,
                     ])->all(),
                 ],
                 'monitoring' => [
@@ -266,6 +276,7 @@ class PlatformCatalogService
                 'outbox_pending' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'pending')->count() : 0,
                 'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
                 'integration_connections' => $companyId ? IntegrationConnection::query()->where('company_id', $companyId)->count() : 0,
+                'connection_secrets_critical' => $secretGovernance['critical'],
                 'deployment_profiles' => $companyId ? DeploymentProfile::query()->where('company_id', $companyId)->count() : 0,
                 'readiness_score' => $readiness['score'] ?? 0,
                 'tenant_active_companies' => $tenantReadiness['active_companies'] ?? 0,
