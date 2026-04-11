@@ -29,6 +29,7 @@ class GrowthFoundationTest extends TestCase
 
         $this->get(route('platform.index'))->assertOk()->assertSee('Socle produit et ecosysteme');
         $this->get(route('platform.index'))->assertOk()->assertSee('Readiness deploiement');
+        $this->get(route('platform.index'))->assertOk()->assertSee('Readiness inter-societes')->assertSee('Nema Retail Sud');
         $this->get(route('platform.openapi'))->assertOk()->assertJsonPath('openapi', '3.0.3');
         $this->get(route('hr.index'))->assertOk()->assertSee('Capital humain');
         $this->get(route('payroll.index'))->assertOk()->assertSee('Executions de paie');
@@ -184,9 +185,12 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/production'])
             ->assertJsonFragment(['path' => '/commerce-unifie'])
             ->assertJsonFragment(['path' => '/api/v1/platform/deployment-profile'])
+            ->assertJsonFragment(['path' => '/api/v1/platform/tenant-readiness'])
             ->assertJsonFragment(['path' => '/api/v1/platform/openapi'])
             ->assertJsonPath('catalog.packaging.deployment_profile.deployment_mode', 'pilot')
             ->assertJsonPath('catalog.packaging.readiness.lifecycle_stage', 'pilot')
+            ->assertJsonPath('catalog.packaging.tenant_readiness.active_companies', 2)
+            ->assertJsonPath('catalog.packaging.tenant_readiness.portfolio_status', 'at_risk')
             ->assertJsonPath('catalog.metrics.integration_connections', 3);
     }
 

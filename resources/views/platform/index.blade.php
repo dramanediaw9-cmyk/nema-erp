@@ -10,6 +10,7 @@
         $deploymentProfile = $catalog['packaging']['deployment_profile'];
         $readiness = $catalog['packaging']['readiness'];
         $tenantLandscape = $catalog['packaging']['tenant_landscape'];
+        $tenantReadiness = $catalog['packaging']['tenant_readiness'] ?? null;
         $connectionTypeBadge = [
             'api' => 'badge-muted',
             'webhook' => 'badge-warning',
@@ -60,6 +61,7 @@
         <div class="card"><div class="muted">Edition</div><div class="stat-value">{{ $catalog['product']['edition'] }}</div></div>
         <div class="card"><div class="muted">Offre</div><div class="stat-value">{{ $catalog['product']['commercial_offer'] ?: 'n/a' }}</div></div>
         <div class="card"><div class="muted">Readiness</div><div class="stat-value">{{ $catalog['metrics']['readiness_score'] }}</div></div>
+        <div class="card"><div class="muted">Societes actives</div><div class="stat-value">{{ $catalog['metrics']['tenant_active_companies'] ?: ($tenantLandscape['active_companies'] ?? 0) }}</div></div>
         <div class="card"><div class="muted">Jetons API</div><div class="stat-value">{{ $catalog['metrics']['api_tokens'] }}</div></div>
         <div class="card"><div class="muted">Connexions</div><div class="stat-value">{{ $catalog['metrics']['integration_connections'] }}</div></div>
         <div class="card"><div class="muted">Outbox pending</div><div class="stat-value">{{ $catalog['metrics']['outbox_pending'] }}</div></div>
@@ -154,7 +156,8 @@
 
                 <div class="summary-box" style="margin-bottom:12px;">
                     <strong>Paysage multi-client</strong>
-                    <div class="help" style="margin-top:8px;">{{ $tenantLandscape['active_companies'] ?? 0 }} societe(s) active(s) · {{ $tenantLandscape['active_users'] ?? 0 }} utilisateur(s) actifs · {{ $tenantLandscape['active_branches'] ?? 0 }} agence(s) actives sur cette societe</div>
+                    <div class="help" style="margin-top:8px;">{{ $tenantLandscape['active_companies'] ?? 0 }} societe(s) active(s) · {{ $tenantLandscape['active_users'] ?? 0 }} utilisateur(s) actifs · {{ $tenantLandscape['tenant_active_branches'] ?? ($tenantLandscape['active_branches'] ?? 0) }} agence(s) actives sur le tenant</div>
+                    <div class="help" style="margin-top:8px;">Portefeuille {{ $tenantLandscape['portfolio_status_label'] ?? 'n/a' }} · score moyen {{ $tenantLandscape['average_score'] ?? 0 }}/100 · {{ $tenantLandscape['active_branches'] ?? 0 }} agence(s) sur la societe courante</div>
                     <div class="help" style="margin-top:8px;">Owner de deploiement: {{ $deploymentProfile['owner_name'] ?: 'Non affecte' }}</div>
                 </div>
 
@@ -179,6 +182,86 @@
                                 <li>{{ $action }}</li>
                             @endforeach
                         </ul>
+                    </div>
+                @endif
+
+                @if ($tenantReadiness)
+                    <div class="summary-box" style="margin-top:12px;">
+                        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                            <div>
+                                <strong>Readiness inter-societes</strong>
+                                <div class="help" style="margin-top:8px;">Vue portefeuille pour savoir quelles societes peuvent monter en charge et lesquelles demandent encore de la stabilisation.</div>
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <span class="badge {{ $readinessBadge[$tenantReadiness['portfolio_status']] ?? 'badge-muted' }}">{{ strtoupper($tenantReadiness['portfolio_status']) }}</span>
+                                <span class="badge badge-muted">Moyenne {{ $tenantReadiness['average_score'] }}/100</span>
+                            </div>
+                        </div>
+
+                        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:12px;">
+                            <div class="summary-box"><strong>Societes</strong><div class="muted" style="margin-top:8px;">{{ $tenantReadiness['active_companies'] }}</div></div>
+                            <div class="summary-box"><strong>Utilisateurs</strong><div class="muted" style="margin-top:8px;">{{ $tenantReadiness['active_users'] }}</div></div>
+                            <div class="summary-box"><strong>Agences</strong><div class="muted" style="margin-top:8px;">{{ $tenantReadiness['active_branches'] }}</div></div>
+                            <div class="summary-box"><strong>Fourchette</strong><div class="muted" style="margin-top:8px;">{{ $tenantReadiness['lowest_score'] }} - {{ $tenantReadiness['highest_score'] }}</div></div>
+                        </div>
+
+                        <div class="chip-row" style="margin-top:12px;">
+                            @foreach ($tenantReadiness['status_breakdown'] as $status)
+                                @if ($status['count'] > 0)
+                                    <span class="badge {{ $readinessBadge[$status['key']] ?? 'badge-muted' }}">{{ $status['label'] }} · {{ $status['count'] }}</span>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        <div class="table-wrap" style="margin-top:12px;">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Societe</th>
+                                    <th>Offre et mode</th>
+                                    <th>Empreinte</th>
+                                    <th>Readiness</th>
+                                    <th>Priorites</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach ($tenantReadiness['companies'] as $tenantCompany)
+                                    <tr>
+                                        <td>
+                                            <strong>{{ $tenantCompany['company_name'] }}</strong>
+                                            <div class="muted" style="font-size:12px;">{{ $tenantCompany['is_current'] ? 'Societe courante' : 'Autre societe du tenant' }}</div>
+                                        </td>
+                                        <td>
+                                            <div>{{ $tenantCompany['commercial_offer_label'] }} · {{ $tenantCompany['deployment_mode_label'] }}</div>
+                                            <div class="muted" style="font-size:12px;">{{ $tenantCompany['lifecycle_stage_label'] }} · {{ $tenantCompany['support_tier_label'] }}</div>
+                                        </td>
+                                        <td>
+                                            <div>{{ $tenantCompany['active_users'] }} utilisateur(s) · {{ $tenantCompany['active_branches'] }} agence(s)</div>
+                                            <div class="muted" style="font-size:12px;">Go-live {{ optional($tenantCompany['go_live_target_at'])->format('d/m/Y') ?? 'n/a' }} · owner {{ $tenantCompany['owner_name'] ?: 'non affecte' }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge {{ $readinessBadge[$tenantCompany['readiness_status']] ?? 'badge-muted' }}">{{ strtoupper($tenantCompany['readiness_status']) }}</span>
+                                            <div class="muted" style="font-size:12px; margin-top:6px;">Score {{ $tenantCompany['readiness_score'] }}/100</div>
+                                        </td>
+                                        <td>
+                                            <div class="muted" style="font-size:12px;">{{ $tenantCompany['top_blockers'][0] ?? $tenantCompany['top_warnings'][0] ?? 'Aucune alerte prioritaire.' }}</div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (! empty($tenantReadiness['next_actions']))
+                            <div class="summary-box" style="margin-top:12px;">
+                                <strong>Actions portfolio</strong>
+                                <ul class="summary-list">
+                                    @foreach ($tenantReadiness['next_actions'] as $action)
+                                        <li>{{ $action }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
                     </div>
                 @endif
             </section>

@@ -14,6 +14,10 @@ class DemoUserSeeder extends Seeder
     {
         $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
         $branch = Branch::query()->where('company_id', $company->id)->where('code', 'BKO')->firstOrFail();
+        $retailCompany = Company::query()->where('name', 'Nema Retail Sud')->first();
+        $retailBranch = $retailCompany
+            ? Branch::query()->where('company_id', $retailCompany->id)->where('code', 'SEG')->first()
+            : null;
 
         $admin = User::query()->updateOrCreate(
             ['email' => 'admin@nema-erp.test'],
@@ -84,5 +88,21 @@ class DemoUserSeeder extends Seeder
             ]
         );
         $cashier->roles()->sync(Role::query()->where('company_id', $company->id)->where('slug', 'cashier')->pluck('id')->all());
+
+        if ($retailCompany && $retailBranch) {
+            $retailManager = User::query()->updateOrCreate(
+                ['email' => 'retail.manager@nema-erp.test'],
+                [
+                    'company_id' => $retailCompany->id,
+                    'branch_id' => $retailBranch->id,
+                    'name' => 'Responsable Retail Sud',
+                    'phone' => '+223 70 00 00 06',
+                    'password' => 'password',
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                ]
+            );
+            $retailManager->roles()->sync(Role::query()->where('company_id', $retailCompany->id)->where('slug', 'company_admin')->pluck('id')->all());
+        }
     }
 }

@@ -27,7 +27,12 @@ class DemoGrowthFoundationSeeder extends Seeder
     {
         $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
         $branch = Branch::query()->where('company_id', $company->id)->where('code', 'BKO')->firstOrFail();
+        $retailCompany = Company::query()->where('name', 'Nema Retail Sud')->first();
+        $retailBranch = $retailCompany
+            ? Branch::query()->where('company_id', $retailCompany->id)->where('code', 'SEG')->first()
+            : null;
         $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $retailManager = User::query()->where('email', 'retail.manager@nema-erp.test')->first();
 
         $retailDepartment = HrDepartment::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'DEP-0001'],
@@ -491,5 +496,32 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'updated_by' => $manager->id,
             ]
         );
+
+        if ($retailCompany && $retailBranch) {
+            DeploymentProfile::query()->updateOrCreate(
+                ['company_id' => $retailCompany->id],
+                [
+                    'tenant_id' => $retailCompany->tenant_id,
+                    'owner_id' => $retailManager?->id,
+                    'commercial_offer' => 'starter',
+                    'deployment_mode' => 'cloud',
+                    'lifecycle_stage' => 'live',
+                    'hosting_target' => 'shared_hosting',
+                    'support_tier' => 'essential',
+                    'monitoring_level' => 'basic',
+                    'backup_strategy' => 'verified',
+                    'update_channel' => 'manual',
+                    'target_users' => 8,
+                    'target_branches' => 1,
+                    'go_live_target_at' => now()->addWeeks(2),
+                    'last_release_at' => null,
+                    'last_backup_verified_at' => null,
+                    'last_restore_drill_at' => null,
+                    'notes' => 'Societe secondaire en cours d ouverture, encore fragile sur la discipline d exploitation et la readiness cloud.',
+                    'created_by' => $manager->id,
+                    'updated_by' => $manager->id,
+                ]
+            );
+        }
     }
 }

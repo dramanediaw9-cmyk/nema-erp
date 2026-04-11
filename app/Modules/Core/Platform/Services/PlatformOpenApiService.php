@@ -96,6 +96,40 @@ class PlatformOpenApiService
                             'notes' => ['type' => 'string', 'nullable' => true],
                         ],
                     ],
+                    'TenantReadinessCompany' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'company_id' => ['type' => 'integer', 'example' => 1],
+                            'company_name' => ['type' => 'string', 'example' => 'Nema Distribution'],
+                            'is_current' => ['type' => 'boolean', 'example' => true],
+                            'active_users' => ['type' => 'integer', 'example' => 5],
+                            'active_branches' => ['type' => 'integer', 'example' => 2],
+                            'commercial_offer' => ['type' => 'string', 'example' => 'growth'],
+                            'deployment_mode' => ['type' => 'string', 'example' => 'pilot'],
+                            'lifecycle_stage' => ['type' => 'string', 'example' => 'pilot'],
+                            'readiness_status' => ['type' => 'string', 'example' => 'progressing'],
+                            'readiness_score' => ['type' => 'integer', 'example' => 72],
+                            'top_blockers' => ['type' => 'array', 'items' => ['type' => 'string']],
+                            'top_warnings' => ['type' => 'array', 'items' => ['type' => 'string']],
+                            'next_actions' => ['type' => 'array', 'items' => ['type' => 'string']],
+                        ],
+                    ],
+                    'TenantReadiness' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'tenant_id' => ['type' => 'integer', 'example' => 1],
+                            'tenant_name' => ['type' => 'string', 'example' => 'Nema Groupe'],
+                            'active_companies' => ['type' => 'integer', 'example' => 2],
+                            'active_users' => ['type' => 'integer', 'example' => 6],
+                            'active_branches' => ['type' => 'integer', 'example' => 3],
+                            'average_score' => ['type' => 'integer', 'example' => 61],
+                            'portfolio_status' => ['type' => 'string', 'example' => 'at_risk'],
+                            'companies' => [
+                                'type' => 'array',
+                                'items' => ['$ref' => '#/components/schemas/TenantReadinessCompany'],
+                            ],
+                        ],
+                    ],
                 ],
             ],
             'x-nema' => [
@@ -140,6 +174,9 @@ class PlatformOpenApiService
                         ],
                     ]
                 ),
+            ],
+            '/platform/tenant-readiness' => [
+                'get' => $this->operation('platform', 'Lire la readiness inter-societes', 'Retourne le portefeuille multi-societes, les scores readiness et les priorites tenant.'),
             ],
             '/platform/connections' => [
                 'get' => $this->operation(

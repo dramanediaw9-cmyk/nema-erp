@@ -69,12 +69,22 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('readiness.lifecycle_stage', 'pilot');
 
         $this->withToken($plainToken)
+            ->getJson('/api/v1/platform/tenant-readiness')
+            ->assertOk()
+            ->assertJsonPath('tenant_name', 'Nema Groupe')
+            ->assertJsonPath('active_companies', 2)
+            ->assertJsonPath('portfolio_status', 'at_risk')
+            ->assertJsonPath('companies.1.company_name', 'Nema Retail Sud')
+            ->assertJsonPath('companies.1.readiness_status', 'at_risk');
+
+        $this->withToken($plainToken)
             ->getJson('/api/v1/platform/openapi')
             ->assertOk()
             ->assertJsonPath('openapi', '3.0.3')
             ->assertJsonPath('info.title', 'Nema ERP Integrator API')
             ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires')
-            ->assertJsonPath('paths./platform/deployment-profile.get.summary', 'Lire le profil de deploiement');
+            ->assertJsonPath('paths./platform/deployment-profile.get.summary', 'Lire le profil de deploiement')
+            ->assertJsonPath('paths./platform/tenant-readiness.get.summary', 'Lire la readiness inter-societes');
     }
 
     public function test_api_token_can_show_and_create_growth_records(): void
@@ -420,6 +430,15 @@ class ApiV1GrowthModuleTest extends TestCase
             'company_id' => $manager->company_id,
             'commercial_offer' => 'growth',
             'deployment_mode' => 'pilot',
+        ]);
+        $this->assertDatabaseHas('companies', [
+            'name' => 'Nema Retail Sud',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('deployment_profiles', [
+            'commercial_offer' => 'starter',
+            'deployment_mode' => 'cloud',
+            'lifecycle_stage' => 'live',
         ]);
     }
 

@@ -42,6 +42,21 @@ class DemoCompanySeeder extends Seeder
             ]
         );
 
+        $retailCompany = Company::query()->updateOrCreate(
+            ['name' => 'Nema Retail Sud'],
+            [
+                'tenant_id' => $tenant->id,
+                'legal_name' => 'Nema Retail Sud SARL',
+                'nif' => 'ML2026NEMA002',
+                'rccm' => 'ML-SEG-RCCM-2026-B-002',
+                'phone' => '+223 76 00 00 06',
+                'email' => 'retail@nema-erp.test',
+                'address' => 'Quartier commercial, Segou, Mali',
+                'currency_code' => 'XOF',
+                'is_active' => true,
+            ]
+        );
+
         $bamako = Branch::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'BKO'],
             [
@@ -63,6 +78,18 @@ class DemoCompanySeeder extends Seeder
                 'address' => 'Centre commercial, Sikasso',
                 'is_active' => true,
                 'is_default' => false,
+            ]
+        );
+
+        $segou = Branch::query()->updateOrCreate(
+            ['company_id' => $retailCompany->id, 'code' => 'SEG'],
+            [
+                'tenant_id' => $tenant->id,
+                'name' => 'Agence Segou',
+                'city' => 'Segou',
+                'address' => 'Zone commerciale, Segou',
+                'is_active' => true,
+                'is_default' => true,
             ]
         );
 
@@ -94,6 +121,17 @@ class DemoCompanySeeder extends Seeder
                 'tenant_id' => $tenant->id,
                 'branch_id' => $sikasso->id,
                 'name' => 'Depot principal Sikasso',
+                'is_default' => true,
+                'is_active' => true,
+            ]
+        );
+
+        Warehouse::query()->updateOrCreate(
+            ['company_id' => $retailCompany->id, 'code' => 'DEP-SEG-PRINC'],
+            [
+                'tenant_id' => $tenant->id,
+                'branch_id' => $segou->id,
+                'name' => 'Depot principal Segou',
                 'is_default' => true,
                 'is_active' => true,
             ]
@@ -143,6 +181,18 @@ class DemoCompanySeeder extends Seeder
                     'country' => 'Mali',
                     'timezone' => 'Africa/Bamako',
                     'default_branch_id' => $bamako->id,
+                ],
+            ]
+        );
+
+        Setting::query()->updateOrCreate(
+            ['company_id' => $retailCompany->id, 'key' => 'general'],
+            [
+                'tenant_id' => $tenant->id,
+                'value' => [
+                    'country' => 'Mali',
+                    'timezone' => 'Africa/Bamako',
+                    'default_branch_id' => $segou->id,
                 ],
             ]
         );

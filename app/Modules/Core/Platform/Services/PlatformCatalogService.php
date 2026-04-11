@@ -2,7 +2,6 @@
 
 namespace App\Modules\Core\Platform\Services;
 
-use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
@@ -25,6 +24,7 @@ class PlatformCatalogService
     public function __construct(
         private readonly DeploymentProfileService $deploymentProfileService,
         private readonly DeploymentReadinessService $deploymentReadinessService,
+        private readonly TenantReadinessService $tenantReadinessService,
     ) {
     }
 
@@ -38,6 +38,7 @@ class PlatformCatalogService
         $deploymentProfile = $company ? $this->deploymentProfileService->profileForCompany($company)->loadMissing('owner') : null;
         $deploymentLabels = $this->deploymentProfileService->labels();
         $readiness = ($company && $deploymentProfile) ? $this->deploymentReadinessService->summary($company, $deploymentProfile) : null;
+        $tenantReadiness = $company ? $this->tenantReadinessService->summary($company) : null;
 
         return [
             'product' => [
@@ -91,12 +92,17 @@ class PlatformCatalogService
                     'notes' => $deploymentProfile->notes,
                 ] : null,
                 'readiness' => $readiness,
-                'tenant_landscape' => $company ? [
-                    'tenant_name' => $company->tenant?->name,
-                    'active_companies' => $company->tenant?->companies()->where('is_active', true)->count() ?? 1,
-                    'active_users' => User::query()->where('tenant_id', $company->tenant_id)->where('is_active', true)->count(),
+                'tenant_landscape' => $tenantReadiness ? [
+                    'tenant_name' => $tenantReadiness['tenant_name'],
+                    'active_companies' => $tenantReadiness['active_companies'],
+                    'active_users' => $tenantReadiness['active_users'],
                     'active_branches' => Branch::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                    'tenant_active_branches' => $tenantReadiness['active_branches'],
+                    'portfolio_status' => $tenantReadiness['portfolio_status'],
+                    'portfolio_status_label' => $tenantReadiness['portfolio_status_label'],
+                    'average_score' => $tenantReadiness['average_score'],
                 ] : null,
+                'tenant_readiness' => $tenantReadiness,
             ],
             'ecosystem' => [
                 'api' => [
@@ -108,12 +114,14 @@ class PlatformCatalogService
                         'curl_examples' => [
                             'curl -H "Authorization: Bearer {token}" '.rtrim((string) url('/api/v1/platform/capabilities'), '/'),
                             'curl -H "X-Api-Key: {token}" '.rtrim((string) url('/api/v1/platform/connections?status=active'), '/'),
+                            'curl -H "Authorization: Bearer {token}" '.rtrim((string) url('/api/v1/platform/tenant-readiness'), '/'),
                             'curl -H "Authorization: Bearer {token}" '.rtrim((string) url('/api/v1/platform/openapi'), '/'),
                         ],
                     ],
                     'resources' => [
                         ['name' => 'workspace', 'path' => '/api/v1/workspace'],
                         ['name' => 'platform-deployment-profile', 'path' => '/api/v1/platform/deployment-profile'],
+                        ['name' => 'platform-tenant-readiness', 'path' => '/api/v1/platform/tenant-readiness'],
                         ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
                         ['name' => 'products', 'path' => '/api/v1/products'],
                         ['name' => 'partners', 'path' => '/api/v1/partners'],
@@ -260,6 +268,8 @@ class PlatformCatalogService
                 'integration_connections' => $companyId ? IntegrationConnection::query()->where('company_id', $companyId)->count() : 0,
                 'deployment_profiles' => $companyId ? DeploymentProfile::query()->where('company_id', $companyId)->count() : 0,
                 'readiness_score' => $readiness['score'] ?? 0,
+                'tenant_active_companies' => $tenantReadiness['active_companies'] ?? 0,
+                'tenant_average_readiness' => $tenantReadiness['average_score'] ?? 0,
                 'inbound_webhooks' => $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->count() : 0,
                 'departments' => $companyId ? HrDepartment::query()->where('company_id', $companyId)->count() : 0,
                 'leave_requests' => $companyId ? HrLeaveRequest::query()->where('company_id', $companyId)->count() : 0,
