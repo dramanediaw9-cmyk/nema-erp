@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
@@ -48,9 +49,10 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('data.0.item_name', 'Kit promo Ramadan');
 
         $this->withToken($plainToken)
-            ->getJson('/api/v1/commerce/channels?channel_type=mobile')
+            ->getJson('/api/v1/commerce/channels?search=WhatsApp')
             ->assertOk()
-            ->assertJsonPath('data.0.name', 'Boutique WhatsApp Bamako');
+            ->assertJsonPath('data.0.name', 'Boutique WhatsApp Bamako')
+            ->assertJsonPath('data.0.execution_summary.open_actions', 2);
     }
 
     public function test_api_token_can_show_and_create_growth_records(): void
@@ -166,7 +168,7 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('item_name', 'Pack cereales famille');
 
-        $this->withToken($plainToken)
+        $commerceResponse = $this->withToken($plainToken)
             ->postJson('/api/v1/commerce/channels', [
                 'name' => 'Marketplace B2C test',
                 'channel_type' => 'marketplace',
@@ -177,6 +179,54 @@ class ApiV1GrowthModuleTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('name', 'Marketplace B2C test');
+
+        $commerceChannelId = (int) $commerceResponse->json('id');
+
+        $this->withToken($plainToken)
+            ->postJson('/api/v1/commerce/channels/'.$commerceChannelId.'/snapshots', [
+                'snapshot_date' => now()->toDateString(),
+                'gross_revenue' => 1950000,
+                'orders_count' => 74,
+                'average_order_value' => 26351,
+                'conversion_rate' => 13.8,
+                'service_level' => 94.2,
+                'failed_orders_count' => 2,
+                'failed_payments_count' => 1,
+                'notes' => 'Premiere mesure marketplace.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('gross_revenue', '1950000.00');
+
+        $commerceActionResponse = $this->withToken($plainToken)
+            ->postJson('/api/v1/commerce/channels/'.$commerceChannelId.'/actions', [
+                'title' => 'Stabiliser le mapping stock marketplace',
+                'owner_id' => $manager->id,
+                'action_type' => 'fulfillment',
+                'status' => 'blocked',
+                'impact_level' => 'critical',
+                'due_date' => now()->addDays(6)->toDateString(),
+                'notes' => 'Flux de stock encore en ecart sur quelques SKU.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('title', 'Stabiliser le mapping stock marketplace')
+            ->assertJsonPath('status', 'blocked');
+
+        $commerceActionId = (int) $commerceActionResponse->json('id');
+
+        $this->withToken($plainToken)
+            ->patchJson('/api/v1/commerce/channels/'.$commerceChannelId.'/actions/'.$commerceActionId, [
+                'status' => 'done',
+            ])
+            ->assertOk()
+            ->assertJsonPath('id', $commerceActionId)
+            ->assertJsonPath('status', 'done');
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/commerce/channels/'.$commerceChannelId)
+            ->assertOk()
+            ->assertJsonPath('id', $commerceChannelId)
+            ->assertJsonPath('execution_summary.gross_revenue', 1950000)
+            ->assertJsonPath('execution_summary.open_actions', 0);
 
         $this->assertDatabaseHas('hr_departments', [
             'company_id' => $manager->company_id,
@@ -207,6 +257,17 @@ class ApiV1GrowthModuleTest extends TestCase
         $this->assertDatabaseHas('commerce_channels', [
             'company_id' => $manager->company_id,
             'name' => 'Marketplace B2C test',
+        ]);
+        $this->assertDatabaseHas('commerce_channel_snapshots', [
+            'company_id' => $manager->company_id,
+            'commerce_channel_id' => $commerceChannelId,
+            'gross_revenue' => 1950000.00,
+        ]);
+        $this->assertDatabaseHas('commerce_channel_actions', [
+            'company_id' => $manager->company_id,
+            'commerce_channel_id' => $commerceChannelId,
+            'title' => 'Stabiliser le mapping stock marketplace',
+            'status' => 'done',
         ]);
     }
 
@@ -244,6 +305,15 @@ class ApiV1GrowthModuleTest extends TestCase
         $this->assertDatabaseHas('commerce_channels', [
             'company_id' => $manager->company_id,
             'name' => 'Boutique WhatsApp Bamako',
+        ]);
+        $this->assertDatabaseHas('commerce_channel_snapshots', [
+            'company_id' => $manager->company_id,
+            'gross_revenue' => 2825000.00,
+        ]);
+        $this->assertDatabaseHas('commerce_channel_actions', [
+            'company_id' => $manager->company_id,
+            'title' => 'Corriger les echecs Wave sur commandes soir',
+            'status' => 'in_progress',
         ]);
     }
 

@@ -8,6 +8,8 @@ use App\Modules\Core\Company\Models\Company;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CommerceChannel extends Model
 {
@@ -53,5 +55,25 @@ class CommerceChannel extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(CommerceChannelSnapshot::class, 'commerce_channel_id')
+            ->orderByDesc('snapshot_date')
+            ->orderByDesc('id');
+    }
+
+    public function latestSnapshot(): HasOne
+    {
+        return $this->hasOne(CommerceChannelSnapshot::class, 'commerce_channel_id')->latestOfMany('snapshot_date');
+    }
+
+    public function actions(): HasMany
+    {
+        return $this->hasMany(CommerceChannelAction::class, 'commerce_channel_id')
+            ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('due_date')
+            ->orderBy('id');
     }
 }

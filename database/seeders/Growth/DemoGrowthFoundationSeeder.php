@@ -3,7 +3,9 @@
 namespace Database\Seeders\Growth;
 
 use App\Models\User;
+use App\Modules\Commerce\Models\CommerceChannelAction;
 use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Commerce\Models\CommerceChannelSnapshot;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Hr\Models\HrDepartment;
@@ -280,7 +282,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
-        CommerceChannel::query()->updateOrCreate(
+        $whatsAppChannel = CommerceChannel::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'CH-0001'],
             [
                 'branch_id' => $branch->id,
@@ -296,7 +298,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ]
         );
 
-        CommerceChannel::query()->updateOrCreate(
+        $b2bChannel = CommerceChannel::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'CH-0002'],
             [
                 'branch_id' => $branch->id,
@@ -307,6 +309,91 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'settlement_mode' => 'mixed',
                 'target_monthly_revenue' => 12000000,
                 'notes' => 'Canal comptes cle pour reseau semi-grossiste.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannelSnapshot::query()->updateOrCreate(
+            [
+                'company_id' => $company->id,
+                'commerce_channel_id' => $whatsAppChannel->id,
+                'snapshot_date' => now()->toDateString(),
+            ],
+            [
+                'gross_revenue' => 2825000,
+                'orders_count' => 186,
+                'average_order_value' => 15188,
+                'conversion_rate' => 21.4,
+                'service_level' => 92.5,
+                'failed_orders_count' => 4,
+                'failed_payments_count' => 2,
+                'notes' => 'Traction correcte mais incidents de paiement a reduire sur les pointes du soir.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannelSnapshot::query()->updateOrCreate(
+            [
+                'company_id' => $company->id,
+                'commerce_channel_id' => $b2bChannel->id,
+                'snapshot_date' => now()->toDateString(),
+            ],
+            [
+                'gross_revenue' => 9150000,
+                'orders_count' => 34,
+                'average_order_value' => 269118,
+                'conversion_rate' => 48.2,
+                'service_level' => 97.8,
+                'failed_orders_count' => 1,
+                'failed_payments_count' => 0,
+                'notes' => 'Canal comptes cle solide avec marge de progression sur couverture de portefeuille.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannelAction::query()->updateOrCreate(
+            ['company_id' => $company->id, 'commerce_channel_id' => $whatsAppChannel->id, 'title' => 'Corriger les echecs Wave sur commandes soir'],
+            [
+                'owner_id' => $awa->id,
+                'action_type' => 'payment',
+                'status' => 'in_progress',
+                'impact_level' => 'critical',
+                'due_date' => now()->addDays(3)->toDateString(),
+                'completed_at' => null,
+                'notes' => 'Verifier la sequence callback et relancer les paniers en abandon a chaud.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannelAction::query()->updateOrCreate(
+            ['company_id' => $company->id, 'commerce_channel_id' => $whatsAppChannel->id, 'title' => 'Nettoyer le catalogue promo WhatsApp'],
+            [
+                'owner_id' => $manager->id,
+                'action_type' => 'catalog',
+                'status' => 'todo',
+                'impact_level' => 'high',
+                'due_date' => now()->addDays(5)->toDateString(),
+                'completed_at' => null,
+                'notes' => 'Retirer les doublons et pousser les packs retail a forte rotation.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        CommerceChannelAction::query()->updateOrCreate(
+            ['company_id' => $company->id, 'commerce_channel_id' => $b2bChannel->id, 'title' => 'Activer le plan de relance grossistes dormants'],
+            [
+                'owner_id' => $manager->id,
+                'action_type' => 'campaign',
+                'status' => 'done',
+                'impact_level' => 'normal',
+                'due_date' => now()->subDays(4)->toDateString(),
+                'completed_at' => now()->subDays(1),
+                'notes' => 'Script de relance termine avec offers de reactivation appliquees.',
                 'created_by' => $manager->id,
                 'updated_by' => $manager->id,
             ]

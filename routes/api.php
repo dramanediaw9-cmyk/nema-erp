@@ -76,6 +76,9 @@ Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/commerce/channels', [CommerceChannelController::class, 'index']);
     Route::get('/commerce/channels/{commerceChannel}', [CommerceChannelController::class, 'show']);
     Route::post('/commerce/channels', [CommerceChannelController::class, 'store']);
+    Route::post('/commerce/channels/{commerceChannel}/snapshots', [CommerceChannelController::class, 'storeSnapshot']);
+    Route::post('/commerce/channels/{commerceChannel}/actions', [CommerceChannelController::class, 'storeAction']);
+    Route::match(['put', 'patch'], '/commerce/channels/{commerceChannel}/actions/{commerceChannelAction}', [CommerceChannelController::class, 'updateAction']);
 
     Route::get('/integration-events', [IntegrationEventController::class, 'index']);
     Route::get('/integration-events/{integrationEvent}', [IntegrationEventController::class, 'show']);

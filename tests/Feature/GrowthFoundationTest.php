@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Commerce\Models\CommerceChannelAction;
+use App\Modules\Commerce\Models\CommerceChannelSnapshot;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
@@ -176,6 +179,59 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/projets'])
             ->assertJsonFragment(['path' => '/production'])
             ->assertJsonFragment(['path' => '/commerce-unifie']);
+    }
+
+    public function test_manager_can_capture_commerce_channel_execution(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $channel = CommerceChannel::query()->where('company_id', $user->company_id)->where('code', 'CH-0001')->firstOrFail();
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user));
+
+        $this->post(route('commerce.snapshots.store', $channel), [
+            'snapshot_date' => now()->toDateString(),
+            'gross_revenue' => 3150000,
+            'orders_count' => 201,
+            'average_order_value' => 15671,
+            'conversion_rate' => 24.3,
+            'service_level' => 95.4,
+            'failed_orders_count' => 2,
+            'failed_payments_count' => 1,
+            'notes' => 'Progression apres ajustement campagne et paiement.',
+        ])->assertRedirect(route('commerce.index'));
+
+        $this->post(route('commerce.actions.store', $channel), [
+            'title' => 'Industrialiser les relances paniers WhatsApp',
+            'owner_id' => $user->id,
+            'action_type' => 'campaign',
+            'status' => 'in_progress',
+            'impact_level' => 'high',
+            'due_date' => now()->addDays(4)->toDateString(),
+            'notes' => 'Scenario relance 15 min et 2 h.',
+        ])->assertRedirect(route('commerce.index'));
+
+        $action = CommerceChannelAction::query()
+            ->where('company_id', $user->company_id)
+            ->where('commerce_channel_id', $channel->id)
+            ->where('title', 'Industrialiser les relances paniers WhatsApp')
+            ->firstOrFail();
+
+        $this->post(route('commerce.actions.status', $action), [
+            'status' => 'done',
+        ])->assertRedirect(route('commerce.index'));
+
+        $this->assertDatabaseHas('commerce_channel_snapshots', [
+            'company_id' => $user->company_id,
+            'commerce_channel_id' => $channel->id,
+            'snapshot_date' => now()->startOfDay()->format('Y-m-d H:i:s'),
+            'gross_revenue' => 3150000.00,
+        ]);
+        $this->assertDatabaseHas('commerce_channel_actions', [
+            'company_id' => $user->company_id,
+            'commerce_channel_id' => $channel->id,
+            'title' => 'Industrialiser les relances paniers WhatsApp',
+            'status' => 'done',
+        ]);
     }
 
     private function createApiToken(User $user): string
