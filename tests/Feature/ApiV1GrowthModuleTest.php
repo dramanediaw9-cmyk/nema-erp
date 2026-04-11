@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Hr\Models\HrDepartment;
-use App\Modules\Payroll\Models\PayrollRun;
 use App\Modules\Projects\Models\Project;
+use App\Modules\Projects\Models\ProjectTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -39,7 +39,8 @@ class ApiV1GrowthModuleTest extends TestCase
         $this->withToken($plainToken)
             ->getJson('/api/v1/projects?status=active')
             ->assertOk()
-            ->assertJsonPath('data.0.name', 'Ouverture canal B2B Mopti');
+            ->assertJsonPath('data.0.name', 'Ouverture canal B2B Mopti')
+            ->assertJsonPath('data.0.execution_summary.total', 4);
 
         $this->withToken($plainToken)
             ->getJson('/api/v1/production-orders?status=in_progress')
@@ -123,7 +124,34 @@ class ApiV1GrowthModuleTest extends TestCase
             ->getJson('/api/v1/projects/'.$projectId)
             ->assertOk()
             ->assertJsonPath('id', $projectId)
-            ->assertJsonPath('customer_name', 'Kayes Superette');
+            ->assertJsonPath('customer_name', 'Kayes Superette')
+            ->assertJsonPath('execution_summary.total', 0);
+
+        $projectTaskResponse = $this->withToken($plainToken)
+            ->postJson('/api/v1/projects/'.$projectId.'/tasks', [
+                'title' => 'Signer le planning de lancement Kayes',
+                'item_type' => 'milestone',
+                'owner_id' => $manager->id,
+                'due_date' => now()->addDays(12)->toDateString(),
+                'status' => 'in_progress',
+                'priority' => 'critical',
+                'progress' => 30,
+                'notes' => 'Validation du retroplanning avec les relais grossistes.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('title', 'Signer le planning de lancement Kayes')
+            ->assertJsonPath('status', 'in_progress');
+
+        $projectTaskId = (int) $projectTaskResponse->json('id');
+
+        $this->withToken($plainToken)
+            ->patchJson('/api/v1/projects/'.$projectId.'/tasks/'.$projectTaskId, [
+                'status' => 'done',
+            ])
+            ->assertOk()
+            ->assertJsonPath('id', $projectTaskId)
+            ->assertJsonPath('status', 'done')
+            ->assertJsonPath('progress', 100);
 
         $this->withToken($plainToken)
             ->postJson('/api/v1/production-orders', [
@@ -166,6 +194,12 @@ class ApiV1GrowthModuleTest extends TestCase
             'company_id' => $manager->company_id,
             'name' => 'Extension retail Kayes',
         ]);
+        $this->assertDatabaseHas('project_tasks', [
+            'company_id' => $manager->company_id,
+            'project_id' => $projectId,
+            'title' => 'Signer le planning de lancement Kayes',
+            'status' => 'done',
+        ]);
         $this->assertDatabaseHas('production_orders', [
             'company_id' => $manager->company_id,
             'item_name' => 'Pack cereales famille',
@@ -197,6 +231,11 @@ class ApiV1GrowthModuleTest extends TestCase
         $this->assertDatabaseHas('projects', [
             'company_id' => $manager->company_id,
             'name' => 'Ouverture canal B2B Mopti',
+        ]);
+        $this->assertDatabaseHas('project_tasks', [
+            'company_id' => $manager->company_id,
+            'title' => 'Securiser le stock tampon Mopti',
+            'status' => 'blocked',
         ]);
         $this->assertDatabaseHas('production_orders', [
             'company_id' => $manager->company_id,

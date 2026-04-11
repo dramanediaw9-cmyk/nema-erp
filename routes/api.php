@@ -62,6 +62,8 @@ Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::get('/projects/{project}', [ProjectController::class, 'show']);
     Route::post('/projects', [ProjectController::class, 'store']);
+    Route::post('/projects/{project}/tasks', [ProjectController::class, 'storeTask']);
+    Route::match(['put', 'patch'], '/projects/{project}/tasks/{projectTask}', [ProjectController::class, 'updateTask']);
 
     Route::get('/manufacturing/boms', [ManufacturingBomController::class, 'index']);
     Route::get('/manufacturing/boms/{manufacturingBom}', [ManufacturingBomController::class, 'show']);

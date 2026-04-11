@@ -14,6 +14,7 @@ use App\Modules\Manufacturing\Models\ProductionOrder;
 use App\Modules\Payroll\Models\PayrollRun;
 use App\Modules\Payroll\Models\PayrollSlip;
 use App\Modules\Projects\Models\Project;
+use App\Modules\Projects\Models\ProjectTask;
 use Illuminate\Database\Seeder;
 
 class DemoGrowthFoundationSeeder extends Seeder
@@ -155,7 +156,7 @@ class DemoGrowthFoundationSeeder extends Seeder
             ['line_type' => 'net', 'code' => 'NET_A_PAYER', 'label' => 'Net a payer', 'amount' => 323000, 'sequence' => 5],
         ]);
 
-        Project::query()->updateOrCreate(
+        $project = Project::query()->updateOrCreate(
             ['company_id' => $company->id, 'code' => 'PRJ-'.now()->format('Y').'-0001'],
             [
                 'branch_id' => $branch->id,
@@ -168,6 +169,70 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'progress' => 35,
                 'budget_amount' => 4800000,
                 'notes' => 'Projet de lancement commercial avec stock tampon et animation terrain.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        ProjectTask::query()->updateOrCreate(
+            ['company_id' => $company->id, 'project_id' => $project->id, 'title' => 'Valider le cadrage commercial Mopti'],
+            [
+                'owner_id' => $manager->id,
+                'item_type' => 'milestone',
+                'status' => 'done',
+                'priority' => 'high',
+                'progress' => 100,
+                'due_date' => now()->subWeek()->toDateString(),
+                'completed_at' => now()->subDays(6),
+                'notes' => 'Kick-off valide avec plan de comptes cle et objectifs du trimestre.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        ProjectTask::query()->updateOrCreate(
+            ['company_id' => $company->id, 'project_id' => $project->id, 'title' => 'Negocier les volumes d ouverture avec Delta Market'],
+            [
+                'owner_id' => $manager->id,
+                'item_type' => 'task',
+                'status' => 'in_progress',
+                'priority' => 'critical',
+                'progress' => 55,
+                'due_date' => now()->addDays(5)->toDateString(),
+                'completed_at' => null,
+                'notes' => 'Pack volume + remise de lancement en cours de validation.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        ProjectTask::query()->updateOrCreate(
+            ['company_id' => $company->id, 'project_id' => $project->id, 'title' => 'Securiser le stock tampon Mopti'],
+            [
+                'owner_id' => $mamadou->id,
+                'item_type' => 'task',
+                'status' => 'blocked',
+                'priority' => 'high',
+                'progress' => 25,
+                'due_date' => now()->subDays(2)->toDateString(),
+                'completed_at' => null,
+                'notes' => 'Blocage transport inter-agence en attente de validation logistique.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        ProjectTask::query()->updateOrCreate(
+            ['company_id' => $company->id, 'project_id' => $project->id, 'title' => 'Lancer le pilote terrain Mopti'],
+            [
+                'owner_id' => $awa->id,
+                'item_type' => 'milestone',
+                'status' => 'todo',
+                'priority' => 'normal',
+                'progress' => 0,
+                'due_date' => now()->addDays(6)->toDateString(),
+                'completed_at' => null,
+                'notes' => 'Animation commerciale, check caisse et parcours de prise de commande.',
                 'created_by' => $manager->id,
                 'updated_by' => $manager->id,
             ]

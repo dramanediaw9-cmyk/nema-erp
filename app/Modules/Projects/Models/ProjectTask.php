@@ -3,29 +3,26 @@
 namespace App\Modules\Projects\Models;
 
 use App\Models\User;
-use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Project extends Model
+class ProjectTask extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'company_id',
-        'branch_id',
-        'code',
-        'name',
-        'customer_name',
+        'project_id',
         'owner_id',
-        'start_date',
-        'target_end_date',
+        'item_type',
+        'title',
         'status',
+        'priority',
         'progress',
-        'budget_amount',
+        'due_date',
+        'completed_at',
         'notes',
         'created_by',
         'updated_by',
@@ -34,10 +31,9 @@ class Project extends Model
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'target_end_date' => 'date',
             'progress' => 'integer',
-            'budget_amount' => 'decimal:2',
+            'due_date' => 'date',
+            'completed_at' => 'datetime',
         ];
     }
 
@@ -46,9 +42,9 @@ class Project extends Model
         return $this->belongsTo(Company::class);
     }
 
-    public function branch(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(Branch::class);
+        return $this->belongsTo(Project::class);
     }
 
     public function owner(): BelongsTo
@@ -66,8 +62,13 @@ class Project extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    public function tasks(): HasMany
+    public function isDone(): bool
     {
-        return $this->hasMany(ProjectTask::class)->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')->orderBy('due_date')->orderBy('id');
+        return $this->status === 'done';
+    }
+
+    public function isOverdue(): bool
+    {
+        return ! $this->isDone() && $this->due_date && $this->due_date->isPast();
     }
 }

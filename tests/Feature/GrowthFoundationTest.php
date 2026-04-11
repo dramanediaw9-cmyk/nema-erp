@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Hr\Models\HrDepartment;
+use App\Modules\Projects\Models\Project;
+use App\Modules\Projects\Models\ProjectTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -119,6 +121,43 @@ class GrowthFoundationTest extends TestCase
             'company_id' => $user->company_id,
             'name' => 'Boutique WhatsApp Bamako',
             'status' => 'active',
+        ]);
+    }
+
+    public function test_manager_can_pilot_project_execution_tasks(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $project = Project::query()->where('company_id', $user->company_id)->where('name', 'Ouverture canal B2B Mopti')->firstOrFail();
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user));
+
+        $this->post(route('projects.tasks.store', $project), [
+            'title' => 'Former les commerciaux Mopti',
+            'item_type' => 'task',
+            'owner_id' => $user->id,
+            'due_date' => now()->addDays(10)->toDateString(),
+            'status' => 'in_progress',
+            'priority' => 'high',
+            'progress' => 35,
+            'notes' => 'Formation argumentaire, outils et parcours client.',
+        ])->assertRedirect(route('projects.index'));
+
+        $task = ProjectTask::query()
+            ->where('company_id', $user->company_id)
+            ->where('project_id', $project->id)
+            ->where('title', 'Former les commerciaux Mopti')
+            ->firstOrFail();
+
+        $this->post(route('projects.tasks.status', $task), [
+            'status' => 'done',
+        ])->assertRedirect(route('projects.index'));
+
+        $this->assertDatabaseHas('project_tasks', [
+            'company_id' => $user->company_id,
+            'project_id' => $project->id,
+            'title' => 'Former les commerciaux Mopti',
+            'status' => 'done',
+            'progress' => 100,
         ]);
     }
 
