@@ -8,6 +8,7 @@ use App\Modules\Commerce\Models\CommerceChannelAction;
 use App\Modules\Commerce\Models\CommerceChannelSnapshot;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
+use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
 use App\Modules\Projects\Models\ProjectTask;
@@ -27,6 +28,7 @@ class GrowthFoundationTest extends TestCase
         $this->actingAs($user)->withSession($this->workspaceSession($user));
 
         $this->get(route('platform.index'))->assertOk()->assertSee('Socle produit et ecosysteme');
+        $this->get(route('platform.index'))->assertOk()->assertSee('Readiness deploiement');
         $this->get(route('platform.openapi'))->assertOk()->assertJsonPath('openapi', '3.0.3');
         $this->get(route('hr.index'))->assertOk()->assertSee('Capital humain');
         $this->get(route('payroll.index'))->assertOk()->assertSee('Executions de paie');
@@ -181,7 +183,10 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/projets'])
             ->assertJsonFragment(['path' => '/production'])
             ->assertJsonFragment(['path' => '/commerce-unifie'])
+            ->assertJsonFragment(['path' => '/api/v1/platform/deployment-profile'])
             ->assertJsonFragment(['path' => '/api/v1/platform/openapi'])
+            ->assertJsonPath('catalog.packaging.deployment_profile.deployment_mode', 'pilot')
+            ->assertJsonPath('catalog.packaging.readiness.lifecycle_stage', 'pilot')
             ->assertJsonPath('catalog.metrics.integration_connections', 3);
     }
 
@@ -275,6 +280,39 @@ class GrowthFoundationTest extends TestCase
             'status' => 'active',
             'health_status' => 'healthy',
         ]);
+    }
+
+    public function test_manager_can_update_platform_deployment_profile(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user));
+
+        $this->put(route('platform.deployment-profile.update'), [
+            'owner_id' => $user->id,
+            'commercial_offer' => 'enterprise',
+            'deployment_mode' => 'hybrid',
+            'lifecycle_stage' => 'live',
+            'hosting_target' => 'managed_vm',
+            'support_tier' => 'mission_critical',
+            'monitoring_level' => 'proactive',
+            'backup_strategy' => 'verified',
+            'update_channel' => 'continuous',
+            'target_users' => 80,
+            'target_branches' => 5,
+            'go_live_target_at' => now()->addWeeks(2)->toDateString(),
+            'last_release_at' => now()->toDateString(),
+            'last_backup_verified_at' => now()->toDateString(),
+            'last_restore_drill_at' => now()->subDays(10)->toDateString(),
+            'notes' => 'Profil client grands comptes avec supervision forte.',
+        ])->assertRedirect(route('platform.index'));
+
+        $profile = DeploymentProfile::query()->where('company_id', $user->company_id)->firstOrFail();
+
+        $this->assertSame('enterprise', $profile->commercial_offer);
+        $this->assertSame('hybrid', $profile->deployment_mode);
+        $this->assertSame('live', $profile->lifecycle_stage);
+        $this->assertSame(80, $profile->target_users);
     }
 
     private function createApiToken(User $user): string

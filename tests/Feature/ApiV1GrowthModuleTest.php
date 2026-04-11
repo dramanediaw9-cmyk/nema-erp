@@ -62,11 +62,19 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('data.0.health_status', 'critical');
 
         $this->withToken($plainToken)
+            ->getJson('/api/v1/platform/deployment-profile')
+            ->assertOk()
+            ->assertJsonPath('profile.deployment_mode', 'pilot')
+            ->assertJsonPath('profile.commercial_offer', 'growth')
+            ->assertJsonPath('readiness.lifecycle_stage', 'pilot');
+
+        $this->withToken($plainToken)
             ->getJson('/api/v1/platform/openapi')
             ->assertOk()
             ->assertJsonPath('openapi', '3.0.3')
             ->assertJsonPath('info.title', 'Nema ERP Integrator API')
-            ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires');
+            ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires')
+            ->assertJsonPath('paths./platform/deployment-profile.get.summary', 'Lire le profil de deploiement');
     }
 
     public function test_api_token_can_show_and_create_growth_records(): void
@@ -271,6 +279,32 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('id', $connectionId)
             ->assertJsonPath('partner_name', 'Fabric Lakehouse');
 
+        $deploymentProfileResponse = $this->withToken($plainToken)
+            ->patchJson('/api/v1/platform/deployment-profile', [
+                'owner_id' => $manager->id,
+                'commercial_offer' => 'enterprise',
+                'deployment_mode' => 'hybrid',
+                'lifecycle_stage' => 'live',
+                'hosting_target' => 'managed_vm',
+                'support_tier' => 'mission_critical',
+                'monitoring_level' => 'proactive',
+                'backup_strategy' => 'verified',
+                'update_channel' => 'continuous',
+                'target_users' => 120,
+                'target_branches' => 7,
+                'go_live_target_at' => now()->addDays(20)->toDateString(),
+                'last_release_at' => now()->toDateString(),
+                'last_backup_verified_at' => now()->toDateString(),
+                'last_restore_drill_at' => now()->subDays(5)->toDateString(),
+                'notes' => 'Passage a une exploitation hybride avec SLA renforce.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('profile.commercial_offer', 'enterprise')
+            ->assertJsonPath('profile.lifecycle_stage', 'live')
+            ->assertJsonPath('profile.target_users', 120);
+
+        $this->assertSame('live', $deploymentProfileResponse->json('readiness.lifecycle_stage'));
+
         $this->withToken($plainToken)
             ->getJson('/api/v1/commerce/channels/'.$commerceChannelId)
             ->assertOk()
@@ -313,6 +347,12 @@ class ApiV1GrowthModuleTest extends TestCase
             'id' => $connectionId,
             'partner_name' => 'Fabric Lakehouse',
             'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('deployment_profiles', [
+            'company_id' => $manager->company_id,
+            'commercial_offer' => 'enterprise',
+            'deployment_mode' => 'hybrid',
+            'lifecycle_stage' => 'live',
         ]);
         $this->assertDatabaseHas('commerce_channel_snapshots', [
             'company_id' => $manager->company_id,
@@ -375,6 +415,11 @@ class ApiV1GrowthModuleTest extends TestCase
             'company_id' => $manager->company_id,
             'code' => 'INT-0001',
             'partner_name' => 'Microsoft Power BI',
+        ]);
+        $this->assertDatabaseHas('deployment_profiles', [
+            'company_id' => $manager->company_id,
+            'commercial_offer' => 'growth',
+            'deployment_mode' => 'pilot',
         ]);
     }
 

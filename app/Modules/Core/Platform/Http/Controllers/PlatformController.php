@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
+use App\Modules\Core\Platform\Services\DeploymentProfileService;
 use App\Modules\Core\Platform\Services\PlatformCatalogService;
 use App\Modules\Core\Platform\Services\PlatformOpenApiService;
 use App\Support\ActivityLogger;
@@ -21,6 +22,7 @@ class PlatformController extends Controller
     public function __construct(
         private readonly PlatformCatalogService $platformCatalogService,
         private readonly PlatformOpenApiService $platformOpenApiService,
+        private readonly DeploymentProfileService $deploymentProfileService,
         private readonly ActivityLogger $activityLogger,
     )
     {
@@ -47,6 +49,14 @@ class PlatformController extends Controller
             'syncModeOptions' => $this->syncModeOptions(),
             'statusOptions' => $this->statusOptions(),
             'healthOptions' => $this->healthOptions(),
+            'deploymentOfferOptions' => $this->deploymentProfileService->optionValues('commercial_offer'),
+            'deploymentModeOptions' => $this->deploymentProfileService->optionValues('deployment_mode'),
+            'lifecycleStageOptions' => $this->deploymentProfileService->optionValues('lifecycle_stage'),
+            'hostingTargetOptions' => $this->deploymentProfileService->optionValues('hosting_target'),
+            'supportTierOptions' => $this->deploymentProfileService->optionValues('support_tier'),
+            'monitoringLevelOptions' => $this->deploymentProfileService->optionValues('monitoring_level'),
+            'backupStrategyOptions' => $this->deploymentProfileService->optionValues('backup_strategy'),
+            'updateChannelOptions' => $this->deploymentProfileService->optionValues('update_channel'),
         ]);
     }
 
@@ -112,6 +122,42 @@ class PlatformController extends Controller
         ]);
 
         return redirect()->route('platform.index')->with('success', 'Connexion partenaire enregistree avec succes.');
+    }
+
+    public function updateDeploymentProfile(Request $request, CurrentWorkspace $workspace): RedirectResponse
+    {
+        $company = $workspace->company();
+        abort_if(! $company, 403);
+
+        $payload = $request->validate([
+            'owner_id' => ['nullable', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id))],
+            'commercial_offer' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('commercial_offer')))],
+            'deployment_mode' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('deployment_mode')))],
+            'lifecycle_stage' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('lifecycle_stage')))],
+            'hosting_target' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('hosting_target')))],
+            'support_tier' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('support_tier')))],
+            'monitoring_level' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('monitoring_level')))],
+            'backup_strategy' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('backup_strategy')))],
+            'update_channel' => ['required', Rule::in(array_keys($this->deploymentProfileService->optionValues('update_channel')))],
+            'target_users' => ['nullable', 'integer', 'min:1', 'max:10000'],
+            'target_branches' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'go_live_target_at' => ['nullable', 'date'],
+            'last_release_at' => ['nullable', 'date'],
+            'last_backup_verified_at' => ['nullable', 'date'],
+            'last_restore_drill_at' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $profile = $this->deploymentProfileService->upsertForCompany($company, $payload, $request->user());
+
+        $this->activityLogger->log('platform.deployment_profile.update', 'Mise a jour profil de deploiement', $profile, [
+            'commercial_offer' => $profile->commercial_offer,
+            'deployment_mode' => $profile->deployment_mode,
+            'lifecycle_stage' => $profile->lifecycle_stage,
+            'support_tier' => $profile->support_tier,
+        ]);
+
+        return redirect()->route('platform.index')->with('success', 'Profil de deploiement mis a jour.');
     }
 
     public function updateConnectionStatus(Request $request, CurrentWorkspace $workspace, IntegrationConnection $integrationConnection): RedirectResponse

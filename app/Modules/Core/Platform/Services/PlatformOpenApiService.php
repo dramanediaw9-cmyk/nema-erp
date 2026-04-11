@@ -76,6 +76,26 @@ class PlatformOpenApiService
                             'last_health_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
                         ],
                     ],
+                    'DeploymentProfile' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'commercial_offer' => ['type' => 'string', 'example' => 'growth'],
+                            'deployment_mode' => ['type' => 'string', 'example' => 'pilot'],
+                            'lifecycle_stage' => ['type' => 'string', 'example' => 'pilot'],
+                            'hosting_target' => ['type' => 'string', 'example' => 'laravel_cloud'],
+                            'support_tier' => ['type' => 'string', 'example' => 'proactive'],
+                            'monitoring_level' => ['type' => 'string', 'example' => 'proactive'],
+                            'backup_strategy' => ['type' => 'string', 'example' => 'verified'],
+                            'update_channel' => ['type' => 'string', 'example' => 'scheduled'],
+                            'target_users' => ['type' => 'integer', 'nullable' => true, 'example' => 25],
+                            'target_branches' => ['type' => 'integer', 'nullable' => true, 'example' => 3],
+                            'go_live_target_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'last_release_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'last_backup_verified_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'last_restore_drill_at' => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                            'notes' => ['type' => 'string', 'nullable' => true],
+                        ],
+                    ],
                 ],
             ],
             'x-nema' => [
@@ -101,6 +121,25 @@ class PlatformOpenApiService
             ],
             '/platform/openapi' => [
                 'get' => $this->operation('platform', 'Lire le contrat OpenAPI', 'Retourne le contrat integrateur OpenAPI JSON de l API v1.'),
+            ],
+            '/platform/deployment-profile' => [
+                'get' => $this->operation('platform', 'Lire le profil de deploiement', 'Retourne le profil de deploiement et le score de readiness de la societe.'),
+                'patch' => $this->operation(
+                    'platform',
+                    'Mettre a jour le profil de deploiement',
+                    'Met a jour l offre, le mode de deploiement, le support et les dates readiness.',
+                    [],
+                    [
+                        'required' => true,
+                        'content' => [
+                            'application/json' => [
+                                'schema' => [
+                                    '$ref' => '#/components/schemas/DeploymentProfile',
+                                ],
+                            ],
+                        ],
+                    ]
+                ),
             ],
             '/platform/connections' => [
                 'get' => $this->operation(

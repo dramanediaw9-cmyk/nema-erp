@@ -2,11 +2,15 @@
 
 namespace App\Modules\Core\Platform\Services;
 
+use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Integrations\Models\IntegrationInboundWebhook;
+use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
 use App\Modules\Hr\Models\HrLeaveRequest;
@@ -18,17 +22,28 @@ use App\Modules\Projects\Models\Project;
 
 class PlatformCatalogService
 {
+    public function __construct(
+        private readonly DeploymentProfileService $deploymentProfileService,
+        private readonly DeploymentReadinessService $deploymentReadinessService,
+    ) {
+    }
+
     public function forCompany(?int $companyId): array
     {
+        $company = $companyId ? Company::query()->with('tenant')->find($companyId) : null;
         $apiTokens = $companyId ? ApiToken::query()->with('creator')->where('company_id', $companyId)->orderByDesc('id')->limit(6)->get() : collect();
         $outboxEvents = $companyId ? IntegrationEvent::query()->with('latestDelivery')->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
         $inboundWebhooks = $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->latest('id')->limit(6)->get() : collect();
         $connections = $companyId ? IntegrationConnection::query()->with(['branch', 'owner'])->where('company_id', $companyId)->orderBy('partner_name')->orderBy('name')->get() : collect();
+        $deploymentProfile = $company ? $this->deploymentProfileService->profileForCompany($company)->loadMissing('owner') : null;
+        $deploymentLabels = $this->deploymentProfileService->labels();
+        $readiness = ($company && $deploymentProfile) ? $this->deploymentReadinessService->summary($company, $deploymentProfile) : null;
 
         return [
             'product' => [
                 'name' => config('app.name', 'Nema ERP'),
                 'edition' => 'Growth Foundation',
+                'commercial_offer' => $deploymentProfile ? $this->deploymentProfileService->label('commercial_offer', $deploymentProfile->commercial_offer) : null,
                 'currency' => 'XOF',
                 'timezone' => config('app.timezone'),
             ],
@@ -48,6 +63,40 @@ class PlatformCatalogService
                     ['label' => 'Sauvegarde et restauration', 'path' => 'docs/SAUVEGARDE-RESTAURATION.md', 'purpose' => 'RPO/RTO, restoration guidee et verification.'],
                     ['label' => 'Plateforme & ecosysteme', 'path' => 'docs/PLATEFORME-ECOSYSTEME.md', 'purpose' => 'Vision packaging, API, partenaires et modules d expansion.'],
                 ],
+                'deployment_profile' => $deploymentProfile ? [
+                    'owner_id' => $deploymentProfile->owner_id,
+                    'owner_name' => $deploymentProfile->owner?->name,
+                    'commercial_offer' => $deploymentProfile->commercial_offer,
+                    'commercial_offer_label' => $deploymentLabels['commercial_offer'][$deploymentProfile->commercial_offer] ?? $deploymentProfile->commercial_offer,
+                    'deployment_mode' => $deploymentProfile->deployment_mode,
+                    'deployment_mode_label' => $deploymentLabels['deployment_mode'][$deploymentProfile->deployment_mode] ?? $deploymentProfile->deployment_mode,
+                    'lifecycle_stage' => $deploymentProfile->lifecycle_stage,
+                    'lifecycle_stage_label' => $deploymentLabels['lifecycle_stage'][$deploymentProfile->lifecycle_stage] ?? $deploymentProfile->lifecycle_stage,
+                    'hosting_target' => $deploymentProfile->hosting_target,
+                    'hosting_target_label' => $deploymentLabels['hosting_target'][$deploymentProfile->hosting_target] ?? $deploymentProfile->hosting_target,
+                    'support_tier' => $deploymentProfile->support_tier,
+                    'support_tier_label' => $deploymentLabels['support_tier'][$deploymentProfile->support_tier] ?? $deploymentProfile->support_tier,
+                    'monitoring_level' => $deploymentProfile->monitoring_level,
+                    'monitoring_level_label' => $deploymentLabels['monitoring_level'][$deploymentProfile->monitoring_level] ?? $deploymentProfile->monitoring_level,
+                    'backup_strategy' => $deploymentProfile->backup_strategy,
+                    'backup_strategy_label' => $deploymentLabels['backup_strategy'][$deploymentProfile->backup_strategy] ?? $deploymentProfile->backup_strategy,
+                    'update_channel' => $deploymentProfile->update_channel,
+                    'update_channel_label' => $deploymentLabels['update_channel'][$deploymentProfile->update_channel] ?? $deploymentProfile->update_channel,
+                    'target_users' => $deploymentProfile->target_users,
+                    'target_branches' => $deploymentProfile->target_branches,
+                    'go_live_target_at' => $deploymentProfile->go_live_target_at,
+                    'last_release_at' => $deploymentProfile->last_release_at,
+                    'last_backup_verified_at' => $deploymentProfile->last_backup_verified_at,
+                    'last_restore_drill_at' => $deploymentProfile->last_restore_drill_at,
+                    'notes' => $deploymentProfile->notes,
+                ] : null,
+                'readiness' => $readiness,
+                'tenant_landscape' => $company ? [
+                    'tenant_name' => $company->tenant?->name,
+                    'active_companies' => $company->tenant?->companies()->where('is_active', true)->count() ?? 1,
+                    'active_users' => User::query()->where('tenant_id', $company->tenant_id)->where('is_active', true)->count(),
+                    'active_branches' => Branch::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                ] : null,
             ],
             'ecosystem' => [
                 'api' => [
@@ -64,6 +113,7 @@ class PlatformCatalogService
                     ],
                     'resources' => [
                         ['name' => 'workspace', 'path' => '/api/v1/workspace'],
+                        ['name' => 'platform-deployment-profile', 'path' => '/api/v1/platform/deployment-profile'],
                         ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
                         ['name' => 'products', 'path' => '/api/v1/products'],
                         ['name' => 'partners', 'path' => '/api/v1/partners'],
@@ -208,6 +258,8 @@ class PlatformCatalogService
                 'outbox_pending' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'pending')->count() : 0,
                 'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
                 'integration_connections' => $companyId ? IntegrationConnection::query()->where('company_id', $companyId)->count() : 0,
+                'deployment_profiles' => $companyId ? DeploymentProfile::query()->where('company_id', $companyId)->count() : 0,
+                'readiness_score' => $readiness['score'] ?? 0,
                 'inbound_webhooks' => $companyId ? IntegrationInboundWebhook::query()->where('company_id', $companyId)->count() : 0,
                 'departments' => $companyId ? HrDepartment::query()->where('company_id', $companyId)->count() : 0,
                 'leave_requests' => $companyId ? HrLeaveRequest::query()->where('company_id', $companyId)->count() : 0,

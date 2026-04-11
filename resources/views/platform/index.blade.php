@@ -6,6 +6,10 @@
 @section('content')
     @php
         $canManageIntegrations = auth()->user()?->hasPermission('settings.integrations.manage') ?? false;
+        $canManageDeployment = auth()->user()?->hasPermission('settings.manage') ?? false;
+        $deploymentProfile = $catalog['packaging']['deployment_profile'];
+        $readiness = $catalog['packaging']['readiness'];
+        $tenantLandscape = $catalog['packaging']['tenant_landscape'];
         $connectionTypeBadge = [
             'api' => 'badge-muted',
             'webhook' => 'badge-warning',
@@ -24,6 +28,12 @@
             'healthy' => 'badge-success',
             'watch' => 'badge-warning',
             'critical' => 'badge-danger',
+        ];
+        $readinessBadge = [
+            'ready' => 'badge-success',
+            'progressing' => 'badge-warning',
+            'foundation' => 'badge-muted',
+            'at_risk' => 'badge-danger',
         ];
     @endphp
 
@@ -48,6 +58,8 @@
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
         <div class="card"><div class="muted">Edition</div><div class="stat-value">{{ $catalog['product']['edition'] }}</div></div>
+        <div class="card"><div class="muted">Offre</div><div class="stat-value">{{ $catalog['product']['commercial_offer'] ?: 'n/a' }}</div></div>
+        <div class="card"><div class="muted">Readiness</div><div class="stat-value">{{ $catalog['metrics']['readiness_score'] }}</div></div>
         <div class="card"><div class="muted">Jetons API</div><div class="stat-value">{{ $catalog['metrics']['api_tokens'] }}</div></div>
         <div class="card"><div class="muted">Connexions</div><div class="stat-value">{{ $catalog['metrics']['integration_connections'] }}</div></div>
         <div class="card"><div class="muted">Outbox pending</div><div class="stat-value">{{ $catalog['metrics']['outbox_pending'] }}</div></div>
@@ -86,6 +98,19 @@
                     <div class="muted" style="margin-top:8px;">{{ $catalog['packaging']['summary'] }}</div>
                     <div class="help" style="margin-top:12px;">Monnaie: {{ $catalog['product']['currency'] }} · Fuseau: {{ $catalog['product']['timezone'] }}</div>
                 </div>
+                @if ($deploymentProfile)
+                    <div class="summary-box">
+                        <strong>Profil de deploiement</strong>
+                        <div class="chip-row" style="margin-top:8px;">
+                            <span class="badge badge-muted">{{ $deploymentProfile['commercial_offer_label'] }}</span>
+                            <span class="badge badge-muted">{{ $deploymentProfile['deployment_mode_label'] }}</span>
+                            <span class="badge badge-muted">{{ $deploymentProfile['lifecycle_stage_label'] }}</span>
+                        </div>
+                        <div class="help" style="margin-top:10px;">Hebergement: {{ $deploymentProfile['hosting_target_label'] }} · Support: {{ $deploymentProfile['support_tier_label'] }}</div>
+                        <div class="help" style="margin-top:8px;">Monitoring: {{ $deploymentProfile['monitoring_level_label'] }} · Sauvegarde: {{ $deploymentProfile['backup_strategy_label'] }} · Updates: {{ $deploymentProfile['update_channel_label'] }}</div>
+                        <div class="help" style="margin-top:8px;">Cible: {{ $deploymentProfile['target_users'] ?: 'n/a' }} utilisateur(s) · {{ $deploymentProfile['target_branches'] ?: 'n/a' }} agence(s)</div>
+                    </div>
+                @endif
                 <div class="summary-box">
                     <strong>Commandes cle</strong>
                     @foreach ($catalog['packaging']['quality_gates'] as $command)
@@ -105,6 +130,182 @@
             </div>
         </section>
     </div>
+
+    @if ($deploymentProfile && $readiness)
+        <div class="split" style="margin-bottom:18px;">
+            <section class="card">
+                <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+                    <div>
+                        <h3 class="section-title">Readiness deploiement</h3>
+                        <div class="muted">Score de preparation par societe pour savoir si on reste en local, si on ouvre un pilote ou si on peut industrialiser davantage.</div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                        <span class="badge {{ $readinessBadge[$readiness['status']] ?? 'badge-muted' }}">{{ strtoupper($readiness['status']) }}</span>
+                        <span class="badge badge-muted">Score {{ $readiness['score'] }}/100</span>
+                    </div>
+                </div>
+
+                <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:12px;">
+                    <div class="summary-box"><strong>Stage</strong><div class="muted" style="margin-top:8px;">{{ $deploymentProfile['lifecycle_stage_label'] }}</div></div>
+                    <div class="summary-box"><strong>Mode</strong><div class="muted" style="margin-top:8px;">{{ $deploymentProfile['deployment_mode_label'] }}</div></div>
+                    <div class="summary-box"><strong>Support</strong><div class="muted" style="margin-top:8px;">{{ $deploymentProfile['support_tier_label'] }}</div></div>
+                    <div class="summary-box"><strong>Tenant</strong><div class="muted" style="margin-top:8px;">{{ $tenantLandscape['tenant_name'] ?? 'n/a' }}</div></div>
+                </div>
+
+                <div class="summary-box" style="margin-bottom:12px;">
+                    <strong>Paysage multi-client</strong>
+                    <div class="help" style="margin-top:8px;">{{ $tenantLandscape['active_companies'] ?? 0 }} societe(s) active(s) · {{ $tenantLandscape['active_users'] ?? 0 }} utilisateur(s) actifs · {{ $tenantLandscape['active_branches'] ?? 0 }} agence(s) actives sur cette societe</div>
+                    <div class="help" style="margin-top:8px;">Owner de deploiement: {{ $deploymentProfile['owner_name'] ?: 'Non affecte' }}</div>
+                </div>
+
+                <div class="grid" style="gap:12px;">
+                    @foreach ($readiness['items'] as $item)
+                        <div class="summary-box">
+                            <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                                <strong>{{ $item['label'] }}</strong>
+                                <span class="badge {{ $item['status'] === 'ok' ? 'badge-success' : ($item['status'] === 'warning' ? 'badge-warning' : 'badge-danger') }}">{{ strtoupper($item['status']) }}</span>
+                            </div>
+                            <div class="muted" style="margin-top:8px;">{{ $item['message'] }}</div>
+                            <div class="help" style="margin-top:8px;">{{ $item['action'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+
+                @if (! empty($readiness['next_actions']))
+                    <div class="summary-box" style="margin-top:12px;">
+                        <strong>Actions recommandees</strong>
+                        <ul class="summary-list">
+                            @foreach ($readiness['next_actions'] as $action)
+                                <li>{{ $action }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </section>
+
+            <section class="card">
+                <h3 class="section-title">Profil d industrialisation</h3>
+                <div class="help" style="margin-bottom:16px;">Ce profil transforme l ERP en offre exploitable: mode de deploiement, niveau de support, monitoring et discipline de release.</div>
+
+                @if ($canManageDeployment)
+                    <form method="POST" action="{{ route('platform.deployment-profile.update') }}" class="form-grid">
+                        @csrf
+                        @method('PUT')
+                        <div>
+                            <label for="deployment-owner-id">Responsable</label>
+                            <select id="deployment-owner-id" name="owner_id">
+                                <option value="">Non affecte</option>
+                                @foreach ($owners as $owner)
+                                    <option value="{{ $owner->id }}" @selected((string) old('owner_id', $deploymentProfile['owner_id'] ?? '') === (string) $owner->id)>{{ $owner->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="commercial-offer">Offre</label>
+                            <select id="commercial-offer" name="commercial_offer" required>
+                                @foreach ($deploymentOfferOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('commercial_offer', $deploymentProfile['commercial_offer']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="deployment-mode">Mode</label>
+                            <select id="deployment-mode" name="deployment_mode" required>
+                                @foreach ($deploymentModeOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('deployment_mode', $deploymentProfile['deployment_mode']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="lifecycle-stage">Cycle</label>
+                            <select id="lifecycle-stage" name="lifecycle_stage" required>
+                                @foreach ($lifecycleStageOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('lifecycle_stage', $deploymentProfile['lifecycle_stage']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="hosting-target">Hebergement</label>
+                            <select id="hosting-target" name="hosting_target" required>
+                                @foreach ($hostingTargetOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('hosting_target', $deploymentProfile['hosting_target']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="support-tier">Support</label>
+                            <select id="support-tier" name="support_tier" required>
+                                @foreach ($supportTierOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('support_tier', $deploymentProfile['support_tier']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="monitoring-level">Monitoring</label>
+                            <select id="monitoring-level" name="monitoring_level" required>
+                                @foreach ($monitoringLevelOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('monitoring_level', $deploymentProfile['monitoring_level']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="backup-strategy">Sauvegarde</label>
+                            <select id="backup-strategy" name="backup_strategy" required>
+                                @foreach ($backupStrategyOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('backup_strategy', $deploymentProfile['backup_strategy']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="update-channel">Updates</label>
+                            <select id="update-channel" name="update_channel" required>
+                                @foreach ($updateChannelOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('update_channel', $deploymentProfile['update_channel']) === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="target-users">Utilisateurs cibles</label>
+                            <input id="target-users" type="number" min="1" max="10000" name="target_users" value="{{ old('target_users', $deploymentProfile['target_users']) }}">
+                        </div>
+                        <div>
+                            <label for="target-branches">Agences cibles</label>
+                            <input id="target-branches" type="number" min="1" max="1000" name="target_branches" value="{{ old('target_branches', $deploymentProfile['target_branches']) }}">
+                        </div>
+                        <div>
+                            <label for="go-live-target-at">Go-live cible</label>
+                            <input id="go-live-target-at" type="date" name="go_live_target_at" value="{{ old('go_live_target_at', optional($deploymentProfile['go_live_target_at'])->toDateString()) }}">
+                        </div>
+                        <div>
+                            <label for="last-release-at">Derniere release</label>
+                            <input id="last-release-at" type="date" name="last_release_at" value="{{ old('last_release_at', optional($deploymentProfile['last_release_at'])->toDateString()) }}">
+                        </div>
+                        <div>
+                            <label for="last-backup-verified-at">Derniere sauvegarde verifiee</label>
+                            <input id="last-backup-verified-at" type="date" name="last_backup_verified_at" value="{{ old('last_backup_verified_at', optional($deploymentProfile['last_backup_verified_at'])->toDateString()) }}">
+                        </div>
+                        <div>
+                            <label for="last-restore-drill-at">Dernier exercice restauration</label>
+                            <input id="last-restore-drill-at" type="date" name="last_restore_drill_at" value="{{ old('last_restore_drill_at', optional($deploymentProfile['last_restore_drill_at'])->toDateString()) }}">
+                        </div>
+                        <div class="full">
+                            <label for="deployment-notes">Notes</label>
+                            <textarea id="deployment-notes" name="notes" rows="4">{{ old('notes', $deploymentProfile['notes']) }}</textarea>
+                        </div>
+                        <div class="full actions">
+                            <button type="submit" class="button button-primary">Mettre a jour le profil</button>
+                        </div>
+                    </form>
+                @else
+                    <div class="summary-box">
+                        <strong>Profil actuel</strong>
+                        <div class="help" style="margin-top:8px;">Offre {{ $deploymentProfile['commercial_offer_label'] }} · Stage {{ $deploymentProfile['lifecycle_stage_label'] }} · Support {{ $deploymentProfile['support_tier_label'] }}</div>
+                        <div class="help" style="margin-top:8px;">Hebergement {{ $deploymentProfile['hosting_target_label'] }} · Monitoring {{ $deploymentProfile['monitoring_level_label'] }} · Sauvegarde {{ $deploymentProfile['backup_strategy_label'] }}</div>
+                    </div>
+                @endif
+            </section>
+        </div>
+    @endif
 
     <div class="split" style="margin-bottom:18px;">
         <section class="card">

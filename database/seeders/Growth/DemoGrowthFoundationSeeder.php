@@ -9,6 +9,7 @@ use App\Modules\Commerce\Models\CommerceChannelSnapshot;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
+use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Hr\Models\HrEmployee;
 use App\Modules\Hr\Models\HrLeaveRequest;
@@ -461,6 +462,31 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'last_health_at' => now()->subHours(2),
                 'scope_summary' => 'Stocks, commandes B2B, statuts de livraison et reappro.',
                 'notes' => 'A reprendre apres stabilisation du mapping entrepots.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        DeploymentProfile::query()->updateOrCreate(
+            ['company_id' => $company->id],
+            [
+                'tenant_id' => $company->tenant_id,
+                'owner_id' => $manager->id,
+                'commercial_offer' => 'growth',
+                'deployment_mode' => 'pilot',
+                'lifecycle_stage' => 'pilot',
+                'hosting_target' => 'laravel_cloud',
+                'support_tier' => 'proactive',
+                'monitoring_level' => 'proactive',
+                'backup_strategy' => 'verified',
+                'update_channel' => 'scheduled',
+                'target_users' => 25,
+                'target_branches' => 3,
+                'go_live_target_at' => now()->addWeeks(4),
+                'last_release_at' => now()->subDays(7),
+                'last_backup_verified_at' => now()->subDay(),
+                'last_restore_drill_at' => now()->subWeeks(2),
+                'notes' => 'Profil pilote pour une ouverture client progressive avec supervision renforcee et trajectoire cloud.',
                 'created_by' => $manager->id,
                 'updated_by' => $manager->id,
             ]

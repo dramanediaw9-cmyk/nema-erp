@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\PartnerController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PlatformCapabilityController;
 use App\Http\Controllers\Api\V1\PlatformConnectionController;
+use App\Http\Controllers\Api\V1\PlatformDeploymentProfileController;
 use App\Http\Controllers\Api\V1\PlatformOpenApiController;
 use App\Http\Controllers\Api\V1\PayrollRunController;
 use App\Http\Controllers\Api\V1\PayrollSlipController;
@@ -24,6 +25,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/workspace', WorkspaceController::class);
     Route::get('/platform/capabilities', PlatformCapabilityController::class);
+    Route::get('/platform/deployment-profile', [PlatformDeploymentProfileController::class, 'show']);
+    Route::match(['put', 'patch'], '/platform/deployment-profile', [PlatformDeploymentProfileController::class, 'update']);
     Route::get('/platform/openapi', PlatformOpenApiController::class);
     Route::get('/platform/connections', [PlatformConnectionController::class, 'index']);
     Route::get('/platform/connections/{integrationConnection}', [PlatformConnectionController::class, 'show']);

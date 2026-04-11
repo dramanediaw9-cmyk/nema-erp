@@ -10,6 +10,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/plateforme/openapi.json', [PlatformController::class, 'openApiSpec'])
         ->middleware('permission:platform.view')
         ->name('platform.openapi');
+    Route::put('/plateforme/deploiement', [PlatformController::class, 'updateDeploymentProfile'])
+        ->middleware('permission:settings.manage')
+        ->name('platform.deployment-profile.update');
     Route::post('/plateforme/connexions', [PlatformController::class, 'storeConnection'])
         ->middleware('permission:settings.integrations.manage')
         ->name('platform.connections.store');
