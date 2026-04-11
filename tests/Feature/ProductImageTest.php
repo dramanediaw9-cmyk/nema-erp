@@ -33,7 +33,7 @@ class ProductImageTest extends TestCase
             ->post(route('products.store'), [
                 'category_id' => $category->id,
                 'sku' => 'PRD-IMG-0001',
-                'barcode' => '223900000001',
+                'barcode' => '223990000001',
                 'name' => 'Produit photo test',
                 'unit' => 'piece',
                 'type' => 'stockable',
@@ -110,7 +110,7 @@ class ProductImageTest extends TestCase
             ->post(route('products.store'), [
                 'category_id' => $category->id,
                 'sku' => 'PRD-IMG-S3-0001',
-                'barcode' => '223900000099',
+                'barcode' => '223990000099',
                 'name' => 'Produit photo cloud',
                 'unit' => 'piece',
                 'type' => 'stockable',
