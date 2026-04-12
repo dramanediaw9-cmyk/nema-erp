@@ -1,5 +1,8 @@
 <?php
 
+$cacheStore = env('CACHE_STORE', 'database');
+$preferRedisBackplane = $cacheStore === 'redis';
+
 return [
 
     /*
@@ -13,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    'default' => env('QUEUE_CONNECTION', $preferRedisBackplane ? 'redis' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

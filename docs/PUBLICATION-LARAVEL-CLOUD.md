@@ -73,6 +73,15 @@ PRODUCT_MEDIA_DISK=s3
 DOCUMENT_ATTACHMENT_DISK=s3
 ```
 
+Le projet sait maintenant faire un rattrapage utile pour Laravel Cloud :
+
+- si un cache `Redis / Valkey` est attache et que `CACHE_STORE=redis` est injecte
+- mais que `SESSION_DRIVER`, `SESSION_STORE` ou `QUEUE_CONNECTION` sont oublies
+
+alors l application bascule automatiquement `session` et `queue` sur Redis au lieu de retomber sur MySQL.
+
+Cela evite que les tables `sessions`, `cache` ou `jobs` continuent a gonfler la RAM MySQL par simple oubli de variable. Garde quand meme les variables explicites ci-dessus pour que l intention reste claire dans l environnement.
+
 ## Build et deploiement recommandes
 
 ### Build command

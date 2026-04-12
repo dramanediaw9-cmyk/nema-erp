@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Str;
 
+$cacheStore = env('CACHE_STORE', 'database');
+$preferRedisBackplane = $cacheStore === 'redis';
+
 return [
 
     /*
@@ -18,7 +21,7 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    'driver' => env('SESSION_DRIVER', $preferRedisBackplane ? 'redis' : 'database'),
 
     /*
     |--------------------------------------------------------------------------
@@ -101,7 +104,7 @@ return [
     |
     */
 
-    'store' => env('SESSION_STORE'),
+    'store' => env('SESSION_STORE', $preferRedisBackplane ? 'redis' : null),
 
     /*
     |--------------------------------------------------------------------------

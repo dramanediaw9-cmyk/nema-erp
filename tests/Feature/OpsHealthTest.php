@@ -39,6 +39,7 @@ class OpsHealthTest extends TestCase
             ->assertSee('Sauvegardes locales')
             ->assertSee('Restauration guidee')
             ->assertSee('Surveillance applicative')
+            ->assertSee('Backplane technique')
             ->assertSee('Connecteurs partenaires')
             ->assertSee('Secrets des connecteurs')
             ->assertSee('nema:ops:monitor-app');
@@ -102,6 +103,26 @@ class OpsHealthTest extends TestCase
         $this->assertSame(2, (int) data_get($secretCheck, 'meta.rotation_overdue'));
         $this->assertSame(2, (int) data_get($secretCheck, 'meta.expiring_soon'));
         $this->assertSame('fail', $report['overall_status']);
+    }
+
+    public function test_health_report_flags_database_backplane_in_production(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+
+        config()->set('app.env', 'production');
+        config()->set('cache.default', 'redis');
+        config()->set('session.driver', 'database');
+        config()->set('session.store', null);
+        config()->set('queue.default', 'database');
+
+        $report = app(SystemHealthService::class)->report($company);
+        $backplaneCheck = collect($report['checks'])->firstWhere('key', 'runtime_backplane');
+
+        $this->assertNotNull($backplaneCheck);
+        $this->assertSame('fail', $backplaneCheck['status']);
+        $this->assertSame(['session', 'queue'], data_get($backplaneCheck, 'meta.database_backed'));
+        $this->assertTrue((bool) data_get($backplaneCheck, 'meta.redis_backplane'));
+        $this->assertStringContainsString('Redis/Valkey est disponible', $backplaneCheck['message']);
     }
 
     public function test_health_check_command_can_store_company_snapshot(): void

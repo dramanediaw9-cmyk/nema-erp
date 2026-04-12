@@ -28,6 +28,8 @@
         <div class="card"><div class="muted">Statut global</div><div class="stat-value">{{ strtoupper($report['overall_status']) }}</div></div>
         <div class="card"><div class="muted">Alertes</div><div class="stat-value">{{ $report['warning_count'] }}</div></div>
         <div class="card"><div class="muted">Echecs</div><div class="stat-value">{{ $report['failure_count'] }}</div></div>
+        <div class="card"><div class="muted">Cache</div><div class="stat-value">{{ $report['meta']['cache_store'] }}</div></div>
+        <div class="card"><div class="muted">Session</div><div class="stat-value">{{ $report['meta']['session_driver'] }}</div></div>
         <div class="card"><div class="muted">Queue</div><div class="stat-value">{{ $report['meta']['queue_connection'] }}</div></div>
     </div>
 

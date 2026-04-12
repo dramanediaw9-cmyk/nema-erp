@@ -35,6 +35,7 @@ class SystemHealthService
             $this->databaseCheck(),
             $this->storageCheck(),
             $this->publicStorageLinkCheck(),
+            $this->runtimeBackplaneCheck(),
             $this->queueCheck(),
             $this->migrationCheck(),
             $this->backupCheck(),
@@ -63,6 +64,8 @@ class SystemHealthService
             'checks' => $checks,
             'meta' => [
                 'app_env' => config('app.env'),
+                'cache_store' => config('cache.default'),
+                'session_driver' => config('session.driver'),
                 'queue_connection' => config('queue.default'),
                 'php_version' => PHP_VERSION,
                 'laravel_version' => app()->version(),
@@ -197,6 +200,58 @@ class SystemHealthService
             'status' => $connection === 'sync' ? 'warning' : 'ok',
             'message' => $connection === 'sync' ? 'La queue utilise sync. Passe sur database ou redis en production.' : 'La queue utilise '.$connection.'.',
             'meta' => ['connection' => $connection],
+        ];
+    }
+
+    private function runtimeBackplaneCheck(): array
+    {
+        $appEnv = (string) config('app.env', 'production');
+        $cacheStore = (string) config('cache.default');
+        $sessionDriver = (string) config('session.driver');
+        $sessionStore = config('session.store');
+        $queueConnection = (string) config('queue.default');
+        $databaseBacked = collect([
+            'cache' => $cacheStore,
+            'session' => $sessionDriver,
+            'queue' => $queueConnection,
+        ])
+            ->filter(fn (string $driver): bool => $driver === 'database')
+            ->keys()
+            ->values()
+            ->all();
+        $isProduction = $appEnv === 'production';
+        $isLocalLike = in_array($appEnv, ['local', 'testing'], true);
+        $hasRedisBackplane = $cacheStore === 'redis';
+
+        $status = 'ok';
+        if (! empty($databaseBacked)) {
+            $status = $isProduction ? 'fail' : ($isLocalLike ? 'ok' : 'warning');
+        }
+
+        $message = empty($databaseBacked)
+            ? 'Cache, session et queue evitent la base de donnees comme support principal.'
+            : 'La base de donnees sert encore de support technique pour: '.implode(', ', $databaseBacked).'.';
+
+        if ($hasRedisBackplane && ! empty($databaseBacked)) {
+            $message .= ' Redis/Valkey est disponible mais ces couches ne basculent pas encore dessus.';
+        } elseif ($isProduction && empty($databaseBacked) && $hasRedisBackplane) {
+            $message .= ' Redis/Valkey porte bien le runtime technique en production.';
+        }
+
+        return [
+            'key' => 'runtime_backplane',
+            'label' => 'Backplane technique',
+            'status' => $status,
+            'message' => $message,
+            'meta' => [
+                'cache_store' => $cacheStore,
+                'session_driver' => $sessionDriver,
+                'session_store' => $sessionStore,
+                'queue_connection' => $queueConnection,
+                'database_backed' => $databaseBacked,
+                'redis_backplane' => $hasRedisBackplane,
+                'app_env' => $appEnv,
+            ],
         ];
     }
 
