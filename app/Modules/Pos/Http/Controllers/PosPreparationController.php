@@ -8,6 +8,7 @@ use App\Modules\Pos\Models\PosPreparationTicket;
 use App\Modules\Pos\Services\PosPreparationService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -37,13 +38,25 @@ class PosPreparationController extends Controller
 
     public function display(PosPreparationDisplay $display, CurrentWorkspace $workspace): View
     {
-        $companyId = $workspace->companyId();
-        $branchId = $workspace->branchId();
-        abort_if(! $companyId || ! $branchId, 403);
-        abort_if($companyId !== $display->company_id, 403);
+        [$companyId, $branchId] = $this->displayWorkspaceIds($display, $workspace);
 
         return view('pos.preparation.display', [
             'board' => $this->preparationService->displayBoard($companyId, $branchId, $display),
+        ]);
+    }
+
+    public function displaySnapshot(PosPreparationDisplay $display, CurrentWorkspace $workspace): JsonResponse
+    {
+        [$companyId, $branchId] = $this->displayWorkspaceIds($display, $workspace);
+
+        $board = $this->preparationService->displayBoard($companyId, $branchId, $display);
+
+        return response()->json([
+            'html' => view('pos.preparation.partials.display-live', [
+                'board' => $board,
+            ])->render(),
+            'ready_ticket_ids' => $board['grouped_tickets']['ready']->pluck('id')->values()->all(),
+            'generated_at' => now()->toIso8601String(),
         ]);
     }
 
@@ -73,5 +86,18 @@ class PosPreparationController extends Controller
         return view('pos.preparation.print', [
             'ticket' => $ticket->load(['items.product', 'printer', 'display', 'invoice.company', 'invoice.branch', 'invoice.customer', 'session', 'profile']),
         ]);
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function displayWorkspaceIds(PosPreparationDisplay $display, CurrentWorkspace $workspace): array
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
+        abort_if($companyId !== $display->company_id, 403);
+
+        return [$companyId, $branchId];
     }
 }

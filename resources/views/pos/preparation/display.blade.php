@@ -4,17 +4,6 @@
 @section('page-title', 'Preparation Display')
 
 @section('content')
-    @php($display = $board['display'])
-    @php($summary = $board['summary'])
-    @php($statusOptions = $board['status_options'])
-    @php($nextStatusMap = $board['next_status_map'])
-    @php($previousStatusMap = $board['previous_status_map'])
-    @php($columns = [
-        'queued' => ['title' => 'En file', 'hint' => 'Nouvelles commandes a lancer'],
-        'in_progress' => ['title' => 'En preparation', 'hint' => 'Equipe en cours d execution'],
-        'ready' => ['title' => 'Pret', 'hint' => 'Commande prete a servir'],
-    ])
-
     <style>
         .prep-display {
             display: grid;
@@ -28,6 +17,15 @@
                 radial-gradient(circle at top right, rgba(57, 198, 178, 0.28), transparent 28%),
                 linear-gradient(160deg, #09111f 0%, #10233a 48%, #173b59 100%);
             box-shadow: 0 24px 50px rgba(8, 15, 30, 0.32);
+        }
+        .prep-display-shell.is-ready-alert {
+            box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.4), 0 24px 50px rgba(8, 15, 30, 0.32);
+            animation: prep-display-pulse 1.15s ease-in-out 2;
+        }
+        @keyframes prep-display-pulse {
+            0%, 100% { transform: scale(1); }
+            35% { transform: scale(1.004); }
+            70% { transform: scale(1.002); }
         }
         .prep-display-topbar {
             display: flex;
@@ -259,121 +257,14 @@
     </style>
 
     <div class="prep-display">
-        <div class="prep-display-shell" data-refresh-seconds="{{ $board['refresh_seconds'] }}">
-            <div class="prep-display-topbar">
-                <div class="prep-display-title">
-                    <div class="prep-display-chip-row">
-                        <span class="prep-display-chip">Display plein ecran</span>
-                        <span class="prep-display-chip">{{ strtoupper($display->display_mode) }}</span>
-                        @if ($display->target_area)
-                            <span class="prep-display-chip">{{ $display->target_area }}</span>
-                        @endif
-                    </div>
-                    <h2>{{ $display->name }}</h2>
-                    <div class="muted">
-                        Ecran tactique pour cuisine, comptoir ou retrait. Il reste focalise sur les tickets vivants et avance le flux d un geste:
-                        <strong>En file -> En preparation -> Pret -> Servi</strong>.
-                    </div>
-                </div>
-                <div class="prep-display-actions">
-                    <button type="button" class="button button-primary" id="prep-display-fullscreen">Plein ecran</button>
-                    <a href="{{ route('pos.preparation.index', ['display_id' => $display->id]) }}" class="button button-secondary">Board detaille</a>
-                    <a href="{{ route('pos.sales.create') }}" class="button button-secondary">Retour caisse</a>
-                </div>
-            </div>
-
-            <div class="prep-display-kpis">
-                <div class="prep-display-kpi"><div class="label">En file</div><div class="value">{{ $summary['queued'] }}</div></div>
-                <div class="prep-display-kpi"><div class="label">En preparation</div><div class="value">{{ $summary['in_progress'] }}</div></div>
-                <div class="prep-display-kpi"><div class="label">Prets</div><div class="value">{{ $summary['ready'] }}</div></div>
-                <div class="prep-display-kpi"><div class="label">En retard</div><div class="value">{{ $summary['late'] }}</div></div>
-            </div>
-
-            <div class="prep-display-board">
-                @foreach ($columns as $statusKey => $column)
-                    @php($tickets = $board['grouped_tickets'][$statusKey] ?? collect())
-                    <section class="prep-display-column">
-                        <div class="prep-display-column-head">
-                            <div>
-                                <h3>{{ $column['title'] }}</h3>
-                                <div class="hint">{{ $column['hint'] }}</div>
-                            </div>
-                            <div class="prep-display-column-count">{{ $tickets->count() }}</div>
-                        </div>
-
-                        @if ($tickets->isEmpty())
-                            <div class="prep-display-empty">Aucun ticket {{ strtolower($column['title']) }} sur cet ecran pour le moment.</div>
-                        @else
-                            <div class="prep-display-list">
-                                @foreach ($tickets as $ticket)
-                                    @php($deadline = $ticket->target_minutes ? $ticket->created_at?->copy()->addMinutes($ticket->target_minutes) : null)
-                                    @php($isLate = $ticket->target_minutes && $deadline?->isPast())
-                                    <article class="prep-display-ticket">
-                                        <div class="prep-display-ticket-head">
-                                            <div>
-                                                <strong>{{ $ticket->ticket_number }}</strong>
-                                                <div class="prep-display-ticket-meta">
-                                                    <span>{{ $ticket->invoice?->customer?->name ?? 'Client comptoir' }} · Ticket {{ $ticket->invoice?->invoice_number }}</span>
-                                                    <span>{{ $ticket->created_at?->format('d/m H:i') }} · {{ $ticket->items->count() }} ligne(s)</span>
-                                                </div>
-                                            </div>
-                                            <div class="prep-display-badge {{ $isLate ? 'is-late' : '' }}">
-                                                {{ $isLate ? 'Retard' : ($statusOptions[$ticket->status] ?? $ticket->status) }}
-                                            </div>
-                                        </div>
-
-                                        @if ($ticket->note_snapshot)
-                                            <div class="muted">{{ $ticket->note_snapshot }}</div>
-                                        @endif
-
-                                        <div class="prep-display-items">
-                                            @foreach ($ticket->items as $item)
-                                                <div class="prep-display-item">
-                                                    <strong>{{ number_format((float) $item->qty, 3, ',', ' ') }} × {{ $item->description }}</strong>
-                                                    <div class="muted">
-                                                        {{ $item->product?->barcode ?: $item->product?->sku ?: 'Reference libre' }}
-                                                        @if ($item->combo_label) · Combo {{ $item->combo_label }} @endif
-                                                        @if (!empty($item->menu_category_labels)) · {{ implode(', ', $item->menu_category_labels) }} @endif
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-
-                                        <div class="prep-display-ticket-actions">
-                                            @if (isset($previousStatusMap[$ticket->status]))
-                                                <form method="POST" action="{{ route('pos.preparation.update', $ticket) }}">
-                                                    @csrf
-                                                    <input type="hidden" name="status" value="{{ $previousStatusMap[$ticket->status] }}">
-                                                    <button type="submit" class="button button-secondary">
-                                                        Retour {{ $statusOptions[$previousStatusMap[$ticket->status]] ?? $previousStatusMap[$ticket->status] }}
-                                                    </button>
-                                                </form>
-                                            @endif
-
-                                            @if (isset($nextStatusMap[$ticket->status]))
-                                                <form method="POST" action="{{ route('pos.preparation.update', $ticket) }}">
-                                                    @csrf
-                                                    <input type="hidden" name="status" value="{{ $nextStatusMap[$ticket->status] }}">
-                                                    <button type="submit" class="button button-primary">
-                                                        {{ $nextStatusMap[$ticket->status] === 'served' ? 'Marquer servi' : 'Passer '.($statusOptions[$nextStatusMap[$ticket->status]] ?? $nextStatusMap[$ticket->status]) }}
-                                                    </button>
-                                                </form>
-                                            @endif
-
-                                            <a href="{{ route('pos.preparation.print', $ticket) }}" class="button button-secondary" target="_blank" rel="noopener">Imprimer</a>
-                                        </div>
-                                    </article>
-                                @endforeach
-                            </div>
-                        @endif
-                    </section>
-                @endforeach
-            </div>
-
-            <div class="prep-display-footer">
-                <div>Rafraichissement auto: toutes les {{ $board['refresh_seconds'] }} secondes.</div>
-                <div>{{ $display->endpoint ?: 'Endpoint non renseigne' }}</div>
-            </div>
+        <div
+            class="prep-display-shell"
+            id="prep-display-shell"
+            data-refresh-seconds="{{ $board['refresh_seconds'] }}"
+            data-snapshot-url="{{ route('pos.preparation.display.snapshot', $board['display']) }}"
+            data-ready-ticket-ids='@json($board['grouped_tickets']['ready']->pluck('id')->values()->all())'
+        >
+            @include('pos.preparation.partials.display-live', ['board' => $board])
         </div>
     </div>
 
@@ -381,16 +272,119 @@
         (() => {
             const shell = document.querySelector('[data-refresh-seconds]');
             const refreshSeconds = Number(shell?.dataset.refreshSeconds || 20);
-            const fullscreenButton = document.getElementById('prep-display-fullscreen');
+            const snapshotUrl = shell?.dataset.snapshotUrl;
+            let previousReadyIds = parseReadyIds(shell?.dataset.readyTicketIds || '[]');
+            let pollHandle = null;
 
-            fullscreenButton?.addEventListener('click', async () => {
-                const element = document.documentElement;
-                if (!document.fullscreenElement && element.requestFullscreen) {
-                    await element.requestFullscreen();
+            bindFullscreenAction();
+
+            if (!shell || !snapshotUrl) {
+                return;
+            }
+
+            startPolling();
+
+            function startPolling() {
+                pollHandle = window.setInterval(refreshSnapshot, Math.max(5, refreshSeconds) * 1000);
+            }
+
+            async function refreshSnapshot() {
+                if (document.hidden) {
+                    return;
                 }
-            });
 
-            window.setTimeout(() => window.location.reload(), Math.max(5, refreshSeconds) * 1000);
+                try {
+                    const response = await fetch(snapshotUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    const nextReadyIds = Array.isArray(payload.ready_ticket_ids) ? payload.ready_ticket_ids.map(String) : [];
+                    const gainedReadyIds = nextReadyIds.filter((id) => !previousReadyIds.includes(id));
+
+                    if (typeof payload.html === 'string' && payload.html.trim() !== '') {
+                        shell.innerHTML = payload.html;
+                    }
+
+                    shell.dataset.readyTicketIds = JSON.stringify(nextReadyIds);
+                    bindFullscreenAction();
+
+                    if (gainedReadyIds.length > 0) {
+                        triggerReadyAlert();
+                    }
+
+                    previousReadyIds = nextReadyIds;
+                } catch (error) {
+                    console.warn('Preparation display refresh failed', error);
+                }
+            }
+
+            function bindFullscreenAction() {
+                const fullscreenButton = document.getElementById('prep-display-fullscreen');
+
+                fullscreenButton?.addEventListener('click', async () => {
+                    const element = document.documentElement;
+                    if (!document.fullscreenElement && element.requestFullscreen) {
+                        await element.requestFullscreen();
+                    }
+                }, { once: true });
+            }
+
+            function triggerReadyAlert() {
+                shell.classList.remove('is-ready-alert');
+                void shell.offsetWidth;
+                shell.classList.add('is-ready-alert');
+                window.setTimeout(() => shell.classList.remove('is-ready-alert'), 2400);
+                playTone();
+            }
+
+            function playTone() {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) {
+                    return;
+                }
+
+                try {
+                    const audioContext = new AudioContextClass();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+                    oscillator.frequency.linearRampToValueAtTime(1174, audioContext.currentTime + 0.18);
+                    gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.42);
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.45);
+
+                    oscillator.onended = () => {
+                        audioContext.close().catch(() => {});
+                    };
+                } catch (error) {
+                    console.warn('Preparation display alert tone failed', error);
+                }
+            }
+
+            function parseReadyIds(value) {
+                try {
+                    const parsed = JSON.parse(value);
+                    return Array.isArray(parsed) ? parsed.map(String) : [];
+                } catch (error) {
+                    return [];
+                }
+            }
         })();
     </script>
 @endsection

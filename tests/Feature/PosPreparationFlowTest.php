@@ -246,6 +246,7 @@ class PosPreparationFlowTest extends TestCase
             ->get(route('pos.preparation.display', $display))
             ->assertOk()
             ->assertSeeText('Display plein ecran')
+            ->assertSee(route('pos.preparation.display.snapshot', $display), false)
             ->assertSeeText($display->name)
             ->assertSeeText($ticket->ticket_number)
             ->assertSeeText('Wrap display test')
@@ -285,6 +286,71 @@ class PosPreparationFlowTest extends TestCase
             ->assertDontSeeText($ticket->ticket_number)
             ->assertDontSeeText('Wrap display test')
             ->assertSeeText('Aucun ticket pret');
+    }
+
+    public function test_preparation_display_snapshot_returns_live_payload_for_ready_alerts(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-PREP-004',
+                'notes' => 'TEST-POS-PREP-SNAPSHOT',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Tacos snapshot test',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'TEST-POS-PREP-SNAPSHOT')
+            ->firstOrFail();
+
+        $ticket = PosPreparationTicket::query()
+            ->with('display')
+            ->where('sales_invoice_id', $invoice->id)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.preparation.update', $ticket), ['status' => 'ready'])
+            ->assertRedirect();
+
+        $ticket->refresh();
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->getJson(route('pos.preparation.display.snapshot', $ticket->display));
+
+        $response
+            ->assertOk()
+            ->assertJsonFragment([
+                'generated_at' => $response->json('generated_at'),
+            ]);
+
+        $this->assertContains((string) $ticket->id, collect($response->json('ready_ticket_ids'))->map(fn ($id) => (string) $id)->all());
+        $this->assertStringContainsString($ticket->ticket_number, $response->json('html'));
+        $this->assertStringContainsString('Tacos snapshot test', $response->json('html'));
+        $this->assertStringContainsString('Rafraichissement live', $response->json('html'));
     }
 
     private function openSession(User $user, CashAccount $cashAccount, Warehouse $warehouse): void

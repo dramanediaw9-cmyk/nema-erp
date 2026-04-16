@@ -16,6 +16,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/point-de-vente/analyse', [PosBackofficeController::class, 'analytics'])->middleware('permission:pos.view')->name('pos.analytics.index');
     Route::get('/point-de-vente/preparation', [PosPreparationController::class, 'index'])->middleware('permission:pos.view')->name('pos.preparation.index');
     Route::get('/point-de-vente/preparation/displays/{display}', [PosPreparationController::class, 'display'])->middleware('permission:pos.view')->name('pos.preparation.display');
+    Route::get('/point-de-vente/preparation/displays/{display}/snapshot', [PosPreparationController::class, 'displaySnapshot'])->middleware('permission:pos.view')->name('pos.preparation.display.snapshot');
     Route::post('/point-de-vente/preparation/{ticket}/statut', [PosPreparationController::class, 'updateStatus'])->middleware('permission:pos.manage')->name('pos.preparation.update');
     Route::get('/point-de-vente/preparation/{ticket}/imprimer', [PosPreparationController::class, 'printTicket'])->middleware('permission:pos.view')->name('pos.preparation.print');
     Route::get('/point-de-vente/configuration', [PosBackofficeController::class, 'settings'])->middleware('permission:pos.view')->name('pos.settings.index');
