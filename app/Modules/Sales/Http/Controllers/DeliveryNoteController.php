@@ -16,6 +16,7 @@ use App\Modules\Sales\Services\SalesInvoiceService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ class DeliveryNoteController extends Controller
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -185,11 +187,11 @@ class DeliveryNoteController extends Controller
         ]);
     }
 
-    public function print(DeliveryNote $deliveryNote, CurrentWorkspace $workspace): View
+    public function print(DeliveryNote $deliveryNote, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $deliveryNote->company_id, 403);
 
-        return view('delivery-notes.print', [
+        return $this->pdfDocumentService->inline('delivery-notes.print', [
             'deliveryNote' => $deliveryNote->load([
                 'customer',
                 'branch',
@@ -201,7 +203,7 @@ class DeliveryNoteController extends Controller
                 'creator',
                 'convertedInvoice',
             ]),
-        ]);
+        ], 'bon-livraison-'.$deliveryNote->delivery_number.'.pdf');
     }
 
     public function convert(DeliveryNote $deliveryNote, Request $request, CurrentWorkspace $workspace): RedirectResponse

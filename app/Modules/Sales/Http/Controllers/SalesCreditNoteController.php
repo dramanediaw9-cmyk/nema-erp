@@ -10,6 +10,7 @@ use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Services\SalesCreditNoteService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,6 +21,7 @@ class SalesCreditNoteController extends Controller
     public function __construct(
         private readonly SalesCreditNoteService $salesCreditNoteService,
         private readonly ActivityLogger $activityLogger,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -87,12 +89,12 @@ class SalesCreditNoteController extends Controller
         ]);
     }
 
-    public function print(SalesCreditNote $creditNote, CurrentWorkspace $workspace): View
+    public function print(SalesCreditNote $creditNote, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $creditNote->company_id, 403);
 
-        return view('credit-notes.print', [
+        return $this->pdfDocumentService->inline('credit-notes.print', [
             'creditNote' => $creditNote->load(['invoice', 'customer', 'branch', 'warehouse', 'company', 'creator', 'items.product']),
-        ]);
+        ], 'avoir-client-'.$creditNote->credit_note_number.'.pdf');
     }
 }

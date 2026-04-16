@@ -12,7 +12,7 @@
             <div class="muted">Depense du {{ $expense->expense_date?->format('d/m/Y') }} · Agence {{ $expense->branch?->name }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('expenses.print', $expense) }}" class="button button-secondary" target="_blank">Imprimer</a>
+            <a href="{{ route('expenses.print', $expense) }}" class="button button-secondary" target="_blank">PDF</a>
             @allowed('accounting.view')
                 <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'expenses', 'search' => $expense->expense_number]) }}" class="button button-secondary">Voir les ecritures</a>
             @endallowed

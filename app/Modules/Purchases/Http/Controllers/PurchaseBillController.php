@@ -18,6 +18,7 @@ use App\Modules\Purchases\Services\PurchaseBillService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,7 @@ class PurchaseBillController extends Controller
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -284,11 +286,11 @@ class PurchaseBillController extends Controller
         ]);
     }
 
-    public function print(PurchaseBill $purchase, CurrentWorkspace $workspace): View
+    public function print(PurchaseBill $purchase, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $purchase->company_id, 403);
 
-        return view('purchases.print', [
+        return $this->pdfDocumentService->inline('purchases.print', [
             'bill' => $purchase->load([
                 'supplier',
                 'branch',
@@ -301,7 +303,7 @@ class PurchaseBillController extends Controller
                 'internalComments.creator',
                 'attachments.creator',
             ]),
-        ]);
+        ], 'facture-fournisseur-'.$purchase->bill_number.'.pdf');
     }
 
     private function filteredQuery(int $companyId, array $filters): Builder

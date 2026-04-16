@@ -19,6 +19,7 @@ use App\Modules\Sales\Services\SalesPortalLinkService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,7 @@ class SalesInvoiceController extends Controller
         private readonly SalesPortalLinkService $salesPortalLinkService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -277,11 +279,11 @@ class SalesInvoiceController extends Controller
         ]);
     }
 
-    public function print(SalesInvoice $sale, CurrentWorkspace $workspace): View
+    public function print(SalesInvoice $sale, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $sale->company_id, 403);
 
-        return view('sales.print', [
+        return $this->pdfDocumentService->inline('sales.print', [
             'invoice' => $sale->load([
                 'customer',
                 'branch',
@@ -293,7 +295,7 @@ class SalesInvoiceController extends Controller
                 'approvalSteps.approver',
                 'paymentAllocations.payment.cashAccount',
             ]),
-        ]);
+        ], 'facture-'.$sale->invoice_number.'.pdf');
     }
 
     private function filteredQuery(int $companyId, array $filters): Builder

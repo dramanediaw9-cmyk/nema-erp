@@ -7,6 +7,7 @@ use App\Modules\Accounting\Models\Account;
 use App\Modules\Accounting\Services\AccountingReportService;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -16,6 +17,7 @@ class FinancialReportController extends Controller
     public function __construct(
         private readonly AccountingReportService $accountingReportService,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -69,7 +71,7 @@ class FinancialReportController extends Controller
         ], $rows);
     }
 
-    public function printGeneralLedger(Request $request, CurrentWorkspace $workspace): View
+    public function printGeneralLedger(Request $request, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
@@ -79,7 +81,7 @@ class FinancialReportController extends Controller
         $accountId = $request->integer('account_id') ?: null;
         $ledger = $this->accountingReportService->generalLedgerCollection($companyId, $dateFrom, $dateTo, $accountId);
 
-        return view('accounting.general-ledger.print', [
+        return $this->pdfDocumentService->inline('accounting.general-ledger.print', [
             'lines' => $ledger['lines'],
             'summary' => $ledger['summary'],
             'filters' => [
@@ -88,7 +90,7 @@ class FinancialReportController extends Controller
                 'account_id' => $accountId,
             ],
             'company' => $workspace->company(),
-        ]);
+        ], 'grand-livre.pdf', 'a4', 'landscape');
     }
 
     public function profitLoss(Request $request, CurrentWorkspace $workspace): View
@@ -126,7 +128,7 @@ class FinancialReportController extends Controller
         ], $rows);
     }
 
-    public function printProfitLoss(Request $request, CurrentWorkspace $workspace): View
+    public function printProfitLoss(Request $request, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
@@ -134,14 +136,14 @@ class FinancialReportController extends Controller
         $dateFrom = $request->string('date_from')->value() ?: now()->startOfMonth()->format('Y-m-d');
         $dateTo = $request->string('date_to')->value() ?: now()->format('Y-m-d');
 
-        return view('accounting.profit-loss.print', [
+        return $this->pdfDocumentService->inline('accounting.profit-loss.print', [
             'report' => $this->accountingReportService->incomeStatement($companyId, $dateFrom, $dateTo),
             'filters' => [
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
             ],
             'company' => $workspace->company(),
-        ]);
+        ], 'compte-resultat.pdf');
     }
 
     public function balanceSheet(Request $request, CurrentWorkspace $workspace): View
@@ -177,19 +179,19 @@ class FinancialReportController extends Controller
         ], $rows);
     }
 
-    public function printBalanceSheet(Request $request, CurrentWorkspace $workspace): View
+    public function printBalanceSheet(Request $request, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
 
         $dateTo = $request->string('date_to')->value() ?: now()->format('Y-m-d');
 
-        return view('accounting.balance-sheet.print', [
+        return $this->pdfDocumentService->inline('accounting.balance-sheet.print', [
             'report' => $this->accountingReportService->balanceSheet($companyId, $dateTo),
             'filters' => [
                 'date_to' => $dateTo,
             ],
             'company' => $workspace->company(),
-        ]);
+        ], 'bilan.pdf');
     }
 }

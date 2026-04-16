@@ -17,6 +17,7 @@ use App\Modules\Sales\Services\SalesPortalLinkService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +37,7 @@ class SalesQuoteController extends Controller
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -165,13 +167,13 @@ class SalesQuoteController extends Controller
         ]);
     }
 
-    public function print(SalesQuote $quote, CurrentWorkspace $workspace): View
+    public function print(SalesQuote $quote, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $quote->company_id, 403);
 
-        return view('quotes.print', [
+        return $this->pdfDocumentService->inline('quotes.print', [
             'quote' => $quote->load(['customer', 'branch', 'company', 'items.product', 'creator', 'convertedInvoice', 'convertedOrder', 'latestPortalAction']),
-        ]);
+        ], 'devis-'.$quote->quote_number.'.pdf');
     }
 
     public function send(SalesQuote $quote, CurrentWorkspace $workspace): RedirectResponse

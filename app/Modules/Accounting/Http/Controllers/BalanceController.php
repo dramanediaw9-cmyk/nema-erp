@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Services\AccountingReportService;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -15,6 +16,7 @@ class BalanceController extends Controller
     public function __construct(
         private readonly AccountingReportService $accountingReportService,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -61,7 +63,7 @@ class BalanceController extends Controller
         ], $rows);
     }
 
-    public function print(Request $request, CurrentWorkspace $workspace): View
+    public function print(Request $request, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
@@ -70,7 +72,7 @@ class BalanceController extends Controller
         $dateTo = $request->string('date_to')->value() ?: null;
         [$balances, $summary] = $this->accountingReportService->trialBalance($companyId, $dateFrom, $dateTo);
 
-        return view('accounting.balance.print', [
+        return $this->pdfDocumentService->inline('accounting.balance.print', [
             'balances' => $balances,
             'summary' => $summary,
             'filters' => [
@@ -78,6 +80,6 @@ class BalanceController extends Controller
                 'date_to' => $dateTo,
             ],
             'company' => $workspace->company(),
-        ]);
+        ], 'balance-comptable.pdf', 'a4', 'landscape');
     }
 }

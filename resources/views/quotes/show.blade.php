@@ -22,7 +22,7 @@
             <div class="muted">Client {{ $quote->customer?->name }} · Agence {{ $quote->branch?->name }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('quotes.print', $quote) }}" class="button button-secondary">Imprimer</a>
+            <a href="{{ route('quotes.print', $quote) }}" class="button button-secondary" target="_blank">PDF</a>
             <a href="{{ route('quotes.index') }}" class="button button-secondary">Retour liste</a>
         </div>
     </div>

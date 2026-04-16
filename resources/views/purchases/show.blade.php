@@ -24,7 +24,7 @@
                         <div class="muted" style="margin-top:8px;">Imprimer, ouvrir les ecritures ou enregistrer un reglement fournisseur sans quitter le dossier.</div>
                     </div>
                     <div class="premium-detail-panel__actions">
-                        <a href="{{ route('purchases.print', $bill) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                        <a href="{{ route('purchases.print', $bill) }}" class="button button-secondary" target="_blank">PDF</a>
                         @allowed('accounting.view')
                             <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="button button-secondary">Voir les ecritures</a>
                         @endallowed

@@ -11,7 +11,7 @@
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <a href="{{ route('accounting.balance.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-            <a href="{{ route('accounting.balance.print', request()->query()) }}" class="button button-secondary" target="_blank">Imprimer</a>
+            <a href="{{ route('accounting.balance.print', request()->query()) }}" class="button button-secondary" target="_blank">PDF</a>
         </div>
     </div>
 

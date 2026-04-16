@@ -38,7 +38,7 @@
                         <div class="muted" style="margin-top:8px;">Imprimer, encaisser, partager le portail client ou ouvrir les ecritures sans quitter la facture.</div>
                     </div>
                     <div class="premium-detail-panel__actions">
-                        <a href="{{ route('sales.print', $invoice) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                        <a href="{{ route('sales.print', $invoice) }}" class="button button-secondary" target="_blank">PDF</a>
                         @allowed('accounting.view')
                             <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'sales', 'search' => $invoice->invoice_number]) }}" class="button button-secondary">Voir les ecritures</a>
                         @endallowed
@@ -170,7 +170,7 @@
                             </div>
                             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                                 <a href="{{ route('credit-notes.show', $creditNote) }}" class="button button-secondary">Voir l avoir</a>
-                                <a href="{{ route('credit-notes.print', $creditNote) }}" class="button button-secondary" target="_blank">Imprimer</a>
+                                <a href="{{ route('credit-notes.print', $creditNote) }}" class="button button-secondary" target="_blank">PDF</a>
                             </div>
                         </div>
                     @endforeach

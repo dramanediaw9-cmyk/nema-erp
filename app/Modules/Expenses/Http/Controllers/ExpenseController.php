@@ -16,6 +16,7 @@ use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
 use App\Support\PaymentMethodCatalog;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ class ExpenseController extends Controller
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -198,13 +200,13 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function print(Expense $expense, CurrentWorkspace $workspace): View
+    public function print(Expense $expense, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
-        return view('expenses.print', [
+        return $this->pdfDocumentService->inline('expenses.print', [
             'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'internalComments.creator', 'attachments.creator']),
-        ]);
+        ], 'depense-'.$expense->expense_number.'.pdf');
     }
 
     private function filteredQuery(int $companyId, array $filters): Builder

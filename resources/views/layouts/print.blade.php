@@ -17,17 +17,17 @@
         * { box-sizing: border-box; }
         body {
             margin: 0;
-            background: var(--bg);
+            background: @if($pdfMode ?? false) #ffffff @else var(--bg) @endif;
             color: var(--ink);
             font-family: Arial, Helvetica, sans-serif;
             line-height: 1.45;
         }
         .page {
-            max-width: 960px;
-            margin: 24px auto;
+            max-width: @if($pdfMode ?? false) none @else 960px @endif;
+            margin: @if($pdfMode ?? false) 0 @else 24px auto @endif;
             background: var(--paper);
             padding: 36px 42px;
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+            box-shadow: @if($pdfMode ?? false) none @else 0 12px 30px rgba(15, 23, 42, 0.08) @endif;
             position: relative;
         }
         .page::before {
@@ -170,10 +170,12 @@
     </style>
 </head>
 <body>
-    <div class="toolbar">
-        <button type="button" class="button button-primary" onclick="window.print()">Imprimer</button>
-        <a href="javascript:history.back()" class="button">Retour</a>
-    </div>
+    @unless($pdfMode ?? false)
+        <div class="toolbar">
+            <button type="button" class="button button-primary" onclick="window.print()">Imprimer</button>
+            <a href="javascript:history.back()" class="button">Retour</a>
+        </div>
+    @endunless
 
     <main class="page">
         @yield('content')

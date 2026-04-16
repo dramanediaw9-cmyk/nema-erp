@@ -21,6 +21,7 @@ use App\Modules\Sales\Services\SalesPortalLinkService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
+use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,7 @@ class SalesOrderController extends Controller
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
+        private readonly PdfDocumentService $pdfDocumentService,
     ) {
     }
 
@@ -210,13 +212,13 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function print(SalesOrder $order, CurrentWorkspace $workspace): View
+    public function print(SalesOrder $order, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
     {
         abort_if($workspace->companyId() !== $order->company_id, 403);
 
-        return view('orders.print', [
+        return $this->pdfDocumentService->inline('orders.print', [
             'order' => $order->load(['customer', 'branch', 'warehouse', 'company', 'items.product', 'creator', 'convertedInvoice', 'originQuote']),
-        ]);
+        ], 'commande-client-'.$order->order_number.'.pdf');
     }
 
     public function confirm(SalesOrder $order, CurrentWorkspace $workspace): RedirectResponse
