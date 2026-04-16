@@ -4,6 +4,7 @@ namespace App\Modules\Sales\Models;
 
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Company\Models\TaxRule;
+use App\Modules\Pos\Models\PosPreparationTicketItem;
 use App\Modules\Pos\Models\PosReturnItem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -67,6 +68,11 @@ class SalesInvoiceItem extends Model
     public function posReturnItems(): HasMany
     {
         return $this->hasMany(PosReturnItem::class, 'sales_invoice_item_id');
+    }
+
+    public function preparationItems(): HasMany
+    {
+        return $this->hasMany(PosPreparationTicketItem::class, 'sales_invoice_item_id');
     }
 
     public function creditNoteItems(): HasMany

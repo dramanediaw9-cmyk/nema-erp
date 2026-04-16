@@ -2,6 +2,7 @@
 
 use App\Modules\Pos\Http\Controllers\PosBackofficeController;
 use App\Modules\Pos\Http\Controllers\PosController;
+use App\Modules\Pos\Http\Controllers\PosPreparationController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
@@ -13,6 +14,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/point-de-vente/produits', [PosBackofficeController::class, 'products'])->middleware('permission:pos.view')->name('pos.products.index');
     Route::get('/point-de-vente/tarification', [PosBackofficeController::class, 'pricing'])->middleware('permission:pos.view')->name('pos.pricing.index');
     Route::get('/point-de-vente/analyse', [PosBackofficeController::class, 'analytics'])->middleware('permission:pos.view')->name('pos.analytics.index');
+    Route::get('/point-de-vente/preparation', [PosPreparationController::class, 'index'])->middleware('permission:pos.view')->name('pos.preparation.index');
+    Route::post('/point-de-vente/preparation/{ticket}/statut', [PosPreparationController::class, 'updateStatus'])->middleware('permission:pos.manage')->name('pos.preparation.update');
+    Route::get('/point-de-vente/preparation/{ticket}/imprimer', [PosPreparationController::class, 'printTicket'])->middleware('permission:pos.view')->name('pos.preparation.print');
     Route::get('/point-de-vente/configuration', [PosBackofficeController::class, 'settings'])->middleware('permission:pos.view')->name('pos.settings.index');
     Route::post('/point-de-vente/configuration/modes-paiement', [PosBackofficeController::class, 'storePaymentMethod'])->middleware('permission:pos.manage')->name('pos.payment-methods.store');
     Route::post('/point-de-vente/tarification/fidelite', [PosBackofficeController::class, 'storeLoyaltyProgram'])->middleware('permission:pos.manage')->name('pos.loyalty-programs.store');

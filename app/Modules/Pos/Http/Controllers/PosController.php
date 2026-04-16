@@ -803,6 +803,9 @@ class PosController extends Controller
             'items.product',
             'items.posReturnItems',
             'paymentAllocations.payment.cashAccount',
+            'preparationTickets.items.product',
+            'preparationTickets.printer',
+            'preparationTickets.display',
             'posReturns.items.product',
             'posReturns.payment.cashAccount',
             'posReturns.exchangeInvoice',
@@ -819,6 +822,7 @@ class PosController extends Controller
             'invoice' => $invoice,
             'payments' => $payments,
             'payment' => $payments->first(),
+            'preparationTickets' => $invoice->preparationTickets,
         ];
     }
 

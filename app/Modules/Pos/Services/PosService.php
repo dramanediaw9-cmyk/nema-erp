@@ -35,6 +35,7 @@ class PosService
         private readonly SalesInvoiceService $salesInvoiceService,
         private readonly PaymentService $paymentService,
         private readonly StockService $stockService,
+        private readonly PosPreparationService $preparationService,
     ) {
     }
 
@@ -304,6 +305,8 @@ class PosService
                     ->first();
 
                 if ($existingInvoice) {
+                    $this->preparationService->ensureTicketsForInvoice($existingInvoice, $user->id);
+
                     return [
                         'session' => $session->fresh(['cashAccount', 'warehouse']),
                         'invoice' => $existingInvoice,
@@ -379,6 +382,8 @@ class PosService
                 ));
                 $invoice->refresh();
             }
+
+            $this->preparationService->ensureTicketsForInvoice($invoice, $user->id);
 
             return [
                 'session' => $session->fresh(['cashAccount', 'warehouse']),

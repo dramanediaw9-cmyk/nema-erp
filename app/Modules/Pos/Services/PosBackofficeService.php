@@ -46,6 +46,7 @@ class PosBackofficeService
                 ['label' => 'Paiements', 'url' => route('pos.payments.index')],
                 ['label' => 'Clients', 'url' => route('pos.customers.index')],
                 ['label' => 'Produits', 'url' => route('pos.products.index')],
+                ['label' => 'Preparation', 'url' => route('pos.preparation.index')],
                 ['label' => 'Analyse', 'url' => route('pos.analytics.index')],
                 ['label' => 'Configuration', 'url' => route('pos.settings.index')],
             ],

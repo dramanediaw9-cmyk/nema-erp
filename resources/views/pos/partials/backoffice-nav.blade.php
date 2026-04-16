@@ -7,6 +7,7 @@
             ['label' => 'Paiements', 'route' => 'pos.payments.index'],
             ['label' => 'Clients', 'route' => 'pos.customers.index'],
             ['label' => 'Produits', 'route' => 'pos.products.index'],
+            ['label' => 'Preparation', 'route' => 'pos.preparation.index'],
         ],
         'Tarification' => [
             ['label' => 'Listes de prix', 'route' => 'pos.pricing.index', 'params' => ['focus' => 'pricelists']],

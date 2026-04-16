@@ -8,6 +8,7 @@
     @php($paymentLabel = $payments->count() > 1 ? 'Mixte' : ($payment?->method ? str($payment->method)->replace('_', ' ')->title() : 'N/A'))
     @php($refundedTotal = (float) $invoice->posReturns->sum('total'))
     @php($netKept = max((float) $invoice->total - $refundedTotal, 0))
+    @php($preparationTickets = $preparationTickets ?? collect())
 
 
     <style>
@@ -160,6 +161,9 @@
 
     <div class="pos-ticket-toolbar">
         <a href="{{ route('pos.receipt.thermal', $invoice) }}" class="button">Version thermique</a>
+        @if ($preparationTickets->isNotEmpty())
+            <a href="{{ route('pos.preparation.index') }}" class="button">Board preparation</a>
+        @endif
     </div>
 
     <div class="pos-ticket-layout">
@@ -268,6 +272,36 @@
                     </div>
                 </div>
             </section>
+
+            @if ($preparationTickets->isNotEmpty())
+                <section class="pos-ticket-panel">
+                    <h2>Preparation</h2>
+                    <div class="pos-history-list is-compact">
+                        @foreach ($preparationTickets as $ticket)
+                            <div class="pos-history-item is-compact">
+                                <div class="pos-history-main">
+                                    <div class="pos-history-title-row">
+                                        <strong>{{ $ticket->ticket_number }}</strong>
+                                        <div class="pos-history-meta">{{ $ticket->target_area ?: 'Preparation' }}</div>
+                                    </div>
+                                    <div class="pos-history-tags">
+                                        <span class="pos-mini-chip">{{ str($ticket->status)->replace('_', ' ')->title() }}</span>
+                                        @if ($ticket->printer)
+                                            <span class="pos-mini-chip">Impr. {{ $ticket->printer->name }}</span>
+                                        @endif
+                                        @if ($ticket->display)
+                                            <span class="pos-mini-chip">Display {{ $ticket->display->name }}</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="pos-inline-actions">
+                                    <a href="{{ route('pos.preparation.print', $ticket) }}" class="button">Imprimer</a>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
 
             @if ($invoice->posReturns->isNotEmpty())
                 <section class="pos-ticket-panel">

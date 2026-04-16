@@ -11,6 +11,7 @@ use App\Modules\Treasury\Models\CashAccount;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PosProfile extends Model
 {
@@ -96,5 +97,10 @@ class PosProfile extends Model
     public function defaultDisplay(): BelongsTo
     {
         return $this->belongsTo(PosPreparationDisplay::class, 'default_display_id');
+    }
+
+    public function preparationTickets(): HasMany
+    {
+        return $this->hasMany(PosPreparationTicket::class, 'pos_profile_id');
     }
 }

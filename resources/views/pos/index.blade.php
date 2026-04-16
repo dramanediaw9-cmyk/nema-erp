@@ -170,6 +170,7 @@
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
+                <a href="{{ route('pos.preparation.index') }}" class="button button-secondary">Board preparation</a>
                 @if ($currentSession)
                     <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">Nouvelle vente comptoir</a>
                     <a href="{{ route('pos.show', $currentSession) }}" class="button button-secondary">Voir la session</a>

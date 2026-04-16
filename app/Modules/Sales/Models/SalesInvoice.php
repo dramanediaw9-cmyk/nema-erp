@@ -13,6 +13,7 @@ use App\Modules\Core\Company\Models\PaymentTerm;
 use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Partners\Models\Partner;
+use App\Modules\Pos\Models\PosPreparationTicket;
 use App\Modules\Pos\Models\PosReturn;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Treasury\Models\PaymentAllocation;
@@ -154,6 +155,11 @@ class SalesInvoice extends Model
     public function posReturns(): HasMany
     {
         return $this->hasMany(PosReturn::class, 'sales_invoice_id');
+    }
+
+    public function preparationTickets(): HasMany
+    {
+        return $this->hasMany(PosPreparationTicket::class, 'sales_invoice_id');
     }
 
     public function creditNotes(): HasMany

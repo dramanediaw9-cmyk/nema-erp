@@ -276,6 +276,7 @@
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <a href="{{ route('pos.index') }}" class="button button-secondary">Retour POS</a>
+                <a href="{{ route('pos.preparation.index') }}" class="button button-secondary">Board preparation</a>
                 <a href="{{ route('pos.report', ['date' => $session->opened_at?->toDateString(), 'warehouse_id' => $session->warehouse_id, 'cash_account_id' => $session->cash_account_id]) }}" class="button button-secondary">Rapport du jour</a>
                 <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Comptage imprimable</a>
                 @if ($session->status === 'open')
