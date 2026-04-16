@@ -82,6 +82,27 @@ alors l application bascule automatiquement `session` et `queue` sur Redis au li
 
 Cela evite que les tables `sessions`, `cache` ou `jobs` continuent a gonfler la RAM MySQL par simple oubli de variable. Garde quand meme les variables explicites ci-dessus pour que l intention reste claire dans l environnement.
 
+## Alerte RAM MySQL qui persiste apres passage a Redis
+
+Si Laravel Cloud continue d envoyer une alerte `RAM > 90 %` sur MySQL alors que :
+
+- `CACHE_STORE=redis`
+- `SESSION_DRIVER=redis`
+- `SESSION_STORE=redis`
+- `QUEUE_CONNECTION=redis`
+- le cache `Valkey / Redis` est bien rattache a l environnement
+- les tables `sessions`, `cache`, `jobs`, `job_batches` et `failed_jobs` restent vides ou tres petites
+
+alors le probleme n est plus applicatif. Sur les petits clusters `Laravel MySQL` en `512 MiB`, MySQL peut rester tres haut en RAM simplement a cause de son empreinte memoire de base.
+
+Dans ce cas :
+
+1. verifier les metriques du cluster dans `Org > Resources > Databases > Metrics`
+2. si la RAM reste proche de `512 MiB` de facon stable alors que la base est petite, considerer l alerte comme un signal de **sous-dimensionnement de cluster**
+3. passer au palier superieur depuis `Org > Resources > Databases > ... > Edit / Resize / Upgrade`
+
+En pratique, sur un environnement encore en credits d essai ou sur un tres petit cluster `db-flex.m-1vcpu-512mb`, la vraie resolution durable est souvent l augmentation du palier MySQL.
+
 ## Build et deploiement recommandes
 
 ### Build command
