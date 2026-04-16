@@ -57,6 +57,8 @@
             body {
                 margin: 0;
                 position: relative;
+                font-size: 14px;
+                line-height: 1.5;
                 font-family: "Aptos", "Trebuchet MS", "Segoe UI", sans-serif;
                 background:
                     radial-gradient(circle at top left, rgba(255, 234, 197, 0.9) 0, rgba(255, 234, 197, 0) 32%),
@@ -123,7 +125,7 @@
             }
             .brand h1 {
                 margin: 0;
-                font-size: 28px;
+                font-size: 24px;
                 line-height: 1;
                 letter-spacing: .02em;
             }
@@ -131,13 +133,13 @@
                 color: #b9d4d4;
                 display: block;
                 margin-top: 8px;
-                font-size: 13px;
+                font-size: 11px;
                 letter-spacing: .04em;
                 text-transform: uppercase;
             }
             .nav-title {
                 margin: 22px 12px 10px;
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: .18em;
@@ -199,14 +201,14 @@
             }
             .topbar-leading { display: grid; gap: 8px; }
             .topbar-label {
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 700;
                 letter-spacing: .22em;
                 text-transform: uppercase;
                 color: var(--accent);
             }
             .topbar-title {
-                font-size: clamp(24px, 3vw, 34px);
+                font-size: clamp(22px, 2.4vw, 28px);
                 font-weight: 800;
                 line-height: 1.05;
                 letter-spacing: -.03em;
@@ -216,7 +218,7 @@
                 flex-wrap: wrap;
                 gap: 10px;
                 color: var(--muted);
-                font-size: 14px;
+                font-size: 13px;
             }
             .workspace-pill {
                 display: inline-flex;
@@ -253,6 +255,7 @@
                 border-radius: 14px;
                 padding: 12px 16px;
                 cursor: pointer;
+                font-size: 13px;
                 font-weight: 700;
                 font: inherit;
                 transition: transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease;
@@ -292,7 +295,7 @@
             }
             .grid { display: grid; gap: 18px; }
             .stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-            .stat-value { font-size: 34px; font-weight: 800; margin-top: 12px; letter-spacing: -.03em; }
+            .stat-value { font-size: 28px; font-weight: 800; margin-top: 12px; letter-spacing: -.03em; }
             .muted { color: var(--muted); }
             .table-wrap {
                 overflow-x: auto;
@@ -331,7 +334,7 @@
             .form-grid .full { grid-column: 1 / -1; }
             label {
                 display: block;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 800;
                 margin-bottom: 8px;
                 letter-spacing: .06em;
@@ -347,6 +350,7 @@
                 border: 1px solid rgba(120, 99, 74, 0.16);
                 background: rgba(255, 255, 255, 0.92);
                 box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
+                font-size: 13px;
                 font: inherit;
                 color: var(--text);
             }
@@ -358,7 +362,7 @@
                 box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
             }
             textarea { min-height: 110px; resize: vertical; }
-            .help { color: var(--muted); font-size: 13px; }
+            .help { color: var(--muted); font-size: 12px; }
             .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
             .alert {
                 padding: 14px 16px;
@@ -394,13 +398,13 @@
                 font-weight: 700;
                 box-shadow: 0 14px 26px rgba(42, 28, 18, 0.06);
             }
-            .notification-count { display: inline-flex; min-width: 24px; height: 24px; border-radius: 999px; align-items: center; justify-content: center; padding: 0 8px; background: #b42318; color: #fff; font-size: 12px; }
+            .notification-count { display: inline-flex; min-width: 24px; height: 24px; border-radius: 999px; align-items: center; justify-content: center; padding: 0 8px; background: #b42318; color: #fff; font-size: 11px; }
             .tip-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
             .tip-card { border: 1px solid var(--line); background: rgba(255, 255, 255, 0.72); border-radius: 18px; padding: 14px 16px; }
             .tip-card strong { display: block; margin-bottom: 6px; }
             .summary-stack { display: grid; gap: 12px; }
             .summary-box { border: 1px solid var(--line); background: rgba(255, 255, 255, 0.8); border-radius: 18px; padding: 14px 16px; }
-            .summary-box .value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+            .summary-box .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
             .summary-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); }
             .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
             .chip {
@@ -409,7 +413,7 @@
                 color: var(--text);
                 border-radius: 999px;
                 padding: 8px 12px;
-                font-size: 13px;
+                font-size: 12px;
                 cursor: pointer;
                 box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
             }
@@ -417,14 +421,14 @@
             .table-foot-note { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
             .kpi-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
             .kpi { border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.84); }
-            .kpi .label { color: var(--muted); font-size: 13px; }
-            .kpi .value { font-size: 24px; font-weight: 700; margin-top: 8px; }
-            .section-title { margin: 0 0 8px; font-size: 20px; }
+            .kpi .label { color: var(--muted); font-size: 12px; }
+            .kpi .value { font-size: 22px; font-weight: 700; margin-top: 8px; }
+            .section-title { margin: 0 0 8px; font-size: 18px; }
             .empty-state { text-align: center; padding: 34px 24px; }
-            .empty-state h3 { margin: 12px 0 8px; font-size: 24px; }
+            .empty-state h3 { margin: 12px 0 8px; font-size: 22px; }
             .empty-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
             .filter-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-            .field-error { color: var(--danger); font-size: 13px; margin-top: 6px; }
+            .field-error { color: var(--danger); font-size: 12px; margin-top: 6px; }
             input:disabled, textarea:disabled, select:disabled { background: #f6efe4; color: #7b6c5c; }
             .identity-card {
                 display: flex;
@@ -437,8 +441,8 @@
                 border: 1px solid rgba(102, 82, 56, 0.1);
                 text-align: left;
             }
-            .identity-card strong { font-size: 14px; }
-            .identity-card span { color: var(--muted); font-size: 13px; }
+            .identity-card strong { font-size: 13px; }
+            .identity-card span { color: var(--muted); font-size: 12px; }
             @media (max-width: 980px) {
                 .shell { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
                 .sidebar { padding: 18px; border-radius: 22px; }

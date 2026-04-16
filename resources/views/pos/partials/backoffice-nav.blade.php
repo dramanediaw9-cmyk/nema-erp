@@ -69,6 +69,7 @@
         display: block;
         margin-bottom: 10px;
         color: #15324d;
+        font-size: 14px;
     }
     .pos-backoffice-nav-links {
         display: flex;
@@ -83,7 +84,7 @@
         border: 1px solid #dbe6f2;
         background: #f8fbff;
         color: #17304f;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
     }
     .pos-backoffice-nav-link.active {
@@ -96,7 +97,7 @@
 <section class="pos-backoffice-nav">
     <div class="pos-backoffice-nav-head">
         <div>
-            <strong style="font-size:18px; color:#10233a;">Back-office POS</strong>
+            <strong style="font-size:16px; color:#10233a;">Back-office POS</strong>
             <div class="muted">Structure point de vente inspiree d Odoo, connectee aux flux Nema deja existants.</div>
         </div>
         <a href="{{ route('pos.sales.create') }}" class="button button-primary">Ouvrir la caisse</a>

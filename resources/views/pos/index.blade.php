@@ -21,7 +21,7 @@
             background: linear-gradient(135deg, #16324f 0%, #24517a 55%, #3370a8 100%);
             box-shadow: 0 20px 40px rgba(22, 50, 79, 0.18);
         }
-        .pos-home-hero h2 { margin: 0; font-size: 30px; letter-spacing: -0.03em; }
+        .pos-home-hero h2 { margin: 0; font-size: 24px; letter-spacing: -0.03em; }
         .pos-home-hero .muted { color: rgba(255,255,255,.78); max-width: 760px; }
         .pos-home-hero .button-secondary {
             background: rgba(255,255,255,.14);
@@ -47,7 +47,7 @@
             padding: 22px 22px 14px;
             border-bottom: 1px solid #e7edf4;
         }
-        .pos-panel-head h3 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+        .pos-panel-head h3 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
         .pos-panel-body { padding: 20px 22px 22px; }
         .pos-mode-strip {
             display: flex;
@@ -63,7 +63,7 @@
             border-radius: 999px;
             background: #eff5ff;
             color: #2555a6;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
         }
         .pos-opening-grid {
@@ -99,7 +99,7 @@
         }
         .pos-stat-card .value {
             margin-top: 10px;
-            font-size: 30px;
+            font-size: 24px;
             font-weight: 800;
             letter-spacing: -0.03em;
             color: #10233a;
@@ -119,7 +119,7 @@
             background: #fff;
         }
         .pos-mini-card strong { display: block; margin-bottom: 4px; }
-        .pos-mini-meta { color: #6f7f92; font-size: 13px; }
+        .pos-mini-meta { color: #6f7f92; font-size: 12px; }
         .pos-side-list {
             display: grid;
             gap: 12px;
@@ -142,14 +142,14 @@
             border: 1px solid #dbe5f1;
             background: #fff;
         }
-        .pos-kpi .label { color: #6d8096; font-size: 13px; }
-        .pos-kpi .value { margin-top: 8px; font-size: 24px; font-weight: 800; color: #13253b; }
+        .pos-kpi .label { color: #6d8096; font-size: 12px; }
+        .pos-kpi .value { margin-top: 8px; font-size: 20px; font-weight: 800; color: #13253b; }
         @media (max-width: 1080px) {
             .pos-home-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 760px) {
             .pos-home-hero { padding: 20px 18px; }
-            .pos-home-hero h2 { font-size: 26px; }
+            .pos-home-hero h2 { font-size: 22px; }
         }
     </style>
 
