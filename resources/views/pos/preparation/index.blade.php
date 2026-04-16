@@ -198,7 +198,16 @@
                                             <button type="submit" class="button button-secondary">{{ $statusLabel }}</button>
                                         </form>
                                     @endforeach
-                                    <a href="{{ route('pos.preparation.print', $ticket) }}" class="button button-primary" target="_blank" rel="noopener">Imprimer ticket</a>
+                                    <a href="{{ route('pos.preparation.print', [
+                                        'ticket' => $ticket,
+                                        'auto_print' => 1,
+                                        'return_to' => route('pos.preparation.index', array_filter([
+                                            'status' => $board['filters']['status'] ?? null,
+                                            'printer_id' => $board['filters']['printer_id'] ?? null,
+                                            'display_id' => $board['filters']['display_id'] ?? null,
+                                        ])),
+                                        'return_label' => 'Retour board',
+                                    ]) }}" class="button button-primary">Imprimer ticket</a>
                                 </div>
                             </article>
                         @endforeach

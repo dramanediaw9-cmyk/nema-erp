@@ -21,9 +21,11 @@
     </style>
 </head>
 <body>
+    @php($returnUrl = request('return_to') ?: ($ticket->display ? route('pos.preparation.display', $ticket->display) : route('pos.preparation.index')))
+    @php($returnLabel = request('return_label') ?: ($ticket->display ? 'Retour display' : 'Retour board'))
     <div class="toolbar">
-        <button type="button" class="button" onclick="window.print()">Imprimer</button>
-        <a href="{{ route('pos.preparation.index') }}" class="button">Board preparation</a>
+        <button type="button" class="button" onclick="window.nemaPreparationPrintTicket()">Imprimer</button>
+        <a href="{{ $returnUrl }}" class="button">{{ $returnLabel }}</a>
     </div>
 
     <div class="ticket">
@@ -62,5 +64,92 @@
         <div class="divider"></div>
         <div class="center muted">Genere depuis le board preparation Nema ERP</div>
     </div>
+
+    @if (request()->boolean('auto_print') || request()->filled('return_to'))
+        <script>
+            const shouldAutoPrint = {{ request()->boolean('auto_print') ? 'true' : 'false' }};
+            const shouldReturn = {{ request()->filled('return_to') ? 'true' : 'false' }};
+            const returnUrl = @json($returnUrl);
+            let printFlowStarted = false;
+            let printViewWasHidden = document.visibilityState === 'hidden';
+            let hasReturned = false;
+
+            const returnToSource = () => {
+                if (!shouldReturn || hasReturned) {
+                    return;
+                }
+
+                hasReturned = true;
+                window.location.replace(returnUrl);
+            };
+
+            const queueReturn = () => {
+                if (!shouldReturn || !printFlowStarted || hasReturned) {
+                    return;
+                }
+
+                window.setTimeout(() => {
+                    returnToSource();
+                }, 180);
+            };
+
+            const startPrintFlow = () => {
+                printFlowStarted = true;
+            };
+
+            window.nemaPreparationPrintTicket = () => {
+                startPrintFlow();
+                window.print();
+            };
+
+            window.addEventListener('afterprint', () => {
+                queueReturn();
+            });
+
+            if (typeof window.matchMedia === 'function') {
+                const printMedia = window.matchMedia('print');
+                const onPrintMediaChange = (event) => {
+                    if (!event.matches) {
+                        queueReturn();
+                    }
+                };
+
+                if (typeof printMedia.addEventListener === 'function') {
+                    printMedia.addEventListener('change', onPrintMediaChange);
+                } else if (typeof printMedia.addListener === 'function') {
+                    printMedia.addListener(onPrintMediaChange);
+                }
+            }
+
+            window.addEventListener('focus', () => {
+                queueReturn();
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (printViewWasHidden && document.visibilityState === 'visible') {
+                    queueReturn();
+                }
+
+                printViewWasHidden = document.visibilityState === 'hidden';
+            });
+
+            window.addEventListener('load', () => {
+                if (!shouldAutoPrint) {
+                    return;
+                }
+
+                startPrintFlow();
+                window.setTimeout(() => {
+                    window.print();
+                }, 120);
+            });
+        </script>
+    @else
+        <script>
+            window.nemaPreparationPrintTicket = () => {
+                window.print();
+            };
+        </script>
+    @endif
 </body>
 </html>

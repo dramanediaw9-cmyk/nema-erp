@@ -295,7 +295,12 @@
                                     </div>
                                 </div>
                                 <div class="pos-inline-actions">
-                                    <a href="{{ route('pos.preparation.print', $ticket) }}" class="button">Imprimer</a>
+                                    <a href="{{ route('pos.preparation.print', [
+                                        'ticket' => $ticket,
+                                        'auto_print' => 1,
+                                        'return_to' => route('pos.receipt', $invoice),
+                                        'return_label' => 'Retour ticket',
+                                    ]) }}" class="button">Imprimer</a>
                                 </div>
                             </div>
                         @endforeach

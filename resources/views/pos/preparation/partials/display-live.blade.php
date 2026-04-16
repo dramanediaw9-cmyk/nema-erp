@@ -109,7 +109,12 @@
                                     </form>
                                 @endif
 
-                                <a href="{{ route('pos.preparation.print', $ticket) }}" class="button button-secondary" target="_blank" rel="noopener">Imprimer</a>
+                                <a href="{{ route('pos.preparation.print', [
+                                    'ticket' => $ticket,
+                                    'auto_print' => 1,
+                                    'return_to' => route('pos.preparation.display', $display),
+                                    'return_label' => 'Retour display',
+                                ]) }}" class="button button-secondary">Imprimer</a>
                             </div>
                         </article>
                     @endforeach

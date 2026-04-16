@@ -154,6 +154,25 @@ class PosPreparationFlowTest extends TestCase
             ->assertSeeText($ticket->ticket_number)
             ->assertSeeText($invoice->invoice_number)
             ->assertSeeText('Burger board test');
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.preparation.print', [
+                'ticket' => $ticket,
+                'auto_print' => 1,
+                'return_to' => route('pos.preparation.index'),
+                'return_label' => 'Retour board',
+            ]));
+
+        $response->assertOk()
+            ->assertSeeText('Retour board')
+            ->assertSee(route('pos.preparation.index'), false);
+
+        $html = $response->getContent();
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString("window.addEventListener('afterprint'", $html);
+        $this->assertStringContainsString('window.location.replace(returnUrl);', $html);
     }
 
     public function test_preparation_display_shows_only_its_tickets_and_supports_display_flow(): void
