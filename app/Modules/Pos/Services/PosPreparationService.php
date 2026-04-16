@@ -183,6 +183,48 @@ class PosPreparationService
         ];
     }
 
+    public function displayBoard(int $companyId, int $branchId, PosPreparationDisplay $display): array
+    {
+        $display->loadMissing('branch');
+
+        $visibleStatuses = ['queued', 'in_progress', 'ready'];
+        $statusOptions = $this->statusOptions();
+
+        $tickets = PosPreparationTicket::query()
+            ->with(['items.product', 'printer', 'display', 'invoice.customer', 'session', 'profile'])
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('display_id', $display->id)
+            ->whereIn('status', $visibleStatuses)
+            ->latest('created_at')
+            ->latest('id')
+            ->get();
+
+        return [
+            'display' => $display,
+            'refresh_seconds' => max(5, (int) ($display->refresh_seconds ?: 20)),
+            'status_options' => $statusOptions,
+            'next_status_map' => [
+                'queued' => 'in_progress',
+                'in_progress' => 'ready',
+                'ready' => 'served',
+            ],
+            'previous_status_map' => [
+                'in_progress' => 'queued',
+                'ready' => 'in_progress',
+            ],
+            'summary' => [
+                'queued' => (int) $tickets->where('status', 'queued')->count(),
+                'in_progress' => (int) $tickets->where('status', 'in_progress')->count(),
+                'ready' => (int) $tickets->where('status', 'ready')->count(),
+                'late' => (int) $tickets->filter(fn (PosPreparationTicket $ticket) => $this->isLate($ticket))->count(),
+            ],
+            'grouped_tickets' => collect($visibleStatuses)->mapWithKeys(fn (string $status): array => [
+                $status => $tickets->where('status', $status)->values(),
+            ]),
+        ];
+    }
+
     public function updateTicketStatus(PosPreparationTicket $ticket, string $status, ?int $userId = null): PosPreparationTicket
     {
         if (! in_array($status, ['queued', 'in_progress', 'ready', 'served', 'cancelled'], true)) {
@@ -200,9 +242,15 @@ class PosPreparationService
             $updates['started_at'] = now();
         }
 
+        if ($status === 'in_progress') {
+            $updates['ready_at'] = null;
+            $updates['served_at'] = null;
+        }
+
         if ($status === 'ready') {
             $updates['started_at'] = $ticket->started_at ?: now();
             $updates['ready_at'] = now();
+            $updates['served_at'] = null;
         }
 
         if ($status === 'served') {
@@ -225,6 +273,17 @@ class PosPreparationService
         $ticket->items()->update(['status' => $status]);
 
         return $ticket->fresh(['items.product', 'printer', 'display', 'invoice.customer', 'session', 'profile']);
+    }
+
+    private function statusOptions(): array
+    {
+        return [
+            'queued' => 'En file',
+            'in_progress' => 'En preparation',
+            'ready' => 'Pret',
+            'served' => 'Servi',
+            'cancelled' => 'Annule',
+        ];
     }
 
     public function isLate(PosPreparationTicket $ticket): bool

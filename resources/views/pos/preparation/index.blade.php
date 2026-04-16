@@ -79,6 +79,15 @@
                     <h3 style="margin:0; font-size:22px;">Filtres d execution</h3>
                     <div class="muted">Tu peux focaliser l affichage par statut, imprimante ou Preparation Display.</div>
                 </div>
+                @if ($board['displays']->isNotEmpty())
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        @foreach ($board['displays'] as $display)
+                            <a href="{{ route('pos.preparation.display', $display) }}" class="button button-secondary" target="_blank" rel="noopener">
+                                Ouvrir {{ $display->name }}
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
             </div>
             <div class="pos-prep-body">
                 <form method="GET" class="form-grid">

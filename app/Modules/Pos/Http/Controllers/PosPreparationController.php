@@ -3,6 +3,7 @@
 namespace App\Modules\Pos\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Pos\Models\PosPreparationDisplay;
 use App\Modules\Pos\Models\PosPreparationTicket;
 use App\Modules\Pos\Services\PosPreparationService;
 use App\Support\ActivityLogger;
@@ -31,6 +32,18 @@ class PosPreparationController extends Controller
                 'printer_id' => $request->integer('printer_id') ?: null,
                 'display_id' => $request->integer('display_id') ?: null,
             ]),
+        ]);
+    }
+
+    public function display(PosPreparationDisplay $display, CurrentWorkspace $workspace): View
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
+        abort_if($companyId !== $display->company_id, 403);
+
+        return view('pos.preparation.display', [
+            'board' => $this->preparationService->displayBoard($companyId, $branchId, $display),
         ]);
     }
 
