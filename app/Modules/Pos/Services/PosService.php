@@ -10,6 +10,8 @@ use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Pos\Models\PosDraft;
+use App\Modules\Pos\Models\PosPaymentMethod;
+use App\Modules\Pos\Models\PosProfile;
 use App\Modules\Pos\Models\PosReturn;
 use App\Modules\Pos\Models\PosReturnItem;
 use App\Modules\Pos\Models\PosSession;
@@ -39,6 +41,82 @@ class PosService
     public function methodOptions(): array
     {
         return PaymentMethodCatalog::options();
+    }
+
+    public function activeProfile(int $companyId, int $branchId): ?PosProfile
+    {
+        return PosProfile::query()
+            ->with(['priceList', 'loyaltyProgram', 'noteTemplate', 'defaultPrinter', 'defaultDisplay', 'cashAccount', 'warehouse'])
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first()
+            ?? PosProfile::query()
+                ->with(['priceList', 'loyaltyProgram', 'noteTemplate', 'defaultPrinter', 'defaultDisplay', 'cashAccount', 'warehouse'])
+                ->where('company_id', $companyId)
+                ->whereNull('branch_id')
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->first();
+    }
+
+    public function runtimePaymentMethodConfigs(int $companyId, int $branchId, ?PosProfile $profile = null): Collection
+    {
+        $profile ??= $this->activeProfile($companyId, $branchId);
+
+        $configured = PosPaymentMethod::query()
+            ->with('cashAccount')
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function (Builder $query) use ($branchId): void {
+                $query->where('branch_id', $branchId)->orWhereNull('branch_id');
+            })
+            ->get()
+            ->sortBy([
+                fn (PosPaymentMethod $method) => $method->branch_id === $branchId ? 0 : 1,
+                fn (PosPaymentMethod $method) => $method->is_default ? 0 : 1,
+                fn (PosPaymentMethod $method) => (int) $method->sort_order,
+                fn (PosPaymentMethod $method) => $method->label,
+            ])
+            ->unique('method_code')
+            ->keyBy('method_code');
+
+        $orderedCodes = collect($profile?->active_payment_methods ?? [])
+            ->filter(fn ($code) => filled($code))
+            ->values();
+
+        if ($orderedCodes->isEmpty()) {
+            $orderedCodes = $configured->keys()->values();
+        }
+
+        if ($orderedCodes->isEmpty()) {
+            $orderedCodes = collect(PaymentMethodCatalog::values());
+        }
+
+        return $orderedCodes->map(function (string $methodCode) use ($configured) {
+            /** @var PosPaymentMethod|null $method */
+            $method = $configured->get($methodCode);
+
+            return [
+                'method_code' => $methodCode,
+                'label' => $method?->label ?: PaymentMethodCatalog::label($methodCode),
+                'transaction_label' => $method?->transaction_label,
+                'cash_account_id' => $method?->cash_account_id,
+                'requires_reference' => (bool) ($method?->requires_reference ?? in_array($methodCode, ['wave', 'orange_money', 'moov_money', 'mobile_money', 'bank_transfer', 'cheque'], true)),
+                'supports_change' => (bool) ($method?->supports_change ?? $methodCode === 'cash'),
+                'is_default' => (bool) ($method?->is_default ?? false),
+            ];
+        })->values();
+    }
+
+    public function runtimeMethodOptions(int $companyId, int $branchId, ?PosProfile $profile = null): array
+    {
+        return $this->runtimePaymentMethodConfigs($companyId, $branchId, $profile)
+            ->mapWithKeys(fn (array $config) => [$config['method_code'] => $config['label']])
+            ->all();
     }
 
     public function cashDenominations(): array
@@ -479,10 +557,12 @@ class PosService
     }
     private function normalizeDraftPayments(PosSession $session, array $payload, array $paymentsInput, float $draftTotal): array
     {
+        $allowedMethods = $this->runtimeMethodOptions($session->company_id, $session->branch_id);
+
         $payments = collect($paymentsInput)
-            ->map(function (array $payment) use ($session): ?array {
+            ->map(function (array $payment) use ($session, $allowedMethods): ?array {
                 $method = $payment['method'] ?? null;
-                if (! $method || ! array_key_exists($method, $this->methodOptions())) {
+                if (! $method || ! array_key_exists($method, $allowedMethods)) {
                     return null;
                 }
 
@@ -505,6 +585,11 @@ class PosService
 
         if ($payments->isEmpty()) {
             $fallbackMethod = $payload['method'] ?? 'cash';
+            if (! array_key_exists($fallbackMethod, $allowedMethods)) {
+                throw ValidationException::withMessages([
+                    'method' => 'Le mode de paiement choisi n est pas actif sur ce profil de caisse.',
+                ]);
+            }
             $cashAccount = $this->resolveCashAccountForMethod($session, $fallbackMethod, null, false);
 
             return [[
@@ -520,10 +605,12 @@ class PosService
 
     private function normalizeSalePayments(PosSession $session, array $payload, array $paymentsInput, float $invoiceTotal): array
     {
+        $allowedMethods = $this->runtimeMethodOptions($session->company_id, $session->branch_id);
+
         $payments = collect($paymentsInput)
-            ->map(function (array $payment) use ($session): ?array {
+            ->map(function (array $payment) use ($session, $allowedMethods): ?array {
                 $method = $payment['method'] ?? null;
-                if (! $method || ! array_key_exists($method, $this->methodOptions())) {
+                if (! $method || ! array_key_exists($method, $allowedMethods)) {
                     return null;
                 }
 
@@ -548,6 +635,11 @@ class PosService
 
         if ($payments->isEmpty()) {
             $method = $payload['method'] ?? 'cash';
+            if (! array_key_exists($method, $allowedMethods)) {
+                throw ValidationException::withMessages([
+                    'method' => 'Le mode de paiement choisi n est pas actif sur ce profil de caisse.',
+                ]);
+            }
             $payments = collect([[
                 'method' => $method,
                 'amount' => round($invoiceTotal, 2),

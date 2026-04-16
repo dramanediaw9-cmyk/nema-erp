@@ -1372,6 +1372,9 @@
                     <div class="pos-meta-chip">Session <strong>{{ $session->session_number }}</strong></div>
                     <div class="pos-meta-chip">Entrepot <strong>{{ $session->warehouse?->name }}</strong></div>
                     <div class="pos-meta-chip">Caisse <strong>{{ $session->cashAccount?->name }}</strong></div>
+                    @if ($activePosProfile)
+                        <div class="pos-meta-chip">Profil <strong>{{ $activePosProfile['name'] }}</strong></div>
+                    @endif
                     <div class="pos-meta-chip" id="pos-filter-count">{{ count($productCatalog) }} / {{ count($productCatalog) }} articles</div>
                 </div>
 
@@ -1388,7 +1391,7 @@
                 <div id="pos-category-row" class="pos-chip-row">
                     <button type="button" class="pos-chip is-active" data-category="">Tous</button>
                     @foreach ($categories as $category)
-                        <button type="button" class="pos-chip" data-category="{{ $category['id'] }}">{{ $category['name'] }}</button>
+                        <button type="button" class="pos-chip" data-category="{{ $category['key'] }}" @if(!empty($category['color'])) style="border-color: {{ $category['color'] }}; color: {{ $category['color'] }};" @endif>{{ $category['name'] }}</button>
                     @endforeach
                 </div>
 
@@ -1464,6 +1467,9 @@
                         <div class="pos-cart-context-chip">Paiement <strong id="pos-method-chip">{{ $methods[old('method', 'cash')] ?? reset($methods) }}</strong></div>
                         <div class="pos-cart-context-chip">Date <strong id="pos-date-chip">{{ now()->format('d/m/Y') }}</strong></div>
                         <div class="pos-cart-context-chip">Lignes <strong id="pos-lines-chip">0 ligne</strong></div>
+                        @if ($activePosProfile)
+                            <div class="pos-cart-context-chip">Fidelite <strong>{{ $activePosProfile['loyalty_program_name'] ?: 'Aucune' }}</strong></div>
+                        @endif
                     </div>
                 </div>
                 <form id="pos-sale-form" class="pos-sale-form" method="POST" action="{{ route('pos.sales.store', [], false) }}" novalidate>
@@ -1555,7 +1561,7 @@
                             </div>
                             <div>
                                 <label for="notes">Notes</label>
-                                <textarea id="notes" name="notes" class="pos-note" placeholder="Commentaire operateur, precisions ticket, remarque caisse">{{ old('notes') }}</textarea>
+                                <textarea id="notes" name="notes" class="pos-note" placeholder="Commentaire operateur, precisions ticket, remarque caisse">{{ $initialNote }}</textarea>
                                 @error('notes')<div class="field-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
@@ -1563,12 +1569,14 @@
                         <input type="hidden" id="source_draft_id" name="source_draft_id" value="{{ old('source_draft_id', $activeDraftId) }}">
                         <input type="hidden" id="pos_session_id" name="pos_session_id" value="{{ $session->id }}">
                         <input type="hidden" id="pos_sync_key" name="pos_sync_key" value="{{ old('pos_sync_key') }}">
-                        <input type="hidden" name="print_thermal" value="1">
+                        <input type="hidden" name="print_thermal" value="{{ $autoPrintReceipt ? 1 : 0 }}">
                         <div id="pos-hidden-inputs"></div>
 
                         <div class="pos-actions">
                             <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Retour session</a>
-                            <button type="button" id="pos-save-draft" class="button button-secondary">Mettre en attente</button>
+                            @if ($allowDraftOrders)
+                                <button type="button" id="pos-save-draft" class="button button-secondary">Mettre en attente</button>
+                            @endif
                             <button type="button" id="pos-submit-button" class="button button-primary">Valider et encaisser</button>
                         </div>
                     </div>
@@ -1580,6 +1588,9 @@
     <script>
         const productCatalog = @json($productCatalog);
         const methods = @json($methods);
+        const paymentMethodConfigs = @json($paymentMethodConfigs);
+        const activePosProfile = @json($activePosProfile);
+        const allowDraftOrders = @json($allowDraftOrders);
         const posSessionId = @json($session->id);
         const paymentAccounts = @json($paymentAccounts);
         const sessionCashAccountId = @json($sessionCashAccountId);
@@ -1652,7 +1663,8 @@
 
         const byId = Object.fromEntries(productCatalog.map((product) => [String(product.id), product]));
         const accountsById = Object.fromEntries(paymentAccounts.map((account) => [String(account.id), account]));
-        const defaultMethod = methodInput.options[0]?.value || 'cash';
+        const methodConfigsByCode = Object.fromEntries(paymentMethodConfigs.map((config) => [config.method_code, config]));
+        const defaultMethod = paymentMethodConfigs.find((config) => config.is_default)?.method_code || methodInput.options[0]?.value || 'cash';
         const methodLabels = methods;
         const touchTargets = {
             'target-qty': 'qty',
@@ -1797,6 +1809,10 @@
             return true;
         };
         const defaultAccountIdForMethod = (method) => {
+            const configured = methodConfigsByCode[method];
+            if (configured?.cash_account_id) {
+                return Number(configured.cash_account_id);
+            }
             if (method === 'cash') {
                 return sessionCashAccountId ? Number(sessionCashAccountId) : null;
             }
@@ -1808,7 +1824,7 @@
             product_id: String(item.product_id || ''),
             description: item.description || byId[String(item.product_id || '')]?.name || '',
             qty: Number(item.qty || 1),
-            unit_price: Number(item.unit_price || byId[String(item.product_id || '')]?.price || 0),
+            unit_price: Number(item.unit_price || comboPrice(byId[String(item.product_id || '')]) || 0),
             discount_type: item.discount_type || 'none',
             discount_value: Number(item.discount_value || 0),
         }));
@@ -1960,6 +1976,17 @@
             ? `<img src="${esc(product.image_url)}" alt="${esc(product.name)}">`
             : esc(initials(product.name));
         const paymentMethodLabel = (method) => methodLabels[method] || method || 'Mode';
+        const comboPrice = (product) => {
+            if (!product?.combo) {
+                return n(product?.price, 0);
+            }
+
+            if (product.combo.pricing_mode === 'fixed' && product.combo.price_override !== null) {
+                return n(product.combo.price_override, n(product?.price, 0));
+            }
+
+            return n(product?.price, 0);
+        };
         const primaryMethod = (order) => order?.payments?.[0]?.method || order?.method || defaultMethod;
         const paymentSummary = (order, total) => {
             if (!Array.isArray(order.payments) || !order.payments.length) {
@@ -3033,9 +3060,9 @@
                 const line = {
                     uid: `${Date.now()}-${Math.random()}`,
                     product_id: String(product.id),
-                    description: product.name,
+                    description: product.combo ? `${product.name} · ${product.combo.name}` : product.name,
                     qty: 1,
-                    unit_price: n(product.price),
+                    unit_price: comboPrice(product),
                     discount_type: 'none',
                     discount_value: 0,
                 };
@@ -3194,8 +3221,17 @@
         const renderProducts = () => {
             const term = norm(state.search);
             const filtered = productCatalog.filter((product) => {
-                const categoryMatch = !state.category || String(product.category_id || '') === state.category;
-                const searchMatch = !term || [product.name, product.sku, product.barcode, product.category_name].some((field) => norm(field).includes(term));
+                const categoryFilters = Array.isArray(product.filter_keys) ? product.filter_keys : [];
+                const categoryMatch = !state.category || categoryFilters.includes(state.category);
+                const searchMatch = !term || [
+                    product.name,
+                    product.sku,
+                    product.barcode,
+                    product.category_name,
+                    ...(product.menu_category_names || []),
+                    ...(product.tag_names || []),
+                    product.combo?.name || '',
+                ].some((field) => norm(field).includes(term));
                 return categoryMatch && searchMatch;
             });
 
@@ -3214,6 +3250,16 @@
                 const stockMeta = product.type === 'stockable'
                     ? `<div class="meta pos-stock-line ${isUnavailable ? 'is-empty' : ''}">Stock dispo ${formatQty(availableQty)} ${esc(product.unit || '')}</div>`
                     : `<div class="meta pos-stock-line">Disponible immediatement</div>`;
+                const menuMeta = (product.menu_category_names || []).length
+                    ? `<div class="meta">${esc(product.menu_category_names.join(' · '))}</div>`
+                    : '';
+                const comboMeta = product.combo
+                    ? `<div class="meta">Combo ${esc(product.combo.name)}${product.combo.price_override !== null ? ` · ${money(product.combo.price_override)}` : ''}</div>`
+                    : '';
+                const badges = (product.tag_badges || [])
+                    .slice(0, 2)
+                    .map((tag) => `<span class="pos-line-tag" style="${tag.color ? `border-color:${esc(tag.color)}; color:${esc(tag.color)};` : ''}">${esc(tag.name)}</span>`)
+                    .join('');
 
                 return `
                 <button type="button" class="pos-product ${isUnavailable ? 'is-unavailable' : ''}" data-product-id="${product.id}" ${isUnavailable ? 'disabled' : ''}>
@@ -3224,7 +3270,10 @@
                     <div>
                         <strong>${esc(product.name)}</strong>
                         <div class="meta">${esc(product.category_name || 'Sans categorie')} / ${esc(product.barcode || product.sku || 'Reference libre')}</div>
+                        ${menuMeta}
+                        ${comboMeta}
                         ${stockMeta}
+                        ${badges ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">${badges}</div>` : ''}
                     </div>
                     <div class="price">${money(product.price)}</div>
                 </button>

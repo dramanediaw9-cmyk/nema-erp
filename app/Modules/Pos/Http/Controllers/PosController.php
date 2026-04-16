@@ -4,10 +4,14 @@ namespace App\Modules\Pos\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
+use App\Modules\Pos\Models\PosComboChoice;
 use App\Modules\Pos\Models\PosDraft;
+use App\Modules\Pos\Models\PosMenuCategory;
+use App\Modules\Pos\Models\PosProductTag;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Pos\Services\PosService;
 use App\Modules\Sales\Models\SalesInvoice;
@@ -27,6 +31,7 @@ class PosController extends Controller
         private readonly PosService $posService,
         private readonly ActivityLogger $activityLogger,
         private readonly StockService $stockService,
+        private readonly PricingService $pricingService,
     ) {
     }
 
@@ -129,12 +134,67 @@ class PosController extends Controller
             return redirect()->route('pos.index')->with('error', 'Aucune session de caisse ouverte n est accessible pour entrer dans la caisse.');
         }
 
+        $activeProfile = $this->posService->activeProfile($companyId, $branchId);
+        $methodConfigs = $this->posService->runtimePaymentMethodConfigs($companyId, $branchId, $activeProfile);
+        $methods = $this->posService->runtimeMethodOptions($companyId, $branchId, $activeProfile);
         $products = Product::query()
             ->with(['category', 'parent'])
             ->where('company_id', $companyId)
             ->saleable()
             ->orderBy('name')
             ->get();
+        $priceRules = $this->pricingService->rulesForPriceList(
+            $companyId,
+            $activeProfile?->price_list_id,
+            $products->pluck('id')->all(),
+        );
+        $menuCategories = PosMenuCategory::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+        $menuCategoryMap = [];
+        foreach ($menuCategories as $menuCategory) {
+            foreach (($menuCategory->product_ids ?? []) as $productId) {
+                $menuCategoryMap[(int) $productId][] = [
+                    'id' => $menuCategory->id,
+                    'name' => $menuCategory->name,
+                    'color' => $menuCategory->color,
+                ];
+            }
+        }
+        $productTags = PosProductTag::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        $productTagMap = [];
+        foreach ($productTags as $productTag) {
+            foreach (($productTag->product_ids ?? []) as $productId) {
+                $productTagMap[(int) $productId][] = [
+                    'name' => $productTag->name,
+                    'color' => $productTag->color,
+                ];
+            }
+        }
+        $comboChoices = PosComboChoice::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($branchId): void {
+                $query->where('branch_id', $branchId)->orWhereNull('branch_id');
+            })
+            ->orderByDesc('branch_id')
+            ->orderBy('id')
+            ->get();
+        $comboMap = [];
+        foreach ($comboChoices as $comboChoice) {
+            if (! $comboChoice->parent_product_id || isset($comboMap[$comboChoice->parent_product_id])) {
+                continue;
+            }
+
+            $comboMap[$comboChoice->parent_product_id] = $comboChoice;
+        }
         $drafts = $this->posService->draftsForSession($session, $user->id);
         $paymentAccounts = CashAccount::query()
             ->where('company_id', $companyId)
@@ -149,32 +209,91 @@ class PosController extends Controller
         return view('pos.sale', [
             'session' => $session,
             'summary' => $this->posService->summary($session),
+            'activePosProfile' => $activeProfile ? [
+                'id' => $activeProfile->id,
+                'name' => $activeProfile->name,
+                'price_list_name' => $activeProfile->priceList?->name,
+                'loyalty_program_name' => $activeProfile->loyaltyProgram?->name,
+                'note_template_name' => $activeProfile->noteTemplate?->name,
+                'allow_draft_orders' => (bool) $activeProfile->allow_draft_orders,
+                'auto_print_receipt' => (bool) $activeProfile->auto_print_receipt,
+            ] : null,
             'customers' => Partner::query()->customers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'categories' => $products
-                ->filter(fn (Product $product) => $product->category)
-                ->map(fn (Product $product) => ['id' => $product->category->id, 'name' => $product->category->name])
-                ->unique('id')
-                ->sortBy('name')
-                ->values(),
-            'productCatalog' => $products->map(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'sku' => $product->sku,
-                'barcode' => $product->barcode,
-                'image_url' => $product->image_url,
-                'price' => (float) $product->sale_price,
-                'type' => $product->type,
-                'unit' => $product->unit,
-                'category_id' => $product->category_id,
-                'category_name' => $product->category?->name,
-                'available_qty' => $product->type === 'stockable'
-                    ? round($this->stockService->saleableQuantity($product, $companyId, $branchId, $session->warehouse_id), 3)
-                    : null,
-            ])->values(),
+            'categories' => ($menuCategories->isNotEmpty()
+                ? $menuCategories->map(fn (PosMenuCategory $category) => [
+                    'key' => 'menu:'.$category->id,
+                    'name' => $category->name,
+                    'color' => $category->color,
+                ])
+                : $products
+                    ->filter(fn (Product $product) => $product->category)
+                    ->map(fn (Product $product) => [
+                        'key' => 'catalog:'.$product->category->id,
+                        'name' => $product->category->name,
+                        'color' => null,
+                    ])
+                    ->unique('key')
+                    ->sortBy('name')
+                    ->values()),
+            'productCatalog' => $products->map(function (Product $product) use ($priceRules, $comboMap, $productTagMap, $menuCategoryMap, $companyId, $branchId, $session) {
+                $menuFilters = collect($menuCategoryMap[$product->id] ?? []);
+                $tagBadges = collect($productTagMap[$product->id] ?? [])->values();
+                /** @var PosComboChoice|null $combo */
+                $combo = $comboMap[$product->id] ?? null;
+                $basePrice = $this->pricingService->resolveGroupedPrice(
+                    $priceRules->get($product->id),
+                    1,
+                    (float) $product->sale_price,
+                );
+                $displayPrice = $combo && $combo->pricing_mode === 'fixed' && $combo->price_override !== null
+                    ? (float) $combo->price_override
+                    : $basePrice;
+
+                $filterKeys = collect();
+                if ($product->category_id) {
+                    $filterKeys->push('catalog:'.$product->category_id);
+                }
+                $filterKeys = $filterKeys
+                    ->merge($menuFilters->map(fn (array $menuFilter) => 'menu:'.$menuFilter['id']))
+                    ->unique()
+                    ->values();
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'barcode' => $product->barcode,
+                    'image_url' => $product->image_url,
+                    'price' => $displayPrice,
+                    'base_price' => $basePrice,
+                    'type' => $product->type,
+                    'unit' => $product->unit,
+                    'category_id' => $product->category_id,
+                    'category_name' => $product->category?->name,
+                    'filter_keys' => $filterKeys->all(),
+                    'menu_category_names' => $menuFilters->pluck('name')->values()->all(),
+                    'tag_names' => $tagBadges->pluck('name')->values()->all(),
+                    'tag_badges' => $tagBadges->all(),
+                    'combo' => $combo ? [
+                        'name' => $combo->name,
+                        'pricing_mode' => $combo->pricing_mode,
+                        'price_override' => $combo->price_override !== null ? (float) $combo->price_override : null,
+                        'component_count' => count($combo->component_product_ids ?? []),
+                        'max_selectable' => $combo->max_selectable,
+                    ] : null,
+                    'available_qty' => $product->type === 'stockable'
+                        ? round($this->stockService->saleableQuantity($product, $companyId, $branchId, $session->warehouse_id), 3)
+                        : null,
+                ];
+            })->values(),
             'initialItems' => collect(old('items', []))->filter(fn ($item) => filled($item['product_id'] ?? null))->values()->all(),
             'initialPayments' => collect(old('payments', []))->filter(fn ($payment) => is_array($payment) && (filled($payment['amount'] ?? null) || filled($payment['method'] ?? null)))->values()->all(),
             'initialCashReceivedAmount' => old('cash_received_amount', 0),
-            'methods' => $this->posService->methodOptions(),
+            'initialNote' => old('notes', $activeProfile?->noteTemplate && $activeProfile->noteTemplate->usage === 'receipt' ? $activeProfile->noteTemplate->content : ''),
+            'methods' => $methods,
+            'paymentMethodConfigs' => $methodConfigs->values()->all(),
+            'allowDraftOrders' => $activeProfile?->allow_draft_orders ?? true,
+            'autoPrintReceipt' => $activeProfile?->auto_print_receipt ?? true,
             'paymentAccounts' => $paymentAccounts->map(fn (CashAccount $account) => [
                 'id' => $account->id,
                 'name' => $account->name,
@@ -206,17 +325,19 @@ class PosController extends Controller
             return redirect()->route('pos.index')->with('error', $message);
         }
 
+        $allowedMethods = array_keys($this->posService->runtimeMethodOptions($companyId, $branchId));
+
         $payload = $request->validate([
             'customer_id' => ['nullable', Rule::exists('partners', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'sale_date' => ['required', 'date'],
-            'method' => ['required', Rule::in(array_keys($this->posService->methodOptions()))],
+            'method' => ['required', Rule::in($allowedMethods)],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'discount_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'cash_received_amount' => ['nullable', 'numeric', 'min:0'],
             'payments' => ['nullable', 'array'],
-            'payments.*.method' => ['nullable', Rule::in(array_keys($this->posService->methodOptions()))],
+            'payments.*.method' => ['nullable', Rule::in($allowedMethods)],
             'payments.*.amount' => ['nullable', 'numeric', 'min:0'],
             'payments.*.cash_account_id' => ['nullable', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'payments.*.label' => ['nullable', 'string', 'max:100'],
@@ -246,7 +367,7 @@ class PosController extends Controller
                 'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
                 'items.*.discount_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
                 'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
-                'payments.*.method' => ['nullable', Rule::in(array_keys($this->posService->methodOptions()))],
+                'payments.*.method' => ['nullable', Rule::in($allowedMethods)],
                 'payments.*.amount' => ['nullable', 'numeric', 'min:0'],
                 'payments.*.cash_account_id' => ['nullable', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             ],
@@ -339,19 +460,21 @@ class PosController extends Controller
             ], 422);
         }
 
+        $allowedMethods = array_keys($this->posService->runtimeMethodOptions($companyId, $branchId));
+
         $payload = $request->validate([
             'draft_id' => ['nullable', Rule::exists('pos_drafts', 'id')->where(fn ($query) => $query->where('company_id', $companyId)->where('branch_id', $branchId)->where('pos_session_id', $session->id))],
             'label' => ['nullable', 'string', 'max:80'],
             'customer_id' => ['nullable', Rule::exists('partners', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'sale_date' => ['required', 'date'],
-            'method' => ['required', Rule::in(array_keys($this->posService->methodOptions()))],
+            'method' => ['required', Rule::in($allowedMethods)],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'discount_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'cash_received_amount' => ['nullable', 'numeric', 'min:0'],
             'payments' => ['nullable', 'array'],
-            'payments.*.method' => ['nullable', Rule::in(array_keys($this->posService->methodOptions()))],
+            'payments.*.method' => ['nullable', Rule::in($allowedMethods)],
             'payments.*.amount' => ['nullable', 'numeric', 'min:0'],
             'payments.*.cash_account_id' => ['nullable', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'payments.*.label' => ['nullable', 'string', 'max:100'],
@@ -379,7 +502,7 @@ class PosController extends Controller
                 'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
                 'items.*.discount_type' => ['nullable', Rule::in(['none', 'fixed', 'percent'])],
                 'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
-                'payments.*.method' => ['nullable', Rule::in(array_keys($this->posService->methodOptions()))],
+                'payments.*.method' => ['nullable', Rule::in($allowedMethods)],
                 'payments.*.amount' => ['nullable', 'numeric', 'min:0'],
                 'payments.*.cash_account_id' => ['nullable', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             ],
@@ -499,9 +622,11 @@ class PosController extends Controller
             return redirect()->route('pos.index')->with('error', 'Aucune session de caisse ouverte n est accessible pour traiter ce retour.');
         }
 
+        $allowedMethods = array_keys($this->posService->runtimeMethodOptions($companyId, $branchId));
+
         $payload = $request->validate([
             'return_date' => ['required', 'date'],
-            'method' => ['required', Rule::in(array_keys($this->posService->methodOptions()))],
+            'method' => ['required', Rule::in($allowedMethods)],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'return_mode' => ['nullable', Rule::in(['partial', 'cancel_all'])],

@@ -177,7 +177,7 @@ class DemoPosBackofficeSeeder extends Seeder
                     'default_printer_id' => $printer->id,
                     'default_display_id' => $display->id,
                     'name' => 'Profil caisse principale',
-                    'active_payment_methods' => ['cash', 'wave', 'orange_money', 'bank_transfer'],
+                    'active_payment_methods' => array_keys(PaymentMethodCatalog::options()),
                     'cash_denomination_preset' => ['10000' => 2, '5000' => 4, '1000' => 10],
                     'open_with_cash_control' => true,
                     'auto_print_receipt' => true,

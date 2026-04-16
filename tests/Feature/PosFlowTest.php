@@ -4,6 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Pos\Models\PosComboChoice;
+use App\Modules\Pos\Models\PosMenuCategory;
+use App\Modules\Pos\Models\PosNoteTemplate;
+use App\Modules\Pos\Models\PosPaymentMethod;
+use App\Modules\Pos\Models\PosProductTag;
+use App\Modules\Pos\Models\PosProfile;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Sales\Models\SalesInvoice;
@@ -377,6 +383,111 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString('const availableProductQty = (productId, currentLineUid = null) => {', $html);
         $this->assertStringContainsString('HTMLFormElement.prototype.submit.call(saleForm);', $html);
         $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
+    }
+
+    public function test_pos_sale_screen_uses_backoffice_profile_runtime_configuration(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        PosPaymentMethod::query()
+            ->where('company_id', $user->company_id)
+            ->where('method_code', 'other')
+            ->update([
+                'label' => 'Bon d achat fidelite',
+                'transaction_label' => 'Bon d achat POS',
+                'is_active' => true,
+            ]);
+
+        $noteTemplate = PosNoteTemplate::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'NOTE-0001')
+            ->firstOrFail();
+        $noteTemplate->update([
+            'content' => 'Merci pour votre passage en caisse premium.',
+            'usage' => 'receipt',
+            'is_active' => true,
+        ]);
+
+        PosMenuCategory::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'CAT-0001')
+            ->update([
+                'name' => 'Snacking express',
+                'color' => '#ff7a18',
+                'product_ids' => [$product->id],
+                'is_active' => true,
+            ]);
+
+        PosProductTag::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'TAG-0001')
+            ->update([
+                'name' => 'Populaire',
+                'color' => '#0f9d58',
+                'product_ids' => [$product->id],
+                'is_active' => true,
+            ]);
+
+        PosComboChoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'CBO-0001')
+            ->update([
+                'name' => 'Combo signature caisse',
+                'parent_product_id' => $product->id,
+                'pricing_mode' => 'fixed',
+                'price_override' => 1750,
+                'is_active' => true,
+            ]);
+
+        PosProfile::query()
+            ->where('company_id', $user->company_id)
+            ->where('branch_id', $user->branch_id)
+            ->update(['is_default' => false]);
+
+        $profile = PosProfile::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'POS-0001')
+            ->firstOrFail();
+
+        $profile->update([
+            'branch_id' => $user->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'cash_account_id' => $cashAccount->id,
+            'note_template_id' => $noteTemplate->id,
+            'name' => 'Profil caisse premium',
+            'active_payment_methods' => ['cash', 'other'],
+            'allow_draft_orders' => false,
+            'auto_print_receipt' => false,
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.sales.create'));
+
+        $response->assertOk()
+            ->assertSeeText('Profil caisse premium')
+            ->assertSeeText('Bon d achat fidelite')
+            ->assertDontSeeText('Cheque')
+            ->assertSeeText('Snacking express')
+            ->assertDontSeeText('Mettre en attente');
+
+        $html = $response->getContent();
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString('Merci pour votre passage en caisse premium.', $html);
+        $this->assertStringContainsString('name="print_thermal" value="0"', $html);
+        $this->assertStringContainsString('Combo signature caisse', $html);
+        $this->assertStringContainsString('Populaire', $html);
+        $this->assertStringContainsString('Bon d achat fidelite', $html);
+        $this->assertStringContainsString('"allow_draft_orders":false', $html);
+        $this->assertStringContainsString('"auto_print_receipt":false', $html);
     }
 
     public function test_thermal_receipt_keeps_print_actions_visible_for_touch_devices(): void
