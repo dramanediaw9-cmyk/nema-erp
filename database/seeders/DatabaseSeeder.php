@@ -16,6 +16,7 @@ use Database\Seeders\Expenses\DemoExpenseSeeder;
 use Database\Seeders\Growth\DemoGrowthFoundationSeeder;
 use Database\Seeders\Inventory\DemoStockSeeder;
 use Database\Seeders\Inventory\PosTestStockSeeder;
+use Database\Seeders\Pos\DemoPosBackofficeSeeder;
 use Database\Seeders\Purchases\DemoPurchaseSeeder;
 use Database\Seeders\Sales\DemoSalesSeeder;
 use Database\Seeders\Treasury\DemoCashAccountSeeder;
@@ -39,6 +40,7 @@ class DatabaseSeeder extends Seeder
             DemoCashAccountSeeder::class,
             DemoStockSeeder::class,
             PosTestStockSeeder::class,
+            DemoPosBackofficeSeeder::class,
             DemoPurchaseSeeder::class,
             DemoSupplierPaymentSeeder::class,
             DemoSalesSeeder::class,

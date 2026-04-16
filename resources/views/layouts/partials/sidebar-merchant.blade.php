@@ -6,6 +6,9 @@
         @endallowed
         @allowed('pos.view')
             <a class="nav-link {{ request()->routeIs('pos.*') ? 'active' : '' }}" href="{{ route('pos.index') }}">Vendre et encaisser</a>
+            <a class="nav-link {{ request()->routeIs('pos.orders.*') ? 'active' : '' }}" href="{{ route('pos.orders.index') }}">Commandes POS</a>
+            <a class="nav-link {{ request()->routeIs('pos.analytics.*') ? 'active' : '' }}" href="{{ route('pos.analytics.index') }}">Analyse POS</a>
+            <a class="nav-link {{ request()->routeIs('pos.settings.*') ? 'active' : '' }}" href="{{ route('pos.settings.index') }}">Config POS</a>
         @endallowed
         @allowed('sales.view')
             <a class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}" href="{{ route('sales.index') }}">Ventes</a>

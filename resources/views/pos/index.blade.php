@@ -154,6 +154,8 @@
     </style>
 
     <div class="pos-home">
+        @include('pos.partials.backoffice-nav')
+
         <section class="pos-home-hero">
             <div>
                 <h2>Caisse comptoir</h2>

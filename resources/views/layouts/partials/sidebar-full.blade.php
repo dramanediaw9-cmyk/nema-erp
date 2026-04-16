@@ -96,6 +96,9 @@
     @endallowed
     @allowed('pos.view')
         <a class="nav-link {{ request()->routeIs('pos.*') ? 'active' : '' }}" href="{{ route('pos.index') }}">Point de vente</a>
+        <a class="nav-link {{ request()->routeIs('pos.orders.*') ? 'active' : '' }}" href="{{ route('pos.orders.index') }}">POS commandes</a>
+        <a class="nav-link {{ request()->routeIs('pos.analytics.*') ? 'active' : '' }}" href="{{ route('pos.analytics.index') }}">POS analyse</a>
+        <a class="nav-link {{ request()->routeIs('pos.settings.*') ? 'active' : '' }}" href="{{ route('pos.settings.index') }}">POS configuration</a>
     @endallowed
     @allowed('sales.view')
         <a class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}" href="{{ route('sales.index') }}">Ventes</a>

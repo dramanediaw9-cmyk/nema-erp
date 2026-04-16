@@ -31,6 +31,7 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - projets operationnels
 - ordres de production avec nomenclatures et couts matieres
 - commerce unifie et canaux digitaux
+- point de vente enrichi avec back-office type Odoo
 - dashboard administrateur enrichi
 - imports CSV et impressions
 - journaux d'activite
@@ -112,6 +113,7 @@ resources/views/
   projects/
   manufacturing/
   commerce/
+  pos/
   activity-logs/
 routes/modules/
 database/migrations/
@@ -248,6 +250,18 @@ La vague `Growth Foundation` ouvre maintenant les 4 chantiers strategiques du pr
 - ecosysteme avec endpoints `GET /api/v1/platform/capabilities` et `GET /api/v1/accounting/localization`
 - profondeur metier initiale avec conges RH, bulletins de paie, nomenclatures et localisation OHADA visible
 - noyau transverse avec automatisations, cooldown, scheduler et API de regles
+
+## Point de vente enrichi
+
+Le POS couvre maintenant aussi un back-office plus proche d Odoo, avec :
+
+- `Point de Vente > Commandes` pour commandes, brouillons, retours et paiements comptoir
+- `Point de Vente > Sessions` pour pilotage des ouvertures, clotures et ecarts
+- `Point de Vente > Clients` pour portefeuille comptoir et wallets
+- `Point de Vente > Produits` pour catalogue PdV, variantes, combos, categories menu et etiquettes
+- `Point de Vente > Tarification` pour listes de prix, fidelite, cartes cadeaux et e-wallet
+- `Point de Vente > Analyse` pour ventes, sessions, preparation et temps cibles
+- `Point de Vente > Configuration` pour profils de caisse, modes de paiement, imprimantes de preparation, preparation display et modeles de notes
 
 ## Publication cloud
 

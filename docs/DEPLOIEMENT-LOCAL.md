@@ -65,3 +65,14 @@ Les modules approfondis incluent aussi :
 - bulletins de paie et lignes salariales
 - nomenclatures et couts matieres de production
 - endpoint API `GET /api/v1/accounting/localization`
+
+Le point de vente expose aussi un back-office enrichi apres migration et seed :
+
+- `Point de Vente > Commandes`
+- `Point de Vente > Sessions`
+- `Point de Vente > Paiements`
+- `Point de Vente > Clients`
+- `Point de Vente > Produits`
+- `Point de Vente > Tarification`
+- `Point de Vente > Analyse`
+- `Point de Vente > Configuration`

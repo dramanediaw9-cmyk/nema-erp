@@ -1,10 +1,29 @@
 <?php
 
+use App\Modules\Pos\Http\Controllers\PosBackofficeController;
 use App\Modules\Pos\Http\Controllers\PosController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/point-de-vente', [PosController::class, 'index'])->middleware('permission:pos.view')->name('pos.index');
+    Route::get('/point-de-vente/commandes', [PosBackofficeController::class, 'orders'])->middleware('permission:pos.view')->name('pos.orders.index');
+    Route::get('/point-de-vente/sessions', [PosBackofficeController::class, 'sessions'])->middleware('permission:pos.view')->name('pos.sessions.index');
+    Route::get('/point-de-vente/paiements', [PosBackofficeController::class, 'payments'])->middleware('permission:pos.view')->name('pos.payments.index');
+    Route::get('/point-de-vente/clients', [PosBackofficeController::class, 'customers'])->middleware('permission:pos.view')->name('pos.customers.index');
+    Route::get('/point-de-vente/produits', [PosBackofficeController::class, 'products'])->middleware('permission:pos.view')->name('pos.products.index');
+    Route::get('/point-de-vente/tarification', [PosBackofficeController::class, 'pricing'])->middleware('permission:pos.view')->name('pos.pricing.index');
+    Route::get('/point-de-vente/analyse', [PosBackofficeController::class, 'analytics'])->middleware('permission:pos.view')->name('pos.analytics.index');
+    Route::get('/point-de-vente/configuration', [PosBackofficeController::class, 'settings'])->middleware('permission:pos.view')->name('pos.settings.index');
+    Route::post('/point-de-vente/configuration/modes-paiement', [PosBackofficeController::class, 'storePaymentMethod'])->middleware('permission:pos.manage')->name('pos.payment-methods.store');
+    Route::post('/point-de-vente/tarification/fidelite', [PosBackofficeController::class, 'storeLoyaltyProgram'])->middleware('permission:pos.manage')->name('pos.loyalty-programs.store');
+    Route::post('/point-de-vente/tarification/cartes-valeur', [PosBackofficeController::class, 'storeStoredValueCard'])->middleware('permission:pos.manage')->name('pos.stored-value-cards.store');
+    Route::post('/point-de-vente/configuration/imprimantes-preparation', [PosBackofficeController::class, 'storePreparationPrinter'])->middleware('permission:pos.manage')->name('pos.preparation-printers.store');
+    Route::post('/point-de-vente/configuration/preparation-display', [PosBackofficeController::class, 'storePreparationDisplay'])->middleware('permission:pos.manage')->name('pos.preparation-displays.store');
+    Route::post('/point-de-vente/configuration/modeles-notes', [PosBackofficeController::class, 'storeNoteTemplate'])->middleware('permission:pos.manage')->name('pos.note-templates.store');
+    Route::post('/point-de-vente/produits/combos', [PosBackofficeController::class, 'storeComboChoice'])->middleware('permission:pos.manage')->name('pos.combo-choices.store');
+    Route::post('/point-de-vente/produits/categories-menu', [PosBackofficeController::class, 'storeMenuCategory'])->middleware('permission:pos.manage')->name('pos.menu-categories.store');
+    Route::post('/point-de-vente/produits/etiquettes', [PosBackofficeController::class, 'storeProductTag'])->middleware('permission:pos.manage')->name('pos.product-tags.store');
+    Route::post('/point-de-vente/configuration/profils', [PosBackofficeController::class, 'storeProfile'])->middleware('permission:pos.manage')->name('pos.profiles.store');
     Route::post('/point-de-vente/session', [PosController::class, 'open'])->middleware('permission:pos.manage')->name('pos.open');
     Route::get('/point-de-vente/sessions/{session}', [PosController::class, 'show'])->middleware('permission:pos.view')->name('pos.show');
     Route::get('/point-de-vente/sessions/{session}/comptage', [PosController::class, 'countSheet'])->middleware('permission:pos.view')->name('pos.count-sheet');
