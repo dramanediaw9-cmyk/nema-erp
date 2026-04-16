@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('cashier can open POS session, validate a sale, and open the thermal ticket', async ({ page }) => {
+test('cashier can open POS session, validate a sale, print the thermal ticket, and return to the cashier screen', async ({ page }) => {
     await page.goto('/login');
 
     await page.getByLabel('Adresse e-mail').fill('caissier@nema-erp.test');
@@ -32,12 +32,19 @@ test('cashier can open POS session, validate a sale, and open the thermal ticket
     await page.locator('[data-product-id]').first().click();
     await page.locator('#cash_received_amount').fill('999999');
 
-    await Promise.all([
-        page.waitForURL(/\/point-de-vente\/tickets\/\d+\/thermique\?auto_print=1/),
-        page.getByRole('button', { name: 'Valider et encaisser' }).click(),
-    ]);
+    await page.getByRole('button', { name: 'Valider et encaisser' }).click();
+    await page.waitForURL(/\/point-de-vente\/(tickets\/\d+\/thermique|vente)/);
 
-    await expect(page.getByText('TICKET CAISSE')).toBeVisible();
-    await expect(page.getByText('Si l\'impression ne se lance pas sur cet appareil')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Ticket detaille' })).toBeVisible();
+    if (/\/point-de-vente\/tickets\/\d+\/thermique/.test(page.url())) {
+        await expect(page.getByText('TICKET CAISSE')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Ticket detaille' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Retour caisse' })).toBeVisible();
+
+        await page.evaluate(() => {
+            window.dispatchEvent(new Event('afterprint'));
+        });
+    }
+
+    await page.waitForURL(/\/point-de-vente\/vente/);
+    await expect(page.getByRole('button', { name: 'Valider et encaisser' })).toBeVisible();
 });

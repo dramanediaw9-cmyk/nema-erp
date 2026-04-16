@@ -347,6 +347,7 @@ class PosFlowTest extends TestCase
             'auto_print' => 1,
             'from_pos' => 1,
             'next' => route('pos.receipt', $invoice),
+            'return_to' => route('pos.sales.create', ['session' => $invoice->pos_session_id]),
         ]);
 
         $response->assertRedirect($expectedRedirect);
@@ -529,18 +530,25 @@ class PosFlowTest extends TestCase
 
         $response = $this->actingAs($user)
             ->withSession($this->workspaceSession($user))
-            ->get(route('pos.receipt.thermal', $invoice).'?auto_print=1&from_pos=1&next='.urlencode(route('pos.receipt', $invoice)));
+            ->get(route('pos.receipt.thermal', $invoice).'?'.http_build_query([
+                'auto_print' => 1,
+                'from_pos' => 1,
+                'next' => route('pos.receipt', $invoice),
+                'return_to' => route('pos.sales.create', ['session' => $invoice->pos_session_id]),
+            ]));
 
         $response->assertOk()
             ->assertSeeText('Ticket pret a imprimer')
             ->assertSeeText('appuyez sur')
-            ->assertSeeText('Ticket detaille');
+            ->assertSeeText('Ticket detaille')
+            ->assertSeeText('Retour caisse');
 
         $html = $response->getContent();
 
         $this->assertIsString($html);
         $this->assertStringContainsString('const canAutoPrint = supportsFinePointer && !hasTouchInput;', $html);
-        $this->assertStringNotContainsString("window.addEventListener('afterprint'", $html);
+        $this->assertStringContainsString("window.addEventListener('afterprint'", $html);
+        $this->assertStringContainsString('window.location.replace(cashierReturnUrl);', $html);
     }
 
     public function test_cashier_can_record_mixed_pos_payment_and_show_change_on_receipts(): void

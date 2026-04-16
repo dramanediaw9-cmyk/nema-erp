@@ -438,6 +438,7 @@ class PosController extends Controller
                 'auto_print' => 1,
                 'from_pos' => 1,
                 'next' => route('pos.receipt', $invoice),
+                'return_to' => route('pos.sales.create', ['session' => $session->id]),
             ]);
 
             return redirect()->to($thermalUrl)->with('success', $message);

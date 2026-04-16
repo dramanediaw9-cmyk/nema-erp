@@ -71,17 +71,18 @@
 </head>
 <body>
     @php($nextReceiptUrl = request('next') ?: route('pos.receipt', $invoice))
+    @php($cashierReturnUrl = request('return_to') ?: ($invoice->pos_session_id ? route('pos.sales.create', ['session' => $invoice->pos_session_id]) : route('pos.index')))
 
     <div class="toolbar">
-        <button type="button" class="button" onclick="window.print()">Imprimer</button>
+        <button type="button" class="button" onclick="window.nemaPosPrintReceipt()">Imprimer</button>
         <a href="{{ $nextReceiptUrl }}" class="button">Ticket detaille</a>
-        <a href="javascript:history.back()" class="button">Retour</a>
+        <a href="{{ $cashierReturnUrl }}" class="button">{{ request()->boolean('from_pos') ? 'Retour caisse' : 'Retour' }}</a>
     </div>
 
     @if (request()->boolean('from_pos'))
         <div class="notice" id="print-notice">
             <strong>Ticket pret a imprimer</strong>
-            <span>Si l'impression ne se lance pas sur cet appareil, appuyez sur "Imprimer".</span>
+            <span>Si l'impression ne se lance pas sur cet appareil, appuyez sur "Imprimer". Apres impression, la caisse reviendra automatiquement sur une nouvelle commande.</span>
         </div>
     @endif
 
@@ -153,9 +154,12 @@
         <div class="center muted">Nema ERP</div>
     </div>
 
-    @if (request()->boolean('auto_print'))
+    @if (request()->boolean('auto_print') || request()->boolean('from_pos'))
         <script>
             const printNotice = document.getElementById('print-notice');
+            const shouldAutoPrint = {{ request()->boolean('auto_print') ? 'true' : 'false' }};
+            const shouldReturnToCash = {{ request()->boolean('from_pos') ? 'true' : 'false' }};
+            const cashierReturnUrl = @json($cashierReturnUrl);
             const supportsFinePointer = typeof window.matchMedia === 'function'
                 ? window.matchMedia('(pointer: fine)').matches
                 : false;
@@ -163,20 +167,95 @@
                 ? navigator.maxTouchPoints > 0
                 : false;
             const canAutoPrint = supportsFinePointer && !hasTouchInput;
+            let printFlowStarted = false;
+            let printViewWasHidden = document.visibilityState === 'hidden';
+            let hasReturnedToCash = false;
+
+            const returnToCashDesk = () => {
+                if (!shouldReturnToCash || hasReturnedToCash) {
+                    return;
+                }
+
+                hasReturnedToCash = true;
+                window.location.replace(cashierReturnUrl);
+            };
+
+            const queueCashDeskReturn = () => {
+                if (!shouldReturnToCash || !printFlowStarted || hasReturnedToCash) {
+                    return;
+                }
+
+                window.setTimeout(() => {
+                    returnToCashDesk();
+                }, 180);
+            };
+
+            const startPrintFlow = () => {
+                printFlowStarted = true;
+            };
+
+            window.nemaPosPrintReceipt = () => {
+                startPrintFlow();
+                window.print();
+            };
 
             if (printNotice && !canAutoPrint) {
                 printNotice.querySelector('strong').textContent = 'Ticket affiche';
             }
 
+            if (printNotice && shouldReturnToCash) {
+                printNotice.querySelector('span').textContent = canAutoPrint
+                    ? 'La page reviendra automatiquement sur la caisse juste apres l impression.'
+                    : 'Appuyez sur "Imprimer". Apres impression, la caisse reviendra automatiquement sur une nouvelle commande.';
+            }
+
+            window.addEventListener('afterprint', () => {
+                queueCashDeskReturn();
+            });
+
+            if (typeof window.matchMedia === 'function') {
+                const printMedia = window.matchMedia('print');
+                const onPrintMediaChange = (event) => {
+                    if (!event.matches) {
+                        queueCashDeskReturn();
+                    }
+                };
+
+                if (typeof printMedia.addEventListener === 'function') {
+                    printMedia.addEventListener('change', onPrintMediaChange);
+                } else if (typeof printMedia.addListener === 'function') {
+                    printMedia.addListener(onPrintMediaChange);
+                }
+            }
+
+            window.addEventListener('focus', () => {
+                queueCashDeskReturn();
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (printViewWasHidden && document.visibilityState === 'visible') {
+                    queueCashDeskReturn();
+                }
+
+                printViewWasHidden = document.visibilityState === 'hidden';
+            });
+
             window.addEventListener('load', () => {
-                if (!canAutoPrint) {
+                if (!shouldAutoPrint || !canAutoPrint) {
                     return;
                 }
 
+                startPrintFlow();
                 window.setTimeout(() => {
                     window.print();
                 }, 150);
             });
+        </script>
+    @else
+        <script>
+            window.nemaPosPrintReceipt = () => {
+                window.print();
+            };
         </script>
     @endif
 </body>
