@@ -23,6 +23,15 @@
 11. lancer `powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1`
 12. si besoin, arreter le serveur avec `powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-erp.ps1`
 
+## Option temps reel POS
+
+Le `Preparation Display` fonctionne deja en mode live HTTP. Pour la synchro quasi instantanee entre caisse, cuisine et retrait, tu peux aussi activer le broadcast WebSocket :
+
+- garder `BROADCAST_CONNECTION=log` si tu veux rester en mode simple
+- passer `BROADCAST_CONNECTION=reverb` si tu relies l app a un service compatible Reverb / Pusher
+- renseigner `VITE_BROADCAST_CONNECTION="${BROADCAST_CONNECTION}"` et les variables `REVERB_*` / `VITE_REVERB_*`
+- reconstruire les assets avec `npm run build`
+
 ## Checklist avant mise en service
 
 - comptes de demo supprimes ou mots de passe changes
@@ -76,3 +85,4 @@ Le point de vente expose aussi un back-office enrichi apres migration et seed :
 - `Point de Vente > Tarification`
 - `Point de Vente > Analyse`
 - `Point de Vente > Configuration`
+- `Point de Vente > Preparation` avec board atelier/comptoir, tickets cuisine et `Preparation Display` live

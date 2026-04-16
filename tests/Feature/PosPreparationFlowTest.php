@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Events\PosPreparationTicketUpdated;
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Pos\Models\PosPreparationDisplay;
@@ -11,6 +12,7 @@ use App\Modules\Pos\Models\PosPreparationTicketItem;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -351,6 +353,68 @@ class PosPreparationFlowTest extends TestCase
         $this->assertStringContainsString($ticket->ticket_number, $response->json('html'));
         $this->assertStringContainsString('Tacos snapshot test', $response->json('html'));
         $this->assertStringContainsString('Rafraichissement live', $response->json('html'));
+    }
+
+    public function test_preparation_flow_dispatches_live_update_events(): void
+    {
+        Event::fake([PosPreparationTicketUpdated::class]);
+
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-PREP-005',
+                'notes' => 'TEST-POS-PREP-EVENT',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Pizza event test',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'TEST-POS-PREP-EVENT')
+            ->firstOrFail();
+
+        $ticket = PosPreparationTicket::query()
+            ->where('sales_invoice_id', $invoice->id)
+            ->firstOrFail();
+
+        Event::assertDispatched(PosPreparationTicketUpdated::class, function (PosPreparationTicketUpdated $event) use ($ticket): bool {
+            return $event->ticketId === $ticket->id
+                && $event->displayId === $ticket->display_id
+                && $event->status === 'queued'
+                && $event->action === 'created';
+        });
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.preparation.update', $ticket), ['status' => 'ready'])
+            ->assertRedirect();
+
+        Event::assertDispatched(PosPreparationTicketUpdated::class, function (PosPreparationTicketUpdated $event) use ($ticket): bool {
+            return $event->ticketId === $ticket->id
+                && $event->status === 'ready'
+                && $event->action === 'updated';
+        });
     }
 
     private function openSession(User $user, CashAccount $cashAccount, Warehouse $warehouse): void

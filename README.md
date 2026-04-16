@@ -262,6 +262,7 @@ Le POS couvre maintenant aussi un back-office plus proche d Odoo, avec :
 - `Point de Vente > Tarification` pour listes de prix, fidelite, cartes cadeaux et e-wallet
 - `Point de Vente > Analyse` pour ventes, sessions, preparation et temps cibles
 - `Point de Vente > Configuration` pour profils de caisse, modes de paiement, imprimantes de preparation, preparation display et modeles de notes
+- `Point de Vente > Preparation` pour board cuisine/comptoir, tickets de preparation, `Preparation Display` plein ecran et synchro live multi-poste
 
 ## Publication cloud
 
@@ -270,6 +271,7 @@ Pour une vraie mise en ligne publique :
 - preparer le depot Git distant
 - utiliser [.env.laravel-cloud.example](.env.laravel-cloud.example) comme base
 - attacher une base MySQL, un KV store / Redis et un object storage
+- si tu veux la synchro quasi instantanee des `Preparation Display`, attacher aussi un service WebSocket compatible Reverb / Pusher et renseigner `BROADCAST_CONNECTION` + variables associees
 - preparer le build cloud avec `composer run build:cloud`
 - deployer avec `composer run deploy:cloud`
 

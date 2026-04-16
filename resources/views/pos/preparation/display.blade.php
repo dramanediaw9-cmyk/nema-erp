@@ -263,6 +263,10 @@
             data-refresh-seconds="{{ $board['refresh_seconds'] }}"
             data-snapshot-url="{{ route('pos.preparation.display.snapshot', $board['display']) }}"
             data-ready-ticket-ids='@json($board['grouped_tickets']['ready']->pluck('id')->values()->all())'
+            data-company-id="{{ $board['display']->company_id }}"
+            data-branch-id="{{ $board['display']->branch_id }}"
+            data-display-id="{{ $board['display']->id }}"
+            data-target-area="{{ $board['display']->target_area }}"
         >
             @include('pos.preparation.partials.display-live', ['board' => $board])
         </div>
@@ -273,8 +277,13 @@
             const shell = document.querySelector('[data-refresh-seconds]');
             const refreshSeconds = Number(shell?.dataset.refreshSeconds || 20);
             const snapshotUrl = shell?.dataset.snapshotUrl;
+            const companyId = shell?.dataset.companyId;
+            const branchId = shell?.dataset.branchId;
+            const displayId = shell?.dataset.displayId;
+            const targetArea = shell?.dataset.targetArea || '';
             let previousReadyIds = parseReadyIds(shell?.dataset.readyTicketIds || '[]');
             let pollHandle = null;
+            let isRefreshing = false;
 
             bindFullscreenAction();
 
@@ -283,15 +292,18 @@
             }
 
             startPolling();
+            bindRealtimeChannel();
 
             function startPolling() {
                 pollHandle = window.setInterval(refreshSnapshot, Math.max(5, refreshSeconds) * 1000);
             }
 
-            async function refreshSnapshot() {
-                if (document.hidden) {
+            async function refreshSnapshot(force = false) {
+                if (isRefreshing || (!force && document.hidden)) {
                     return;
                 }
+
+                isRefreshing = true;
 
                 try {
                     const response = await fetch(snapshotUrl, {
@@ -324,6 +336,8 @@
                     previousReadyIds = nextReadyIds;
                 } catch (error) {
                     console.warn('Preparation display refresh failed', error);
+                } finally {
+                    isRefreshing = false;
                 }
             }
 
@@ -384,6 +398,33 @@
                 } catch (error) {
                     return [];
                 }
+            }
+
+            function bindRealtimeChannel() {
+                if (!window.Echo?.private || !companyId || !branchId) {
+                    return;
+                }
+
+                window.Echo.private(`pos.preparation.${companyId}.${branchId}`)
+                    .listen('.pos.preparation.ticket.updated', (payload) => {
+                        if (!isRelevantPayload(payload)) {
+                            return;
+                        }
+
+                        refreshSnapshot(true);
+                    });
+            }
+
+            function isRelevantPayload(payload) {
+                if (!payload || typeof payload !== 'object') {
+                    return false;
+                }
+
+                if (payload.display_id && String(payload.display_id) === String(displayId)) {
+                    return true;
+                }
+
+                return !payload.display_id && payload.target_area && String(payload.target_area) === String(targetArea);
             }
         })();
     </script>

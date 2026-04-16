@@ -60,6 +60,9 @@ LOG_CHANNEL=stack
 LOG_STACK=stderr,daily
 LOG_LEVEL=info
 
+BROADCAST_CONNECTION=log
+VITE_BROADCAST_CONNECTION="${BROADCAST_CONNECTION}"
+
 SESSION_DRIVER=redis
 SESSION_STORE=redis
 SESSION_SECURE_COOKIE=true
@@ -81,6 +84,32 @@ Le projet sait maintenant faire un rattrapage utile pour Laravel Cloud :
 alors l application bascule automatiquement `session` et `queue` sur Redis au lieu de retomber sur MySQL.
 
 Cela evite que les tables `sessions`, `cache` ou `jobs` continuent a gonfler la RAM MySQL par simple oubli de variable. Garde quand meme les variables explicites ci-dessus pour que l intention reste claire dans l environnement.
+
+## Option WebSocket pour les Preparation Display POS
+
+Le POS sait maintenant fonctionner en deux modes :
+
+- mode par defaut avec rafraichissement live HTTP
+- mode temps reel multi-poste via broadcast prive Laravel
+
+Si tu attaches un service WebSocket compatible `Reverb / Pusher`, ajoute aussi :
+
+```env
+BROADCAST_CONNECTION=reverb
+VITE_BROADCAST_CONNECTION="${BROADCAST_CONNECTION}"
+REVERB_APP_ID=
+REVERB_APP_KEY=
+REVERB_APP_SECRET=
+REVERB_HOST=
+REVERB_PORT=443
+REVERB_SCHEME=https
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
+```
+
+Puis redeploie pour reconstruire les assets Vite. Si aucun service WebSocket n est attache, laisse `BROADCAST_CONNECTION=log` et le `Preparation Display` continuera a fonctionner avec son mode live HTTP.
 
 ## Alerte RAM MySQL qui persiste apres passage a Redis
 

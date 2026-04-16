@@ -2,6 +2,7 @@
 
 namespace App\Modules\Pos\Services;
 
+use App\Events\PosPreparationTicketUpdated;
 use App\Modules\Pos\Models\PosComboChoice;
 use App\Modules\Pos\Models\PosMenuCategory;
 use App\Modules\Pos\Models\PosNoteTemplate;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Validation\ValidationException;
 
 class PosPreparationService
@@ -66,7 +68,7 @@ class PosPreparationService
             return new EloquentCollection();
         }
 
-        return DB::transaction(function () use ($groups, $invoice, $context, $userId) {
+        $createdTickets = DB::transaction(function () use ($groups, $invoice, $context, $userId) {
             $created = [];
             $sequence = 1;
 
@@ -118,6 +120,10 @@ class PosPreparationService
                 ->orderBy('id')
                 ->get();
         });
+
+        $createdTickets->each(fn (PosPreparationTicket $ticket) => $this->broadcastTicket($ticket, 'created'));
+
+        return $createdTickets;
     }
 
     public function board(int $companyId, int $branchId, array $filters = []): array
@@ -272,7 +278,11 @@ class PosPreparationService
         $ticket->update($updates);
         $ticket->items()->update(['status' => $status]);
 
-        return $ticket->fresh(['items.product', 'printer', 'display', 'invoice.customer', 'session', 'profile']);
+        $ticket = $ticket->fresh(['items.product', 'printer', 'display', 'invoice.customer', 'session', 'profile']);
+
+        $this->broadcastTicket($ticket, 'updated');
+
+        return $ticket;
     }
 
     private function statusOptions(): array
@@ -487,5 +497,10 @@ class PosPreparationService
     private function ticketNumber(SalesInvoice $invoice, int $sequence): string
     {
         return sprintf('PREP-%s-%02d', $invoice->invoice_number, $sequence);
+    }
+
+    private function broadcastTicket(PosPreparationTicket $ticket, string $action): void
+    {
+        Event::dispatch(PosPreparationTicketUpdated::fromTicket($ticket, $action));
     }
 }
