@@ -17,6 +17,9 @@
     @allowed('notifications.view')
         <a class="nav-link {{ request()->routeIs('notifications.index') ? 'active' : '' }}" href="{{ route('notifications.index') }}">Alertes internes</a>
     @endallowed
+    @allowed('automation.view')
+        <a class="nav-link {{ request()->routeIs('automation.*') ? 'active' : '' }}" href="{{ route('automation.index') }}">Automatisations</a>
+    @endallowed
     @allowed('notifications.outbound.view')
         <a class="nav-link {{ request()->routeIs('notifications.outbound.*') ? 'active' : '' }}" href="{{ route('notifications.outbound.index') }}">Notifications sortantes</a>
     @endallowed

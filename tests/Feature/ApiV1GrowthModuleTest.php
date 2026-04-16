@@ -63,6 +63,12 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertJsonPath('data.0.secret_health_status', 'critical');
 
         $this->withToken($plainToken)
+            ->getJson('/api/v1/automation/rules?status=active')
+            ->assertOk()
+            ->assertJsonPath('data.0.signal_key', 'projects.overdue_tasks')
+            ->assertJsonPath('catalog.signals.0.key', 'approvals.stale_steps');
+
+        $this->withToken($plainToken)
             ->getJson('/api/v1/platform/deployment-profile')
             ->assertOk()
             ->assertJsonPath('profile.deployment_mode', 'pilot')
@@ -83,6 +89,7 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('openapi', '3.0.3')
             ->assertJsonPath('info.title', 'Nema ERP Integrator API')
+            ->assertJsonPath('paths./automation/rules.get.summary', 'Lister les regles noyau')
             ->assertJsonPath('paths./platform/connections.get.summary', 'Lister les connexions partenaires')
             ->assertJsonPath('paths./platform/deployment-profile.get.summary', 'Lire le profil de deploiement')
             ->assertJsonPath('paths./platform/tenant-readiness.get.summary', 'Lire la readiness inter-societes')
@@ -305,6 +312,45 @@ class ApiV1GrowthModuleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('id', $connectionId)
             ->assertJsonPath('partner_name', 'Fabric Lakehouse');
+
+        $automationRuleResponse = $this->withToken($plainToken)
+            ->postJson('/api/v1/automation/rules', [
+                'name' => 'Surveiller les OF en retard',
+                'signal_key' => 'manufacturing.late_orders',
+                'status' => 'active',
+                'severity' => 'danger',
+                'action_type' => 'internal_alert',
+                'threshold_value' => 1,
+                'window_hours' => 24,
+                'cooldown_minutes' => 120,
+                'description' => 'Alerter si la production derape.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('signal_key', 'manufacturing.late_orders');
+
+        $automationRuleId = (int) $automationRuleResponse->json('id');
+
+        $this->withToken($plainToken)
+            ->patchJson('/api/v1/automation/rules/'.$automationRuleId, [
+                'code' => $automationRuleResponse->json('code'),
+                'name' => 'Surveiller les OF et priorites production',
+                'signal_key' => 'manufacturing.late_orders',
+                'status' => 'active',
+                'severity' => 'danger',
+                'action_type' => 'internal_alert',
+                'threshold_value' => 1,
+                'window_hours' => 24,
+                'cooldown_minutes' => 90,
+                'description' => 'Alerte production critique.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('name', 'Surveiller les OF et priorites production');
+
+        $this->withToken($plainToken)
+            ->postJson('/api/v1/automation/rules/'.$automationRuleId.'/run')
+            ->assertOk()
+            ->assertJsonPath('signal_key', 'manufacturing.late_orders')
+            ->assertJsonPath('matched', false);
 
         $deploymentProfileResponse = $this->withToken($plainToken)
             ->patchJson('/api/v1/platform/deployment-profile', [

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannelAction;
 use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Commerce\Models\CommerceChannelSnapshot;
+use App\Modules\Core\Automation\Models\AutomationRule;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
@@ -513,6 +514,48 @@ class DemoGrowthFoundationSeeder extends Seeder
                 'last_backup_verified_at' => now()->subDay(),
                 'last_restore_drill_at' => now()->subWeeks(2),
                 'notes' => 'Profil pilote pour une ouverture client progressive avec supervision renforcee et trajectoire cloud.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        AutomationRule::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'AUTO-0001'],
+            [
+                'branch_id' => $branch->id,
+                'owner_id' => $manager->id,
+                'name' => 'Escalader les taches projet en retard',
+                'module_key' => 'projects',
+                'signal_key' => 'projects.overdue_tasks',
+                'status' => 'active',
+                'severity' => 'warning',
+                'action_type' => 'internal_alert',
+                'threshold_value' => 1,
+                'window_hours' => 24,
+                'cooldown_minutes' => 180,
+                'description' => 'Ouvre une alerte interne des qu un retard projet menace l execution terrain.',
+                'notes' => 'Rule seedee pour montrer le noyau transverse sur les projets.',
+                'created_by' => $manager->id,
+                'updated_by' => $manager->id,
+            ]
+        );
+
+        AutomationRule::query()->updateOrCreate(
+            ['company_id' => $company->id, 'code' => 'AUTO-0002'],
+            [
+                'branch_id' => $branch->id,
+                'owner_id' => $manager->id,
+                'name' => 'Surveiller les secrets connecteurs critiques',
+                'module_key' => 'platform',
+                'signal_key' => 'integrations.secrets_critical',
+                'status' => 'active',
+                'severity' => 'danger',
+                'action_type' => 'internal_alert',
+                'threshold_value' => 1,
+                'window_hours' => null,
+                'cooldown_minutes' => 240,
+                'description' => 'Declenche une alerte quand un connecteur tombe en hygiene critique.',
+                'notes' => 'Fait le lien entre operations, ecosysteme et gouvernance secrets.',
                 'created_by' => $manager->id,
                 'updated_by' => $manager->id,
             ]

@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Core\Automation\Services\AutomationEngineService;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Notifications\Services\NotificationService;
@@ -128,6 +129,38 @@ Artisan::command('nema:integrations:dispatch-outbox {--company=* : Limite le tra
 
     return 0;
 })->purpose('Publie les evenements outbox vers les webhooks externes');
+
+Artisan::command('nema:automation:run {--company=* : Limite le traitement a une ou plusieurs societes}', function (AutomationEngineService $automationEngineService) {
+    $companyIds = collect($this->option('company'))
+        ->filter(fn (mixed $value): bool => filled($value))
+        ->map(fn (mixed $value): int => (int) $value)
+        ->filter(fn (int $value): bool => $value > 0)
+        ->values();
+
+    $companies = $companyIds->isNotEmpty()
+        ? Company::query()->whereIn('id', $companyIds)->orderBy('name')->get()
+        : Company::query()->orderBy('name')->get();
+
+    if ($companies->isEmpty()) {
+        $this->info('Aucune societe a traiter.');
+
+        return 0;
+    }
+
+    foreach ($companies as $company) {
+        $summary = $automationEngineService->runActiveRulesForCompany($company->id);
+
+        $this->line(sprintf(
+            '%s : %d regle(s), %d signal(s), %d cooldown.',
+            $company->name,
+            (int) $summary['rules'],
+            (int) $summary['matched'],
+            (int) $summary['cooldown'],
+        ));
+    }
+
+    return 0;
+})->purpose('Execute les regles d automatisation du noyau');
 
 Artisan::command('nema:ops:health-check {--store : Enregistre un snapshot en base} {--json : Retourne le rapport en JSON} {--company=* : Limite le check a une ou plusieurs societes}', function (SystemHealthService $systemHealthService) {
     $companyIds = collect($this->option('company'))
@@ -313,6 +346,7 @@ Artisan::command('nema:ops:outbox-prune {--days=30 : Age minimal en jours des ev
 
 Schedule::command('nema:notifications:dispatch-outbound --limit=50')->everyMinute();
 Schedule::command('nema:notifications:sync-internal')->everyFifteenMinutes();
+Schedule::command('nema:automation:run')->everyThirtyMinutes();
 Schedule::command('nema:integrations:dispatch-outbox --limit=50')->everyMinute();
 Schedule::command('nema:ops:health-check --store')->hourly();
 Schedule::command('nema:ops:monitor-app')->hourlyAt(20);

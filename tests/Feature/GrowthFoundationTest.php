@@ -6,8 +6,10 @@ use App\Models\User;
 use App\Modules\Commerce\Models\CommerceChannel;
 use App\Modules\Commerce\Models\CommerceChannelAction;
 use App\Modules\Commerce\Models\CommerceChannelSnapshot;
+use App\Modules\Core\Automation\Models\AutomationRule;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\ApiToken;
+use App\Modules\Core\Notifications\Models\InternalNotification;
 use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Hr\Models\HrDepartment;
 use App\Modules\Projects\Models\Project;
@@ -32,6 +34,7 @@ class GrowthFoundationTest extends TestCase
         $this->get(route('platform.index'))->assertOk()->assertSee('Readiness inter-societes')->assertSee('Nema Retail Sud');
         $this->get(route('platform.index'))->assertOk()->assertSee('Gouvernance secrets connecteurs');
         $this->get(route('platform.openapi'))->assertOk()->assertJsonPath('openapi', '3.0.3');
+        $this->get(route('automation.index'))->assertOk()->assertSee('Moteur d automatisation transverse');
         $this->get(route('hr.index'))->assertOk()->assertSee('Capital humain');
         $this->get(route('payroll.index'))->assertOk()->assertSee('Executions de paie');
         $this->get(route('projects.index'))->assertOk()->assertSee('Pilotage projets');
@@ -185,6 +188,8 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonFragment(['path' => '/projets'])
             ->assertJsonFragment(['path' => '/production'])
             ->assertJsonFragment(['path' => '/commerce-unifie'])
+            ->assertJsonFragment(['path' => '/automatisations'])
+            ->assertJsonFragment(['path' => '/api/v1/automation/rules'])
             ->assertJsonFragment(['path' => '/api/v1/platform/deployment-profile'])
             ->assertJsonFragment(['path' => '/api/v1/platform/tenant-readiness'])
             ->assertJsonFragment(['path' => '/api/v1/platform/connections/{integrationConnection}/secrets'])
@@ -194,7 +199,8 @@ class GrowthFoundationTest extends TestCase
             ->assertJsonPath('catalog.packaging.tenant_readiness.active_companies', 2)
             ->assertJsonPath('catalog.packaging.tenant_readiness.portfolio_status', 'at_risk')
             ->assertJsonPath('catalog.metrics.connection_secrets_critical', 1)
-            ->assertJsonPath('catalog.metrics.integration_connections', 3);
+            ->assertJsonPath('catalog.metrics.integration_connections', 3)
+            ->assertJsonPath('catalog.metrics.automation_rules', 2);
     }
 
     public function test_manager_can_capture_commerce_channel_execution(): void
@@ -332,6 +338,51 @@ class GrowthFoundationTest extends TestCase
         $this->assertSame('hybrid', $profile->deployment_mode);
         $this->assertSame('live', $profile->lifecycle_stage);
         $this->assertSame(80, $profile->target_users);
+    }
+
+    public function test_manager_can_create_and_run_automation_rule(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user));
+
+        $this->post(route('automation.store'), [
+            'name' => 'Veille execution projets terrain',
+            'signal_key' => 'projects.overdue_tasks',
+            'status' => 'active',
+            'severity' => 'warning',
+            'action_type' => 'internal_alert',
+            'threshold_value' => 1,
+            'window_hours' => 24,
+            'cooldown_minutes' => 60,
+            'description' => 'Detecter les retards projet qui menacent le lancement.',
+        ])->assertRedirect(route('automation.index'));
+
+        $rule = AutomationRule::query()
+            ->where('company_id', $user->company_id)
+            ->where('name', 'Veille execution projets terrain')
+            ->firstOrFail();
+
+        $this->post(route('automation.run', $rule))
+            ->assertRedirect(route('automation.index'));
+
+        $this->assertDatabaseHas('automation_executions', [
+            'company_id' => $user->company_id,
+            'automation_rule_id' => $rule->id,
+            'matched' => true,
+        ]);
+        $this->assertDatabaseHas('internal_notifications', [
+            'company_id' => $user->company_id,
+            'code' => 'automation-rule-'.$rule->id,
+            'type' => 'automation',
+        ]);
+
+        $notification = InternalNotification::query()
+            ->where('company_id', $user->company_id)
+            ->where('code', 'automation-rule-'.$rule->id)
+            ->firstOrFail();
+
+        $this->assertSame($rule->id, $notification->meta['rule_id'] ?? null);
     }
 
     private function createApiToken(User $user): string

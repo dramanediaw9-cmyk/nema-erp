@@ -30,6 +30,7 @@ class PlatformOpenApiService
             'tags' => [
                 ['name' => 'workspace', 'description' => 'Contexte du tenant et de la societe rattaches au jeton.'],
                 ['name' => 'platform', 'description' => 'Capacites produit, connecteurs et contrat integrateur.'],
+                ['name' => 'automation', 'description' => 'Regles noyau, signaux transverses et executions automatiques.'],
                 ['name' => 'catalog', 'description' => 'Catalogue produit, tiers, factures et reglements.'],
                 ['name' => 'hr', 'description' => 'Capital humain, employes et conges.'],
                 ['name' => 'payroll', 'description' => 'Executions de paie et bulletins.'],
@@ -157,6 +158,17 @@ class PlatformOpenApiService
             ],
             '/platform/capabilities' => [
                 'get' => $this->operation('platform', 'Lire le catalogue de capacites', 'Expose les modules, le packaging, les metriques et le hub partenaires.'),
+            ],
+            '/automation/rules' => [
+                'get' => $this->operation('automation', 'Lister les regles noyau', 'Retourne les regles d automatisation et leur derniere execution.'),
+                'post' => $this->operation('automation', 'Creer une regle noyau', 'Ajoute une regle d automatisation transverse.'),
+            ],
+            '/automation/rules/{automationRule}' => [
+                'get' => $this->operation('automation', 'Lire une regle noyau', 'Retourne le detail d une regle et son historique.', [$this->pathParameter('automationRule', 'integer', 'Identifiant de la regle')]),
+                'patch' => $this->operation('automation', 'Mettre a jour une regle noyau', 'Met a jour les seuils, le signal ou le cooldown.', [$this->pathParameter('automationRule', 'integer', 'Identifiant de la regle')]),
+            ],
+            '/automation/rules/{automationRule}/run' => [
+                'post' => $this->operation('automation', 'Executer une regle noyau', 'Force une evaluation immediate de la regle d automatisation.', [$this->pathParameter('automationRule', 'integer', 'Identifiant de la regle')]),
             ],
             '/platform/openapi' => [
                 'get' => $this->operation('platform', 'Lire le contrat OpenAPI', 'Retourne le contrat integrateur OpenAPI JSON de l API v1.'),

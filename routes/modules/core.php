@@ -2,6 +2,7 @@
 
 use App\Modules\Core\Access\Http\Controllers\RoleController;
 use App\Modules\Core\Access\Http\Controllers\UserController;
+use App\Modules\Core\Automation\Http\Controllers\AutomationController;
 use App\Modules\Core\Approvals\Http\Controllers\ApprovalPortalController;
 use App\Modules\Core\Audit\Http\Controllers\ActivityLogController;
 use App\Modules\Core\Auth\Http\Controllers\AuthenticatedSessionController;
@@ -65,6 +66,21 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/alertes', [NotificationController::class, 'index'])
         ->middleware('permission:notifications.view')
         ->name('notifications.index');
+    Route::get('/automatisations', [AutomationController::class, 'index'])
+        ->middleware('permission:automation.view')
+        ->name('automation.index');
+    Route::post('/automatisations', [AutomationController::class, 'store'])
+        ->middleware('permission:automation.manage')
+        ->name('automation.store');
+    Route::put('/automatisations/{automationRule}', [AutomationController::class, 'update'])
+        ->middleware('permission:automation.manage')
+        ->name('automation.update');
+    Route::post('/automatisations/executer', [AutomationController::class, 'runAll'])
+        ->middleware('permission:automation.manage')
+        ->name('automation.run-all');
+    Route::post('/automatisations/{automationRule}/executer', [AutomationController::class, 'run'])
+        ->middleware('permission:automation.manage')
+        ->name('automation.run');
     Route::get('/notifications-sortantes', [OutboundNotificationController::class, 'index'])
         ->middleware('permission:notifications.outbound.view')
         ->name('notifications.outbound.index');

@@ -19,6 +19,8 @@ class PermissionSeeder extends Seeder
             ['module' => 'imports', 'slug' => 'imports.manage', 'name' => 'Gerer les imports CSV'],
             ['module' => 'notifications', 'slug' => 'notifications.view', 'name' => 'Voir les alertes internes'],
             ['module' => 'notifications', 'slug' => 'notifications.outbound.view', 'name' => 'Voir les notifications sortantes'],
+            ['module' => 'automation', 'slug' => 'automation.view', 'name' => 'Voir les automatisations du noyau'],
+            ['module' => 'automation', 'slug' => 'automation.manage', 'name' => 'Gerer les automatisations du noyau'],
             ['module' => 'companies', 'slug' => 'companies.view', 'name' => 'Voir les entreprises'],
             ['module' => 'companies', 'slug' => 'companies.manage', 'name' => 'Gerer les entreprises'],
             ['module' => 'branches', 'slug' => 'branches.view', 'name' => 'Voir les agences'],

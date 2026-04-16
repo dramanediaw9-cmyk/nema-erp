@@ -9,6 +9,7 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - gestion des utilisateurs
 - parametres societe et sequences de documents
 - workflow d approbation configurable
+- moteur d automatisation transverse avec regles, signaux et executions
 - portail d approbation
 - alertes internes et notifications sortantes
 - clients et fournisseurs
@@ -67,6 +68,7 @@ app/
       Audit/
       Approvals/
       Notifications/
+      Automation/
     Partners/
     Catalog/
     Inventory/
@@ -245,6 +247,7 @@ La vague `Growth Foundation` ouvre maintenant les 4 chantiers strategiques du pr
 - packaging produit avec scripts d exploitation, checks et documentation
 - ecosysteme avec endpoints `GET /api/v1/platform/capabilities` et `GET /api/v1/accounting/localization`
 - profondeur metier initiale avec conges RH, bulletins de paie, nomenclatures et localisation OHADA visible
+- noyau transverse avec automatisations, cooldown, scheduler et API de regles
 
 ## Publication cloud
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountingLocalizationController;
+use App\Http\Controllers\Api\V1\AutomationRuleController;
 use App\Http\Controllers\Api\V1\HrLeaveRequestController;
 use App\Http\Controllers\Api\V1\IntegrationEventController;
 use App\Http\Controllers\Api\V1\HrDepartmentController;
@@ -26,6 +27,11 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->middleware('api.token')->group(function (): void {
     Route::get('/workspace', WorkspaceController::class);
     Route::get('/platform/capabilities', PlatformCapabilityController::class);
+    Route::get('/automation/rules', [AutomationRuleController::class, 'index']);
+    Route::get('/automation/rules/{automationRule}', [AutomationRuleController::class, 'show']);
+    Route::post('/automation/rules', [AutomationRuleController::class, 'store']);
+    Route::match(['put', 'patch'], '/automation/rules/{automationRule}', [AutomationRuleController::class, 'update']);
+    Route::post('/automation/rules/{automationRule}/run', [AutomationRuleController::class, 'run']);
     Route::get('/platform/deployment-profile', [PlatformDeploymentProfileController::class, 'show']);
     Route::match(['put', 'patch'], '/platform/deployment-profile', [PlatformDeploymentProfileController::class, 'update']);
     Route::get('/platform/tenant-readiness', PlatformTenantReadinessController::class);

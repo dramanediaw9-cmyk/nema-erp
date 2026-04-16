@@ -3,6 +3,8 @@
 namespace App\Modules\Core\Platform\Services;
 
 use App\Modules\Commerce\Models\CommerceChannel;
+use App\Modules\Core\Automation\Models\AutomationExecution;
+use App\Modules\Core\Automation\Models\AutomationRule;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
@@ -127,6 +129,7 @@ class PlatformCatalogService
                         ['name' => 'platform-tenant-readiness', 'path' => '/api/v1/platform/tenant-readiness'],
                         ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
                         ['name' => 'platform-connection-secrets', 'path' => '/api/v1/platform/connections/{integrationConnection}/secrets'],
+                        ['name' => 'automation-rules', 'path' => '/api/v1/automation/rules'],
                         ['name' => 'products', 'path' => '/api/v1/products'],
                         ['name' => 'partners', 'path' => '/api/v1/partners'],
                         ['name' => 'sales-invoices', 'path' => '/api/v1/sales-invoices'],
@@ -209,7 +212,10 @@ class PlatformCatalogService
                     ])->all(),
                 ],
                 'automation' => [
+                    'rule_count' => $companyId ? AutomationRule::query()->where('company_id', $companyId)->count() : 0,
+                    'matched_last_24h' => $companyId ? AutomationExecution::query()->where('company_id', $companyId)->where('matched', true)->where('executed_at', '>=', now()->subDay())->count() : 0,
                     'outbox_commands' => [
+                        'php artisan nema:automation:run',
                         'php artisan nema:integrations:dispatch-outbox --limit=50',
                         'php artisan nema:ops:outbox-retry-failed --limit=50',
                         'php artisan nema:ops:outbox-prune --days=30',
@@ -218,10 +224,19 @@ class PlatformCatalogService
                         'Connecteurs ERP et BI via API token',
                         'Webhook outbox vers middleware ou SI tiers',
                         'Portails clients devis, commandes et reglements',
+                        'Automatisations noyau avec regles, cooldown et alertes transverses',
                     ],
                 ],
             ],
             'modules' => [
+                [
+                    'key' => 'automation',
+                    'label' => 'Automatisations',
+                    'route_name' => 'automation.index',
+                    'path' => '/automatisations',
+                    'description' => 'Regles noyau, signaux transverses et executions automatiques.',
+                    'count' => $companyId ? AutomationRule::query()->where('company_id', $companyId)->count() : 0,
+                ],
                 [
                     'key' => 'platform',
                     'label' => 'Plateforme',
@@ -277,6 +292,8 @@ class PlatformCatalogService
                 'outbox_failed' => $companyId ? IntegrationEvent::query()->where('company_id', $companyId)->where('status', 'failed')->count() : 0,
                 'integration_connections' => $companyId ? IntegrationConnection::query()->where('company_id', $companyId)->count() : 0,
                 'connection_secrets_critical' => $secretGovernance['critical'],
+                'automation_rules' => $companyId ? AutomationRule::query()->where('company_id', $companyId)->count() : 0,
+                'automation_matches_24h' => $companyId ? AutomationExecution::query()->where('company_id', $companyId)->where('matched', true)->where('executed_at', '>=', now()->subDay())->count() : 0,
                 'deployment_profiles' => $companyId ? DeploymentProfile::query()->where('company_id', $companyId)->count() : 0,
                 'readiness_score' => $readiness['score'] ?? 0,
                 'tenant_active_companies' => $tenantReadiness['active_companies'] ?? 0,
