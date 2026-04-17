@@ -297,7 +297,7 @@ class BackupService
         $disk = $disk ?: (string) config('ops.backup_offsite_disk', '');
         $prefix = trim($prefix ?: (string) config('ops.backup_offsite_prefix', 'nema-erp/backups'), '/');
 
-        if ($disk === '' || ! is_array(config('filesystems.disks.'.$disk))) {
+        if (! $this->offsiteDiskAvailable($disk)) {
             return [
                 'status' => 'fail',
                 'message' => 'Disque hors machine invalide ou non configure.',
@@ -388,7 +388,7 @@ class BackupService
         $disk = $disk ?: (string) config('ops.backup_offsite_disk', '');
         $prefix = trim($prefix ?: (string) config('ops.backup_offsite_prefix', 'nema-erp/backups'), '/');
 
-        if ($disk === '' || ! is_array(config('filesystems.disks.'.$disk))) {
+        if (! $this->offsiteDiskAvailable($disk)) {
             return [
                 'status' => 'fail',
                 'message' => 'Disque hors machine invalide ou non configure.',
@@ -471,6 +471,21 @@ class BackupService
             ->all();
 
         return $names;
+    }
+
+    private function offsiteDiskAvailable(?string $disk): bool
+    {
+        if (! filled($disk)) {
+            return false;
+        }
+
+        try {
+            Storage::disk((string) $disk);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function manifests(): Collection
