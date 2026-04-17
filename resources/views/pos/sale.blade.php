@@ -3370,15 +3370,25 @@
                 ].some((field) => norm(field).includes(term));
                 return categoryMatch && searchMatch;
             });
+            const prioritizedProducts = [...filtered].sort((left, right) => {
+                const leftUnavailable = left.type === 'stockable' && n(left.available_qty, 0) <= 0.0001;
+                const rightUnavailable = right.type === 'stockable' && n(right.available_qty, 0) <= 0.0001;
 
-            if (!filtered.length) {
+                if (leftUnavailable !== rightUnavailable) {
+                    return leftUnavailable ? 1 : -1;
+                }
+
+                return String(left.name || '').localeCompare(String(right.name || ''), 'fr', { sensitivity: 'base' });
+            });
+
+            if (!prioritizedProducts.length) {
                 productGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Aucun article ne correspond a cette recherche.</div>';
                 updateContext();
                 return;
             }
 
-            const visibleProducts = filtered.slice(0, maxVisibleProducts);
-            const hiddenCount = Math.max(0, filtered.length - visibleProducts.length);
+            const visibleProducts = prioritizedProducts.slice(0, maxVisibleProducts);
+            const hiddenCount = Math.max(0, prioritizedProducts.length - visibleProducts.length);
 
             productGrid.innerHTML = `<div class="pos-grid">${visibleProducts.map((product) => {
                 const availableQty = product.type === 'stockable' ? n(product.available_qty, 0) : null;
@@ -3981,7 +3991,6 @@
         searchInput.focus();
     </script>
 @endsection
-
 
 
 

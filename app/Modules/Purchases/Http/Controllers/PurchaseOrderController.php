@@ -13,6 +13,7 @@ use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -47,6 +48,18 @@ class PurchaseOrderController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
+        $hasProductParent = Schema::hasColumn('products', 'parent_id');
+        $productQuery = Product::query()
+            ->where('company_id', $companyId)
+            ->purchasable()
+            ->orderBy('name');
+        $productColumns = ['id', 'company_id', 'sku', 'name', 'unit', 'description', 'purchase_description', 'purchase_price'];
+
+        if ($hasProductParent) {
+            $productQuery->with('parent:id,name');
+            array_splice($productColumns, 2, 0, ['parent_id']);
+        }
+
         return view('purchase-orders.create', [
             'suppliers' => Partner::query()
                 ->suppliers()
@@ -62,12 +75,7 @@ class PurchaseOrderController extends Controller
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'name', 'is_default']),
-            'products' => Product::query()
-                ->with('parent:id,name')
-                ->where('company_id', $companyId)
-                ->purchasable()
-                ->orderBy('name')
-                ->get(['id', 'company_id', 'parent_id', 'sku', 'name', 'unit', 'description', 'purchase_description', 'purchase_price']),
+            'products' => $productQuery->get($productColumns),
             'defaultRows' => old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_cost' => ''])),
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),

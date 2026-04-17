@@ -23,6 +23,7 @@ use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -109,6 +110,18 @@ class SalesInvoiceController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
+        $hasProductParent = Schema::hasColumn('products', 'parent_id');
+        $productQuery = Product::query()
+            ->where('company_id', $companyId)
+            ->saleable()
+            ->orderBy('name');
+        $productColumns = ['id', 'company_id', 'sku', 'name', 'unit', 'description', 'sales_description', 'sale_price'];
+
+        if ($hasProductParent) {
+            $productQuery->with('parent:id,name');
+            array_splice($productColumns, 2, 0, ['parent_id']);
+        }
+
         return view('sales.create', [
             'customers' => Partner::query()
                 ->customers()
@@ -117,12 +130,7 @@ class SalesInvoiceController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'company_id', 'code', 'name', 'price_list_id']),
-            'products' => Product::query()
-                ->with('parent:id,name')
-                ->where('company_id', $companyId)
-                ->saleable()
-                ->orderBy('name')
-                ->get(['id', 'company_id', 'parent_id', 'sku', 'name', 'unit', 'description', 'sales_description', 'sale_price']),
+            'products' => $productQuery->get($productColumns),
             'warehouses' => Warehouse::query()
                 ->where('company_id', $companyId)
                 ->where('branch_id', $branchId)
@@ -458,4 +466,3 @@ class SalesInvoiceController extends Controller
         return 'Dans les delais';
     }
 }
-

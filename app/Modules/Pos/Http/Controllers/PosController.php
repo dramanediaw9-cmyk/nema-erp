@@ -24,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -140,26 +141,34 @@ class PosController extends Controller
         $activeProfile = $this->posService->activeProfile($companyId, $branchId);
         $methodConfigs = $this->posService->runtimePaymentMethodConfigs($companyId, $branchId, $activeProfile);
         $methods = $this->posService->runtimeMethodOptions($companyId, $branchId, $activeProfile);
+        $hasProductParent = Schema::hasColumn('products', 'parent_id');
+        $productRelations = ['category'];
+        $productColumns = [
+            'id',
+            'company_id',
+            'category_id',
+            'name',
+            'sku',
+            'barcode',
+            'image_path',
+            'image_disk',
+            'sale_price',
+            'type',
+            'unit',
+            'tracking_type',
+        ];
+
+        if ($hasProductParent) {
+            $productRelations[] = 'parent';
+            array_splice($productColumns, 2, 0, ['parent_id']);
+        }
+
         $products = Product::query()
-            ->with(['category', 'parent'])
+            ->with($productRelations)
             ->where('company_id', $companyId)
             ->saleable()
             ->orderBy('name')
-            ->get([
-                'id',
-                'company_id',
-                'parent_id',
-                'category_id',
-                'name',
-                'sku',
-                'barcode',
-                'image_path',
-                'image_disk',
-                'sale_price',
-                'type',
-                'unit',
-                'tracking_type',
-            ]);
+            ->get($productColumns);
         $saleableByProduct = $this->saleableQtyByProduct($products, $companyId, $branchId, $session->warehouse_id);
         $priceRules = $this->pricingService->rulesForPriceList(
             $companyId,
@@ -928,7 +937,6 @@ class PosController extends Controller
         ];
     }
 }
-
 
 
 
