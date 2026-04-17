@@ -12,6 +12,7 @@ use App\Modules\Pos\Models\PosPreparationDisplay;
 use App\Modules\Pos\Models\PosPreparationPrinter;
 use App\Modules\Pos\Models\PosProductTag;
 use App\Modules\Pos\Models\PosProfile;
+use App\Modules\Pos\Models\PosSession;
 use App\Modules\Pos\Models\PosStoredValueCard;
 use App\Modules\Pos\Services\PosBackofficeService;
 use App\Support\CurrentWorkspace;
@@ -115,6 +116,10 @@ class PosBackofficeController extends Controller
     public function storePaymentMethod(Request $request, CurrentWorkspace $workspace): RedirectResponse
     {
         [$companyId, $branchId] = $this->workspaceIds($workspace);
+
+        if ($response = $this->configurationLockResponse($companyId, $branchId)) {
+            return $response;
+        }
 
         $data = $request->validate([
             'method_code' => ['required', Rule::in(PaymentMethodCatalog::values())],
@@ -227,6 +232,10 @@ class PosBackofficeController extends Controller
     {
         [$companyId, $branchId] = $this->workspaceIds($workspace);
 
+        if ($response = $this->configurationLockResponse($companyId, $branchId)) {
+            return $response;
+        }
+
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_preparation_printers', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
             'name' => ['required', 'string', 'max:120'],
@@ -259,6 +268,10 @@ class PosBackofficeController extends Controller
     {
         [$companyId, $branchId] = $this->workspaceIds($workspace);
 
+        if ($response = $this->configurationLockResponse($companyId, $branchId)) {
+            return $response;
+        }
+
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_preparation_displays', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
             'name' => ['required', 'string', 'max:120'],
@@ -289,7 +302,11 @@ class PosBackofficeController extends Controller
 
     public function storeNoteTemplate(Request $request, CurrentWorkspace $workspace): RedirectResponse
     {
-        [$companyId] = $this->workspaceIds($workspace);
+        [$companyId, $branchId] = $this->workspaceIds($workspace);
+
+        if ($response = $this->configurationLockResponse($companyId, $branchId)) {
+            return $response;
+        }
 
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_note_templates', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
@@ -408,6 +425,10 @@ class PosBackofficeController extends Controller
     {
         [$companyId, $branchId] = $this->workspaceIds($workspace);
 
+        if ($response = $this->configurationLockResponse($companyId, $branchId)) {
+            return $response;
+        }
+
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_profiles', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
             'name' => ['required', 'string', 'max:120'],
@@ -477,5 +498,21 @@ class PosBackofficeController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function configurationLockResponse(int $companyId, int $branchId): ?RedirectResponse
+    {
+        $openSession = PosSession::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->first();
+
+        if (! $openSession) {
+            return null;
+        }
+
+        return back()->with('error', 'Une session POS est en cours sur '.$openSession->session_number.'. Ferme d abord la session avant de modifier ces parametres sensibles.');
     }
 }

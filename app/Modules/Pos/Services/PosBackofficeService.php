@@ -132,6 +132,12 @@ class PosBackofficeService
     {
         $sessions = PosSession::query()
             ->with(['cashAccount', 'warehouse', 'opener', 'closer'])
+            ->withCount([
+                'salesInvoices as orders_count',
+                'payments as payments_count',
+                'returns as returns_count',
+            ])
+            ->withSum('payments as payments_total', 'amount')
             ->where('company_id', $companyId)
             ->where('branch_id', $branchId)
             ->latest('opened_at')
@@ -293,6 +299,14 @@ class PosBackofficeService
 
     public function settings(int $companyId, int $branchId): array
     {
+        $openSessions = PosSession::query()
+            ->with(['warehouse', 'cashAccount', 'opener'])
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->get();
+
         return [
             'summary' => [
                 'profiles' => (int) PosProfile::query()->where('company_id', $companyId)->where('is_active', true)->count(),
@@ -300,7 +314,10 @@ class PosBackofficeService
                 'note_templates' => (int) PosNoteTemplate::query()->where('company_id', $companyId)->where('is_active', true)->count(),
                 'printers' => (int) PosPreparationPrinter::query()->where('company_id', $companyId)->where('is_active', true)->count(),
                 'displays' => (int) PosPreparationDisplay::query()->where('company_id', $companyId)->where('is_active', true)->count(),
+                'open_sessions' => (int) $openSessions->count(),
             ],
+            'settings_locked' => $openSessions->isNotEmpty(),
+            'open_sessions' => $openSessions,
             'profiles' => PosProfile::query()
                 ->with(['branch', 'warehouse', 'cashAccount', 'priceList', 'loyaltyProgram', 'noteTemplate', 'defaultPrinter', 'defaultDisplay'])
                 ->where('company_id', $companyId)

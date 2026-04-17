@@ -9,6 +9,7 @@ use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Pos\Models\PosLoyaltyProgram;
+use App\Modules\Pos\Models\PosSession;
 use App\Modules\Treasury\Models\CashAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -31,7 +32,8 @@ class PosBackofficeTest extends TestCase
         $this->actingAs($user)->withSession($this->workspaceSession($user))
             ->get(route('pos.sessions.index'))
             ->assertOk()
-            ->assertSeeText('Pilotage des sessions');
+            ->assertSeeText('Pilotage des sessions')
+            ->assertSeeText('Caisse attendue');
 
         $this->actingAs($user)->withSession($this->workspaceSession($user))
             ->get(route('pos.payments.index'))
@@ -239,6 +241,46 @@ class PosBackofficeTest extends TestCase
             'company_id' => $user->company_id,
             'code' => 'POS-T-0001',
             'name' => 'Profil test',
+        ]);
+    }
+
+    public function test_open_session_locks_sensitive_pos_settings(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->firstOrFail();
+
+        $session = PosSession::query()->create([
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'cash_account_id' => $cashAccount->id,
+            'session_number' => 'POS-LOCK-0001',
+            'status' => 'open',
+            'opening_amount' => 25000,
+            'opened_at' => now(),
+            'opened_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user))
+            ->get(route('pos.settings.index'))
+            ->assertOk()
+            ->assertSeeText('Une session POS est en cours sur ce point de vente.')
+            ->assertSeeText($session->session_number);
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user))
+            ->post(route('pos.payment-methods.store'), [
+                'method_code' => 'other',
+                'label' => 'Paiement verrouille',
+                'cash_account_id' => $cashAccount->id,
+                'is_active' => 1,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('pos_payment_methods', [
+            'company_id' => $user->company_id,
+            'label' => 'Paiement verrouille',
         ]);
     }
 

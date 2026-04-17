@@ -244,6 +244,35 @@
             gap: 20px;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
+        .pos-session-quick-grid {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .pos-session-quick-card {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: center;
+            border-radius: 20px;
+            border: 1px solid #dde7f2;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            padding: 16px 18px;
+        }
+        .pos-session-quick-card .label {
+            color: #64748b;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            font-weight: 700;
+        }
+        .pos-session-quick-card .value {
+            margin-top: 8px;
+            color: #13263e;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -.03em;
+        }
         @media (max-width: 1080px) {
             .pos-session-grid { grid-template-columns: 1fr; }
         }
@@ -294,6 +323,44 @@
             <div class="pos-stat-card"><div class="label">Flux net caisse</div><div class="value">{{ number_format($summary['net_cash'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Ecart</div><div class="value">{{ number_format((float) ($session->variance_amount ?? 0), 0, ',', ' ') }}</div></div>
         </div>
+
+        <section class="pos-session-quick-grid">
+            <article class="pos-session-quick-card">
+                <div>
+                    <div class="label">Commandes</div>
+                    <div class="value">{{ $summary['sales_count'] }}</div>
+                </div>
+                <a href="#tickets-session" class="button button-secondary">Voir</a>
+            </article>
+            <article class="pos-session-quick-card">
+                <div>
+                    <div class="label">Paiements</div>
+                    <div class="value">{{ number_format($summary['paid_total'], 0, ',', ' ') }}</div>
+                </div>
+                <a href="#cloture-session" class="button button-secondary">Controler</a>
+            </article>
+            <article class="pos-session-quick-card">
+                <div>
+                    <div class="label">Retours</div>
+                    <div class="value">{{ $summary['return_count'] }}</div>
+                </div>
+                <a href="#tickets-session" class="button button-secondary">Suivre</a>
+            </article>
+            <article class="pos-session-quick-card">
+                <div>
+                    <div class="label">Comptage</div>
+                    <div class="value">{{ number_format((float) $summary['expected_amount'], 0, ',', ' ') }}</div>
+                </div>
+                <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Imprimer</a>
+            </article>
+            <article class="pos-session-quick-card">
+                <div>
+                    <div class="label">Rapport</div>
+                    <div class="value">{{ number_format($summary['net_cash'], 0, ',', ' ') }}</div>
+                </div>
+                <a href="{{ route('pos.report', ['date' => $session->opened_at?->toDateString(), 'warehouse_id' => $session->warehouse_id, 'cash_account_id' => $session->cash_account_id]) }}" class="button button-secondary">Ouvrir</a>
+            </article>
+        </section>
 
         <div class="pos-session-grid">
             <section class="pos-session-panel">

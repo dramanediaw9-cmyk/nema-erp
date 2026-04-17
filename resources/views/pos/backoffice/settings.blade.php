@@ -4,6 +4,43 @@
 @section('page-title', 'Configuration POS')
 
 @section('content')
+    <style>
+        .pos-settings-alert {
+            display: grid;
+            gap: 12px;
+            padding: 18px 20px;
+            border-radius: 22px;
+            border: 1px solid rgba(180, 83, 9, 0.25);
+            background: linear-gradient(180deg, rgba(255, 251, 235, 0.96) 0%, rgba(254, 243, 199, 0.96) 100%);
+            color: #78350f;
+        }
+        .pos-settings-alert-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        .pos-settings-open-sessions {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .pos-settings-open-session {
+            border-radius: 18px;
+            border: 1px solid rgba(146, 64, 14, 0.14);
+            background: rgba(255, 255, 255, 0.7);
+            padding: 14px 16px;
+        }
+        .pos-settings-open-session strong {
+            display: block;
+            color: #7c2d12;
+        }
+        .pos-settings-locked {
+            opacity: .78;
+        }
+    </style>
+
     <div class="grid" style="gap:18px;">
         @include('pos.partials.backoffice-nav')
 
@@ -21,12 +58,37 @@
             <div class="card"><div class="muted">Modeles notes</div><div class="stat-value">{{ $data['summary']['note_templates'] }}</div></div>
             <div class="card"><div class="muted">Imprimantes prep</div><div class="stat-value">{{ $data['summary']['printers'] }}</div></div>
             <div class="card"><div class="muted">Displays prep</div><div class="stat-value">{{ $data['summary']['displays'] }}</div></div>
+            <div class="card"><div class="muted">Sessions ouvertes</div><div class="stat-value">{{ $data['summary']['open_sessions'] }}</div></div>
         </div>
+
+        @if ($data['settings_locked'])
+            <section class="pos-settings-alert">
+                <div class="pos-settings-alert-head">
+                    <div>
+                        <strong>Une session POS est en cours sur ce point de vente.</strong>
+                        <div>Certains parametres sensibles ne peuvent etre modifies qu apres la fermeture de la session active, pour eviter une incoherence entre la caisse en cours et sa configuration.</div>
+                    </div>
+                    @if ($data['open_sessions']->first())
+                        <a href="{{ route('pos.show', $data['open_sessions']->first()) }}" class="button button-secondary">Ouvrir la session</a>
+                    @endif
+                </div>
+                <div class="pos-settings-open-sessions">
+                    @foreach ($data['open_sessions'] as $session)
+                        <article class="pos-settings-open-session">
+                            <strong>{{ $session->session_number }}</strong>
+                            <div>{{ $session->warehouse?->name ?? 'Sans entrepot' }} · {{ $session->cashAccount?->name ?? 'Sans caisse' }}</div>
+                            <div class="muted">Ouverte {{ $session->opened_at?->format('d/m H:i') ?? 'n/a' }} par {{ $session->opener?->name ?? 'n/a' }}</div>
+                        </article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
 
         @allowed('pos.manage')
             <div class="split">
-                <form method="POST" action="{{ route('pos.profiles.store') }}" class="card form-grid">
+                <form method="POST" action="{{ route('pos.profiles.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                     @csrf
+                    <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
                     <div class="full"><h3 class="section-title">Profil point de vente</h3></div>
                     <div>
                         <label for="profile_name">Nom</label>
@@ -105,11 +167,13 @@
                     <div class="full actions">
                         <button type="submit" class="button button-primary">Enregistrer le profil</button>
                     </div>
+                    </fieldset>
                 </form>
 
                 <div class="grid" style="gap:18px;">
-                    <form method="POST" action="{{ route('pos.payment-methods.store') }}" class="card form-grid">
+                    <form method="POST" action="{{ route('pos.payment-methods.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                         @csrf
+                        <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
                         <div class="full"><h3 class="section-title">Mode de paiement</h3></div>
                         <div>
                             <label for="method_code">Code</label>
@@ -143,10 +207,12 @@
                             <label class="checkbox-row"><input type="checkbox" name="is_active" value="1" checked> Actif</label>
                         </div>
                         <div class="full actions"><button type="submit" class="button button-primary">Enregistrer le mode</button></div>
+                        </fieldset>
                     </form>
 
-                    <form method="POST" action="{{ route('pos.note-templates.store') }}" class="card form-grid">
+                    <form method="POST" action="{{ route('pos.note-templates.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                         @csrf
+                        <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
                         <div class="full"><h3 class="section-title">Modele de note</h3></div>
                         <div>
                             <label for="note_name">Nom</label>
@@ -169,13 +235,15 @@
                             <label class="checkbox-row"><input type="checkbox" name="is_active" value="1" checked> Actif</label>
                         </div>
                         <div class="full actions"><button type="submit" class="button button-primary">Enregistrer le modele</button></div>
+                        </fieldset>
                     </form>
                 </div>
             </div>
 
             <div class="split">
-                <form method="POST" action="{{ route('pos.preparation-printers.store') }}" class="card form-grid">
+                <form method="POST" action="{{ route('pos.preparation-printers.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                     @csrf
+                    <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
                     <div class="full"><h3 class="section-title">Imprimante de preparation</h3></div>
                     <div><label for="printer_name">Nom</label><input id="printer_name" name="name" value="{{ old('name') }}" required></div>
                     <div><label for="printer_target_area">Zone</label><input id="printer_target_area" name="target_area" value="{{ old('target_area', 'Cuisine') }}"></div>
@@ -191,10 +259,12 @@
                     <div><label for="copy_count">Copies</label><input id="copy_count" name="copy_count" type="number" min="1" max="10" value="{{ old('copy_count', 1) }}"></div>
                     <div><label for="printer_prep_time_target_minutes">Temps cible</label><input id="printer_prep_time_target_minutes" name="prep_time_target_minutes" type="number" min="0" max="240" value="{{ old('prep_time_target_minutes', 10) }}"></div>
                     <div class="full actions"><button type="submit" class="button button-primary">Enregistrer l imprimante</button></div>
+                    </fieldset>
                 </form>
 
-                <form method="POST" action="{{ route('pos.preparation-displays.store') }}" class="card form-grid">
+                <form method="POST" action="{{ route('pos.preparation-displays.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                     @csrf
+                    <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
                     <div class="full"><h3 class="section-title">Preparation Display</h3></div>
                     <div><label for="display_name">Nom</label><input id="display_name" name="name" value="{{ old('name') }}" required></div>
                     <div><label for="display_target_area">Zone</label><input id="display_target_area" name="target_area" value="{{ old('target_area', 'Retrait') }}"></div>
@@ -210,6 +280,7 @@
                     <div><label for="refresh_seconds">Refresh</label><input id="refresh_seconds" name="refresh_seconds" type="number" min="5" max="300" value="{{ old('refresh_seconds', 20) }}"></div>
                     <div><label for="display_prep_time_target_minutes">Temps cible</label><input id="display_prep_time_target_minutes" name="prep_time_target_minutes" type="number" min="0" max="240" value="{{ old('prep_time_target_minutes', 8) }}"></div>
                     <div class="full actions"><button type="submit" class="button button-primary">Enregistrer le display</button></div>
+                    </fieldset>
                 </form>
             </div>
         @endallowed
