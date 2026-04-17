@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Throwable;
@@ -278,6 +279,198 @@ class BackupService
         }
 
         return $deleted;
+    }
+
+    public function syncLatestToOffsite(?string $disk = null, ?string $prefix = null): array
+    {
+        $manifest = $this->latest();
+
+        if (! $manifest) {
+            return [
+                'status' => 'warning',
+                'message' => 'Aucune sauvegarde locale disponible pour synchronisation hors machine.',
+                'uploaded_files' => 0,
+                'uploaded_bytes' => 0,
+            ];
+        }
+
+        $disk = $disk ?: (string) config('ops.backup_offsite_disk', '');
+        $prefix = trim($prefix ?: (string) config('ops.backup_offsite_prefix', 'nema-erp/backups'), '/');
+
+        if ($disk === '' || ! is_array(config('filesystems.disks.'.$disk))) {
+            return [
+                'status' => 'fail',
+                'message' => 'Disque hors machine invalide ou non configure.',
+                'uploaded_files' => 0,
+                'uploaded_bytes' => 0,
+                'disk' => $disk,
+                'prefix' => $prefix,
+            ];
+        }
+
+        $sourceDirectory = (string) ($manifest['directory'] ?? '');
+        $backupName = basename($sourceDirectory);
+        $remoteRoot = ltrim($prefix.'/'.$backupName, '/');
+        $remoteManifestPath = $remoteRoot.'/sync-manifest.json';
+        $existingManifest = Storage::disk($disk)->exists($remoteManifestPath)
+            ? json_decode((string) Storage::disk($disk)->get($remoteManifestPath), true)
+            : [];
+        $existingFiles = collect($existingManifest['files'] ?? [])->keyBy('path');
+        $uploadedFiles = 0;
+        $uploadedBytes = 0;
+        $skippedFiles = 0;
+        $filesManifest = [];
+
+        foreach (File::allFiles($sourceDirectory) as $file) {
+            $relativePath = str_replace($sourceDirectory.DIRECTORY_SEPARATOR, '', $file->getPathname());
+            $remotePath = str_replace(DIRECTORY_SEPARATOR, '/', $remoteRoot.'/'.$relativePath);
+            $checksum = sha1_file($file->getPathname()) ?: '';
+            $size = (int) $file->getSize();
+
+            $filesManifest[] = [
+                'path' => $relativePath,
+                'checksum' => $checksum,
+                'size' => $size,
+            ];
+
+            $existing = $existingFiles->get($relativePath);
+
+            if ($existing && ($existing['checksum'] ?? '') === $checksum) {
+                $skippedFiles++;
+
+                continue;
+            }
+
+            $content = File::get($file->getPathname());
+
+            Storage::disk($disk)->put($remotePath, $content);
+
+            $uploadedFiles++;
+            $uploadedBytes += strlen($content);
+        }
+
+        Storage::disk($disk)->put($remoteManifestPath, json_encode([
+            'synced_at' => now()->toDateTimeString(),
+            'created_at' => $manifest['created_at'] ?? null,
+            'source_directory' => $sourceDirectory,
+            'uploaded_files' => $uploadedFiles,
+            'uploaded_bytes' => $uploadedBytes,
+            'skipped_files' => $skippedFiles,
+            'files' => $filesManifest,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        Storage::disk($disk)->put($remoteRoot.'/sync-meta.json', json_encode([
+            'synced_at' => now()->toDateTimeString(),
+            'created_at' => $manifest['created_at'] ?? null,
+            'source_directory' => $sourceDirectory,
+            'uploaded_files' => $uploadedFiles,
+            'uploaded_bytes' => $uploadedBytes,
+            'skipped_files' => $skippedFiles,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        $pruned = $this->pruneOffsite($disk, $prefix, max((int) config('ops.backup_offsite_keep', 14), 1));
+
+        return [
+            'status' => 'ok',
+            'message' => 'Sauvegarde synchronisee hors machine avec succes.',
+            'uploaded_files' => $uploadedFiles,
+            'uploaded_bytes' => $uploadedBytes,
+            'skipped_files' => $skippedFiles,
+            'pruned_backups' => $pruned,
+            'disk' => $disk,
+            'prefix' => $remoteRoot,
+            'created_at' => $manifest['created_at'] ?? null,
+        ];
+    }
+
+    public function verifyLatestOffsite(?string $disk = null, ?string $prefix = null): array
+    {
+        $disk = $disk ?: (string) config('ops.backup_offsite_disk', '');
+        $prefix = trim($prefix ?: (string) config('ops.backup_offsite_prefix', 'nema-erp/backups'), '/');
+
+        if ($disk === '' || ! is_array(config('filesystems.disks.'.$disk))) {
+            return [
+                'status' => 'fail',
+                'message' => 'Disque hors machine invalide ou non configure.',
+            ];
+        }
+
+        $backups = $this->offsiteBackupNames($disk, $prefix);
+        $latest = $backups[0] ?? null;
+
+        if (! $latest) {
+            return [
+                'status' => 'warning',
+                'message' => 'Aucune sauvegarde hors machine disponible.',
+                'checked_files' => 0,
+            ];
+        }
+
+        $manifestPath = $prefix.'/'.$latest.'/sync-manifest.json';
+
+        if (! Storage::disk($disk)->exists($manifestPath)) {
+            return [
+                'status' => 'fail',
+                'message' => 'Manifest distant manquant pour le dernier backup.',
+                'checked_files' => 0,
+            ];
+        }
+
+        $manifest = json_decode((string) Storage::disk($disk)->get($manifestPath), true);
+        $files = collect($manifest['files'] ?? []);
+        $missing = $files->filter(fn (array $file): bool => ! Storage::disk($disk)->exists($prefix.'/'.$latest.'/'.($file['path'] ?? '')))->count();
+
+        return [
+            'status' => $missing > 0 ? 'fail' : 'ok',
+            'message' => $missing > 0
+                ? 'Des fichiers sont manquants sur le backup hors machine.'
+                : 'Le dernier backup hors machine est lisible et complet.',
+            'checked_files' => $files->count(),
+            'missing_files' => $missing,
+            'disk' => $disk,
+            'prefix' => $prefix.'/'.$latest,
+        ];
+    }
+
+    private function pruneOffsite(string $disk, string $prefix, int $keep): int
+    {
+        $backups = $this->offsiteBackupNames($disk, $prefix);
+
+        if (count($backups) <= $keep) {
+            return 0;
+        }
+
+        $deleted = 0;
+
+        foreach (array_slice($backups, $keep) as $backupName) {
+            Storage::disk($disk)->deleteDirectory($prefix.'/'.$backupName);
+            $deleted++;
+        }
+
+        return $deleted;
+    }
+
+    private function offsiteBackupNames(string $disk, string $prefix): array
+    {
+        $files = Storage::disk($disk)->allFiles($prefix);
+        $prefixWithSlash = rtrim($prefix, '/').'/';
+        $names = collect($files)
+            ->map(function (string $path) use ($prefixWithSlash): ?string {
+                if (! str_starts_with($path, $prefixWithSlash)) {
+                    return null;
+                }
+
+                $relative = substr($path, strlen($prefixWithSlash));
+
+                return explode('/', $relative)[0] ?? null;
+            })
+            ->filter(fn (?string $name): bool => filled($name))
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+
+        return $names;
     }
 
     private function manifests(): Collection

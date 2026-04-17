@@ -46,4 +46,10 @@ return [
         'webhook_timeout' => (int) env('INTEGRATIONS_WEBHOOK_TIMEOUT', 10),
     ],
 
+    'ops_alerting' => [
+        'webhook_url' => env('OPS_ALERT_WEBHOOK_URL'),
+        'timeout' => (int) env('OPS_ALERT_TIMEOUT', 10),
+        'minimum_level' => env('OPS_ALERT_MINIMUM_LEVEL', 'warning'),
+    ],
+
 ];

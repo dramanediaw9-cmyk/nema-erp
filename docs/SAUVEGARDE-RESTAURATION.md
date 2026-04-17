@@ -4,6 +4,8 @@
 
 - `scripts/backup-nema-erp.ps1`
 - `scripts/restore-nema-erp.ps1`
+- `php artisan nema:ops:backup-offsite-sync`
+- `php artisan nema:ops:backup-offsite-verify`
 
 ## Sauvegarde
 
@@ -40,3 +42,20 @@ Le script restaure :
 - garder plusieurs sauvegardes horodatees
 - tester une restauration au moins une fois par mois
 - stocker une copie hors du serveur applicatif si possible
+
+## Synchronisation hors machine (cloud/S3)
+
+Configurer :
+
+```env
+OPS_BACKUP_OFFSITE_DISK=s3
+OPS_BACKUP_OFFSITE_PREFIX=nema-erp/backups
+OPS_BACKUP_OFFSITE_KEEP=14
+```
+
+Puis lancer :
+
+```bash
+php artisan nema:ops:backup-offsite-sync
+php artisan nema:ops:backup-offsite-verify
+```

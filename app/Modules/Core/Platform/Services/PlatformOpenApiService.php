@@ -145,6 +145,8 @@ class PlatformOpenApiService
                     'php artisan test',
                     'php artisan nema:ops:monitor-app',
                     'php artisan nema:integrations:dispatch-outbox --limit=50',
+                    'php artisan nema:ops:backup-offsite-verify',
+                    'php artisan nema:core:pulse',
                 ],
             ],
         ];
@@ -194,6 +196,9 @@ class PlatformOpenApiService
             ],
             '/platform/tenant-readiness' => [
                 'get' => $this->operation('platform', 'Lire la readiness inter-societes', 'Retourne le portefeuille multi-societes, les scores readiness et les priorites tenant.'),
+            ],
+            '/platform/core-pulse' => [
+                'get' => $this->operation('platform', 'Lire le pulse noyau ERP', 'Retourne un indice de puissance du noyau (automation, ops, ecosysteme et readiness).'),
             ],
             '/platform/connections' => [
                 'get' => $this->operation(

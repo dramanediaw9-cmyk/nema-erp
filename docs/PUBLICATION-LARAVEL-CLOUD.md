@@ -158,6 +158,7 @@ Les caches `config`, `routes` et `views` sont volontairement generes pendant le 
 ## Integration GitHub
 
 Le depot contient maintenant un workflow optionnel [deploy-laravel-cloud.yml](../.github/workflows/deploy-laravel-cloud.yml) qui peut declencher Laravel Cloud **apres une CI verte**.
+Un second workflow [promote-staging-prod.yml](../.github/workflows/promote-staging-prod.yml) ajoute des garde-fous de promotion (pre-check, smoke post-deploiement, rollback optionnel).
 
 Pour l activer :
 
@@ -166,6 +167,15 @@ Pour l activer :
 3. laisser la CI valider `main`
 
 Sans ce secret, le workflow se contente d afficher qu il est ignore.
+
+Pour la promotion manuelle par environnement, prevoir aussi :
+
+- `LARAVEL_CLOUD_DEPLOY_HOOK_STAGING`
+- `LARAVEL_CLOUD_DEPLOY_HOOK_PRODUCTION`
+- `LARAVEL_CLOUD_HEALTHCHECK_URL_STAGING` (optionnel)
+- `LARAVEL_CLOUD_HEALTHCHECK_URL_PRODUCTION` (optionnel)
+- `LARAVEL_CLOUD_ROLLBACK_HOOK_STAGING` (optionnel)
+- `LARAVEL_CLOUD_ROLLBACK_HOOK_PRODUCTION` (optionnel)
 
 ## Scheduler
 
@@ -179,6 +189,11 @@ Le scheduler doit etre actif en production. Les commandes critiques deja planifi
 - `nema:ops:outbox-prune --days=30`
 - `nema:ops:backup-run --keep=7`
 - `nema:ops:backup-verify`
+- `nema:ops:backup-offsite-sync`
+- `nema:ops:backup-offsite-verify`
+- `nema:ops:alert-dispatch`
+- `nema:core:pulse`
+- `nema:ops:execute-priorities`
 
 ## Queue worker
 
@@ -186,6 +201,23 @@ Le coeur actuel de l application repose surtout sur le scheduler. Un worker de q
 
 ```bash
 php artisan queue:work --tries=3 --timeout=120 --max-time=3600
+```
+
+Variables OPS additionnelles recommandees pour l exploitation avancee :
+
+```env
+OPS_ALERT_WEBHOOK_URL=
+OPS_ALERT_TIMEOUT=10
+OPS_ALERT_MINIMUM_LEVEL=warning
+OPS_ALERT_RETRY_TIMES=3
+OPS_ALERT_RETRY_BACKOFF_MS=300
+OPS_ALERT_SIGNATURE_SECRET=
+OPS_ALERT_CIRCUIT_FAILURES=5
+OPS_ALERT_CIRCUIT_TTL_MINUTES=10
+OPS_BACKUP_OFFSITE_DISK=s3
+OPS_BACKUP_OFFSITE_PREFIX=nema-erp/backups
+OPS_BACKUP_OFFSITE_KEEP=14
+OPS_CORE_PULSE_SLA_SCORE=75
 ```
 
 ## Mail reel

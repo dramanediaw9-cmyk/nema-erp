@@ -12,7 +12,9 @@ use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -270,6 +272,132 @@ class OpsHealthTest extends TestCase
 
         $this->assertDatabaseMissing('integration_events', ['id' => $oldPublished->id]);
         $this->assertDatabaseHas('integration_events', ['id' => $pending->id]);
+    }
+
+    public function test_alert_dispatch_command_sends_webhook_when_monitoring_is_in_warning(): void
+    {
+        Http::fake([
+            'https://alerts.example.test/*' => Http::response(['ok' => true], 202),
+        ]);
+
+        config()->set('services.ops_alerting.webhook_url', 'https://alerts.example.test/webhook');
+        config()->set('services.ops_alerting.minimum_level', 'warning');
+        config()->set('ops.log_warning_threshold', 1);
+        config()->set('ops.log_fail_threshold', 10);
+
+        $logPath = storage_path('framework/testing/ops-alert.log');
+        File::ensureDirectoryExists(dirname($logPath));
+        File::put($logPath, "[2026-04-17 08:00:00] production.ERROR: Test alert dispatch\n");
+        config()->set('logging.default', 'single');
+        config()->set('logging.channels.single.path', $logPath);
+
+        $this->artisan('nema:ops:alert-dispatch')->assertExitCode(0);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_backup_offsite_sync_command_uploads_latest_backup_to_remote_disk(): void
+    {
+        Storage::fake('offsite');
+
+        $backupPath = storage_path('framework/testing/backups-offsite');
+        config()->set('ops.backups_path', $backupPath);
+        config()->set('ops.backup_offsite_disk', 'offsite');
+        config()->set('ops.backup_offsite_prefix', 'nema-erp/testing');
+        File::deleteDirectory($backupPath);
+
+        $this->artisan('nema:ops:backup-run', [
+            '--keep' => 2,
+        ])->assertExitCode(0);
+
+        $this->artisan('nema:ops:backup-offsite-sync')->assertExitCode(0);
+
+        $files = Storage::disk('offsite')->allFiles('nema-erp/testing');
+        $this->assertNotEmpty($files);
+    }
+
+    public function test_backup_offsite_verify_command_passes_after_sync(): void
+    {
+        Storage::fake('offsite');
+
+        $backupPath = storage_path('framework/testing/backups-offsite-verify');
+        config()->set('ops.backups_path', $backupPath);
+        config()->set('ops.backup_offsite_disk', 'offsite');
+        config()->set('ops.backup_offsite_prefix', 'nema-erp/testing-verify');
+        File::deleteDirectory($backupPath);
+
+        $this->artisan('nema:ops:backup-run', [
+            '--keep' => 1,
+        ])->assertExitCode(0);
+
+        $this->artisan('nema:ops:backup-offsite-sync')->assertExitCode(0);
+        $this->artisan('nema:ops:backup-offsite-verify')->assertExitCode(0);
+    }
+
+    public function test_alert_dispatch_adds_idempotency_headers(): void
+    {
+        Http::fake([
+            'https://alerts.example.test/*' => Http::response(['ok' => true], 202),
+        ]);
+
+        config()->set('services.ops_alerting.webhook_url', 'https://alerts.example.test/webhook');
+        config()->set('services.ops_alerting.minimum_level', 'warning');
+        config()->set('ops.log_warning_threshold', 1);
+        config()->set('ops.log_fail_threshold', 10);
+        config()->set('ops.alert_signature_secret', 'unit-test-secret');
+
+        $logPath = storage_path('framework/testing/ops-alert-headers.log');
+        File::ensureDirectoryExists(dirname($logPath));
+        File::put($logPath, "[2026-04-17 08:00:00] production.ERROR: Test alert headers\n");
+        config()->set('logging.default', 'single');
+        config()->set('logging.channels.single.path', $logPath);
+
+        $this->artisan('nema:ops:alert-dispatch')->assertExitCode(0);
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
+            return $request->hasHeader('X-Nema-Idempotency-Key')
+                && $request->hasHeader('X-Nema-Signature');
+        });
+    }
+
+    public function test_execute_priorities_command_runs_in_check_mode(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+
+        $this->artisan('nema:ops:execute-priorities', [
+            '--company' => [$company->id],
+            '--json' => true,
+        ])->assertExitCode(0);
+    }
+
+    public function test_execute_priorities_command_runs_in_apply_mode_with_fakes(): void
+    {
+        Storage::fake('offsite');
+        Http::fake([
+            'https://alerts.example.test/*' => Http::response(['ok' => true], 202),
+        ]);
+
+        config()->set('services.ops_alerting.webhook_url', 'https://alerts.example.test/webhook');
+        config()->set('ops.alert_signature_secret', 'unit-test-secret');
+        config()->set('ops.backups_path', storage_path('framework/testing/backups-priority-exec'));
+        config()->set('ops.backup_offsite_disk', 'offsite');
+        config()->set('ops.backup_offsite_prefix', 'nema-erp/priority-exec');
+        config()->set('filesystems.disks.offsite', [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/disks/offsite'),
+        ]);
+
+        $this->artisan('nema:ops:backup-run', [
+            '--keep' => 1,
+        ])->assertExitCode(0);
+
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+
+        $this->artisan('nema:ops:execute-priorities', [
+            '--company' => [$company->id],
+            '--apply' => true,
+            '--json' => true,
+        ])->assertExitCode(0);
     }
 
     public function test_company_admin_can_send_a_test_email_from_ops_page(): void

@@ -61,6 +61,7 @@ class PlatformCatalogService
                     'php artisan test',
                     'npm run e2e:smoke',
                     'php artisan nema:ops:monitor-app',
+                    'php artisan nema:core:pulse',
                 ],
                 'runbooks' => [
                     ['label' => 'README', 'path' => 'README.md', 'purpose' => 'Lancement, verification rapide et comptes de demonstration.'],
@@ -127,6 +128,7 @@ class PlatformCatalogService
                         ['name' => 'workspace', 'path' => '/api/v1/workspace'],
                         ['name' => 'platform-deployment-profile', 'path' => '/api/v1/platform/deployment-profile'],
                         ['name' => 'platform-tenant-readiness', 'path' => '/api/v1/platform/tenant-readiness'],
+                        ['name' => 'platform-core-pulse', 'path' => '/api/v1/platform/core-pulse'],
                         ['name' => 'platform-openapi', 'path' => '/api/v1/platform/openapi'],
                         ['name' => 'platform-connection-secrets', 'path' => '/api/v1/platform/connections/{integrationConnection}/secrets'],
                         ['name' => 'automation-rules', 'path' => '/api/v1/automation/rules'],
@@ -219,6 +221,8 @@ class PlatformCatalogService
                         'php artisan nema:integrations:dispatch-outbox --limit=50',
                         'php artisan nema:ops:outbox-retry-failed --limit=50',
                         'php artisan nema:ops:outbox-prune --days=30',
+                        'php artisan nema:ops:backup-offsite-verify',
+                        'php artisan nema:core:pulse',
                     ],
                     'partner_channels' => [
                         'Connecteurs ERP et BI via API token',

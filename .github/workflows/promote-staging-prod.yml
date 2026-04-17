@@ -1,0 +1,84 @@
+name: Promote Staging / Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Environnement cible"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target }}
+    env:
+      TARGET: ${{ github.event.inputs.target }}
+      STAGING_DEPLOY_HOOK: ${{ secrets.LARAVEL_CLOUD_DEPLOY_HOOK_STAGING }}
+      PRODUCTION_DEPLOY_HOOK: ${{ secrets.LARAVEL_CLOUD_DEPLOY_HOOK_PRODUCTION }}
+      STAGING_ROLLBACK_HOOK: ${{ secrets.LARAVEL_CLOUD_ROLLBACK_HOOK_STAGING }}
+      PRODUCTION_ROLLBACK_HOOK: ${{ secrets.LARAVEL_CLOUD_ROLLBACK_HOOK_PRODUCTION }}
+      STAGING_HEALTHCHECK_URL: ${{ secrets.LARAVEL_CLOUD_HEALTHCHECK_URL_STAGING }}
+      PRODUCTION_HEALTHCHECK_URL: ${{ secrets.LARAVEL_CLOUD_HEALTHCHECK_URL_PRODUCTION }}
+
+    steps:
+      - name: Resolve deploy hook by environment
+        id: hook
+        shell: bash
+        run: |
+          if [ "${TARGET}" = "production" ]; then
+            echo "value=${PRODUCTION_DEPLOY_HOOK}" >> "${GITHUB_OUTPUT}"
+            echo "rollback=${PRODUCTION_ROLLBACK_HOOK}" >> "${GITHUB_OUTPUT}"
+            echo "health=${PRODUCTION_HEALTHCHECK_URL}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "value=${STAGING_DEPLOY_HOOK}" >> "${GITHUB_OUTPUT}"
+            echo "rollback=${STAGING_ROLLBACK_HOOK}" >> "${GITHUB_OUTPUT}"
+            echo "health=${STAGING_HEALTHCHECK_URL}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Skip when deploy hook is missing
+        if: steps.hook.outputs.value == ''
+        run: echo "Deploy hook absent pour ${TARGET}, promotion ignoree."
+
+      - name: Pre-deploy health gate
+        if: steps.hook.outputs.value != '' && steps.hook.outputs.health != ''
+        shell: bash
+        run: curl --fail-with-body --show-error --silent "${{ steps.hook.outputs.health }}"
+
+      - name: Trigger Laravel Cloud deployment
+        if: steps.hook.outputs.value != ''
+        shell: bash
+        run: |
+          curl --fail-with-body --show-error --silent \
+            -X POST \
+            "${{ steps.hook.outputs.value }}?commit_hash=${GITHUB_SHA}"
+
+      - name: Post-deploy smoke gate
+        if: steps.hook.outputs.value != '' && steps.hook.outputs.health != ''
+        id: smoke
+        shell: bash
+        run: |
+          set +e
+          curl --fail-with-body --show-error --silent "${{ steps.hook.outputs.health }}"
+          CODE=$?
+          echo "exit_code=${CODE}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Trigger rollback on failed smoke
+        if: steps.hook.outputs.value != '' && steps.smoke.outputs.exit_code != '0' && steps.hook.outputs.rollback != ''
+        shell: bash
+        run: |
+          curl --fail-with-body --show-error --silent \
+            -X POST \
+            "${{ steps.hook.outputs.rollback }}"
+
+      - name: Fail workflow when smoke check fails
+        if: steps.hook.outputs.value != '' && steps.smoke.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          echo "Post-deploy smoke check failed for ${TARGET}."
+          exit 1

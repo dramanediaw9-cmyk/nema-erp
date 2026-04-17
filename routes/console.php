@@ -8,6 +8,9 @@ use App\Modules\Core\Notifications\Services\NotificationService;
 use App\Modules\Core\Notifications\Services\OutboundNotificationService;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Core\Ops\Services\BackupService;
+use App\Modules\Core\Ops\Services\OpsAlertingService;
+use App\Modules\Core\Ops\Services\PriorityExecutionService;
+use App\Modules\Core\Platform\Services\CorePulseService;
 use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -270,6 +273,44 @@ Artisan::command('nema:ops:backup-verify {--path= : Chemin complet vers un dossi
     return $verification['status'] === 'fail' ? 1 : 0;
 })->purpose('Verifie qu une sauvegarde locale est lisible et coherente');
 
+Artisan::command('nema:ops:backup-offsite-sync {--disk= : Disque Laravel cible (ex: s3)} {--prefix= : Prefixe distant}', function (BackupService $backupService) {
+    $summary = $backupService->syncLatestToOffsite(
+        $this->option('disk') ?: null,
+        $this->option('prefix') ?: null,
+    );
+
+    $this->line(sprintf(
+        'Backup offsite | statut=%s | fichiers=%d | bytes=%d | disk=%s | prefix=%s',
+        strtoupper((string) $summary['status']),
+        (int) ($summary['uploaded_files'] ?? 0),
+        (int) ($summary['uploaded_bytes'] ?? 0),
+        $summary['disk'] ?? 'n/a',
+        $summary['prefix'] ?? 'n/a',
+    ));
+    $this->line($summary['message'] ?? '');
+
+    return ($summary['status'] ?? 'warning') === 'fail' ? 1 : 0;
+})->purpose('Synchronise le dernier backup vers un stockage hors machine');
+
+Artisan::command('nema:ops:backup-offsite-verify {--disk= : Disque Laravel cible (ex: s3)} {--prefix= : Prefixe distant}', function (BackupService $backupService) {
+    $summary = $backupService->verifyLatestOffsite(
+        $this->option('disk') ?: null,
+        $this->option('prefix') ?: null,
+    );
+
+    $this->line(sprintf(
+        'Backup offsite verify | statut=%s | checked=%d | missing=%d | disk=%s | prefix=%s',
+        strtoupper((string) ($summary['status'] ?? 'warning')),
+        (int) ($summary['checked_files'] ?? 0),
+        (int) ($summary['missing_files'] ?? 0),
+        $summary['disk'] ?? 'n/a',
+        $summary['prefix'] ?? 'n/a',
+    ));
+    $this->line($summary['message'] ?? '');
+
+    return ($summary['status'] ?? 'warning') === 'fail' ? 1 : 0;
+})->purpose('Verifie l integrite du dernier backup hors machine');
+
 Artisan::command('nema:ops:monitor-app {--tail=400 : Nombre de lignes de log a inspecter} {--json : Retourne le rapport en JSON}', function (ApplicationMonitoringService $applicationMonitoringService) {
     $tail = max((int) $this->option('tail'), 1);
     $summary = $applicationMonitoringService->summary($tail);
@@ -308,6 +349,22 @@ Artisan::command('nema:ops:monitor-app {--tail=400 : Nombre de lignes de log a i
     return $summary['status'] === 'fail' ? 1 : 0;
 })->purpose('Surveille les logs applicatifs et les jobs en echec');
 
+Artisan::command('nema:ops:alert-dispatch {--tail=400 : Nombre de lignes de log a inspecter} {--force : Envoie aussi les statuts OK}', function (ApplicationMonitoringService $applicationMonitoringService, OpsAlertingService $opsAlertingService) {
+    $tail = max((int) $this->option('tail'), 1);
+    $summary = $applicationMonitoringService->summary($tail);
+    $result = $opsAlertingService->dispatchMonitoringAlert($summary, (bool) $this->option('force'));
+
+    $this->line(sprintf(
+        'Alerting | monitoring=%s | statut=%s | sent=%s',
+        strtoupper((string) ($summary['status'] ?? 'ok')),
+        strtoupper((string) ($result['status'] ?? 'warning')),
+        ! empty($result['sent']) ? 'yes' : 'no',
+    ));
+    $this->line($result['message'] ?? '');
+
+    return ($result['status'] ?? 'warning') === 'fail' ? 1 : 0;
+})->purpose('Declenche une alerte webhook externe sur incidents Ops');
+
 Artisan::command('nema:ops:outbox-retry-failed {--company=* : Limite la reprise a une ou plusieurs societes} {--limit=50 : Nombre maximum d evenements a reprogrammer par societe}', function (SystemHealthService $systemHealthService) {
     $companyIds = collect($this->option('company'))
         ->filter(fn (mixed $value): bool => filled($value))
@@ -344,6 +401,97 @@ Artisan::command('nema:ops:outbox-prune {--days=30 : Age minimal en jours des ev
     return 0;
 })->purpose('Nettoie les evenements outbox publies trop anciens');
 
+Artisan::command('nema:core:pulse {--company=* : Limite le calcul a une ou plusieurs societes} {--json : Retourne le rapport en JSON} {--store : Enregistre un snapshot de pulse}', function (CorePulseService $corePulseService) {
+    $companyIds = collect($this->option('company'))
+        ->filter(fn (mixed $value): bool => filled($value))
+        ->map(fn (mixed $value): int => (int) $value)
+        ->filter(fn (int $value): bool => $value > 0)
+        ->values();
+
+    $companies = $companyIds->isNotEmpty()
+        ? Company::query()->whereIn('id', $companyIds)->orderBy('name')->get()
+        : Company::query()->orderBy('name')->get();
+
+    if ($companies->isEmpty()) {
+        $this->warn('Aucune societe detectee pour calculer le pulse noyau.');
+
+        return 1;
+    }
+
+    $reports = $companies
+        ->map(fn (Company $company): array => $corePulseService->summary($company, (bool) $this->option('store')))
+        ->values()
+        ->all();
+
+    if ($this->option('json')) {
+        $this->line(json_encode($reports, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? '') === 'fragile') ? 1 : 0;
+    }
+
+    foreach ($reports as $report) {
+        $this->line(sprintf(
+            '%s | pulse=%s | score=%d | rules=%d | outbox_failed=%d',
+            $report['company_name'] ?? 'N/A',
+            strtoupper((string) ($report['status'] ?? 'progressing')),
+            (int) ($report['score'] ?? 0),
+            (int) data_get($report, 'metrics.active_rules', 0),
+            (int) data_get($report, 'metrics.outbox_failed', 0),
+        ));
+    }
+
+    return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? '') === 'fragile') ? 1 : 0;
+})->purpose('Calcule un indice de puissance du noyau ERP (automation, ops, ecosysteme, readiness)');
+
+Artisan::command('nema:ops:execute-priorities {--company=* : Limite l execution a une ou plusieurs societes} {--apply : Lance les actions actives (alerte, backup sync/verify, pulse store)} {--json : Retourne le rapport en JSON}', function (PriorityExecutionService $priorityExecutionService) {
+    $companyIds = collect($this->option('company'))
+        ->filter(fn (mixed $value): bool => filled($value))
+        ->map(fn (mixed $value): int => (int) $value)
+        ->filter(fn (int $value): bool => $value > 0)
+        ->values();
+
+    $companies = $companyIds->isNotEmpty()
+        ? Company::query()->whereIn('id', $companyIds)->orderBy('name')->get()
+        : Company::query()->orderBy('name')->get();
+
+    if ($companies->isEmpty()) {
+        $this->warn('Aucune societe detectee pour executer les priorites.');
+
+        return 1;
+    }
+
+    $reports = $companies
+        ->map(fn (Company $company): array => $priorityExecutionService->execute($company, (bool) $this->option('apply')))
+        ->values()
+        ->all();
+
+    if ($this->option('json')) {
+        $this->line(json_encode($reports, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? 'warning') === 'fail') ? 1 : 0;
+    }
+
+    foreach ($reports as $report) {
+        $this->line(sprintf(
+            '%s | execution=%s | apply=%s',
+            $report['company_name'] ?? 'N/A',
+            strtoupper((string) ($report['status'] ?? 'warning')),
+            ! empty($report['applied']) ? 'yes' : 'no',
+        ));
+
+        foreach ($report['items'] ?? [] as $item) {
+            $this->line(sprintf(
+                '- %s | %s | %s',
+                strtoupper((string) ($item['key'] ?? 'item')),
+                strtoupper((string) ($item['status'] ?? 'warning')),
+                $item['message'] ?? '',
+            ));
+        }
+    }
+
+    return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? 'warning') === 'fail') ? 1 : 0;
+})->purpose('Execute les 5 priorites business Ops avec checks et mode apply');
+
 Schedule::command('nema:notifications:dispatch-outbound --limit=50')->everyMinute();
 Schedule::command('nema:notifications:sync-internal')->everyFifteenMinutes();
 Schedule::command('nema:automation:run')->everyThirtyMinutes();
@@ -353,3 +501,8 @@ Schedule::command('nema:ops:monitor-app')->hourlyAt(20);
 Schedule::command('nema:ops:outbox-prune --days=30')->dailyAt('02:15');
 Schedule::command('nema:ops:backup-run --keep=7')->dailyAt('02:45');
 Schedule::command('nema:ops:backup-verify')->dailyAt('03:00');
+Schedule::command('nema:ops:backup-offsite-sync')->dailyAt('03:15');
+Schedule::command('nema:ops:backup-offsite-verify')->dailyAt('03:30');
+Schedule::command('nema:ops:alert-dispatch')->everyFifteenMinutes();
+Schedule::command('nema:core:pulse --store')->hourlyAt(35);
+Schedule::command('nema:ops:execute-priorities')->dailyAt('04:00');

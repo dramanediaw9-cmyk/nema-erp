@@ -54,6 +54,7 @@ Nema ERP est une base Laravel modulaire pour demarrer un ERP destine aux PME mal
 - [Sauvegarde et restauration](docs/SAUVEGARDE-RESTAURATION.md)
 - [Checklist mise en service](docs/CHECKLIST-MISE-EN-SERVICE.md)
 - [Plateforme & ecosysteme](docs/PLATEFORME-ECOSYSTEME.md)
+- [Exploitation phase 2](docs/EXPLOITATION-PHASE-2.md)
 
 ## Structure du projet
 
@@ -285,3 +286,13 @@ Guide detaille : [Publication Laravel Cloud](docs/PUBLICATION-LARAVEL-CLOUD.md)
 - commande purge outbox : `C:\xampp\php\php.exe artisan nema:ops:outbox-prune --days=30`
 - planification : `C:\xampp\php\php.exe artisan schedule:list`
 - CI : `.github/workflows/ci.yml`
+
+## Exploitation phase 2
+
+- Redis/Horizon : `QUEUE_CONNECTION=redis` + worker dedie (`php artisan queue:work --tries=3 --timeout=120 --max-time=3600`)
+- supervision centralisee : `php artisan nema:ops:monitor-app --json` + ingestion externe
+- alerting externe : `php artisan nema:ops:alert-dispatch`
+- staging/prod automatise : `.github/workflows/promote-staging-prod.yml`
+- sauvegardes hors machine : `php artisan nema:ops:backup-offsite-sync` + `php artisan nema:ops:backup-offsite-verify`
+- puissance noyau : `php artisan nema:core:pulse --json --store` (SLA + tendances)
+- execution 5 priorites : `php artisan nema:ops:execute-priorities --apply --json`
