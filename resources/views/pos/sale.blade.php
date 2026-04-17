@@ -1330,6 +1330,64 @@
             background: rgba(55, 23, 31, 0.92);
             color: #fff5f8;
         }
+        .pos-quick-actions {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .pos-quick-btn {
+            min-height: 52px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: #2b3153;
+            color: #f8f9ff;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: .01em;
+            cursor: pointer;
+        }
+        .pos-quick-btn.is-primary {
+            background: linear-gradient(180deg, #2f8a7d 0%, #23695f 100%);
+            border-color: rgba(74, 222, 128, 0.45);
+        }
+        .pos-quick-btn.is-accent {
+            background: linear-gradient(180deg, #3b5aa8 0%, #30488a 100%);
+            border-color: rgba(147, 197, 253, 0.45);
+        }
+        .pos-quick-btn.is-warm {
+            background: linear-gradient(180deg, #9a6a2f 0%, #7a5121 100%);
+            border-color: rgba(251, 191, 36, 0.45);
+        }
+        .pos-training-card {
+            margin-top: 10px;
+            border: 1px dashed rgba(255, 255, 255, 0.25);
+            border-radius: 14px;
+            padding: 10px 12px;
+            background: rgba(18, 23, 42, 0.5);
+            display: grid;
+            gap: 8px;
+        }
+        .pos-training-card ol {
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 4px;
+        }
+        .pos-help-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            color: #f8f9ff;
+            margin-left: 6px;
+            cursor: help;
+        }
     </style>
 
     <div class="pos-shell">
@@ -1356,6 +1414,11 @@
                         <div class="value">{{ number_format($summary['sales_count'], 0, ',', ' ') }}</div>
                         <div class="help">tickets deja saisis</div>
                     </div>
+                </div>
+                <div class="pos-quick-actions">
+                    <button type="button" id="pos-quick-sell" class="pos-quick-btn is-primary">Vendre</button>
+                    <button type="button" id="pos-quick-cash" class="pos-quick-btn is-accent">Encaisser</button>
+                    <button type="button" id="pos-quick-receive" class="pos-quick-btn is-warm">Receptionner</button>
                 </div>
 
                 <div class="pos-touch-strip">
@@ -1423,6 +1486,14 @@
                         <div>
                             <h3>Panier en cours</h3>
                             <div class="help">Tous les produits ajoutes restent visibles a gauche pendant la commande, comme sur une vraie caisse detail.</div>
+                            <div class="pos-training-card">
+                                <strong>Formation rapide (30 sec)</strong>
+                                <ol>
+                                    <li><strong>Vendre:</strong> recherche un article puis clique dessus.</li>
+                                    <li><strong>Encaisser:</strong> verifie le total puis clique sur Encaisser.</li>
+                                    <li><strong>Receptionner:</strong> ouvre la reception fournisseur si stock vide.</li>
+                                </ol>
+                            </div>
                         </div>
                         <div class="summary-box">
                             <strong>Total ticket</strong>
@@ -1432,7 +1503,7 @@
 
                     <div class="pos-cart-head-grid">
                         <div>
-                            <label for="customer_id">Client</label>
+                            <label for="customer_id">Client <span class="pos-help-chip" title="Laisse Client comptoir si la personne n est pas enregistre.">?</span></label>
                             <select id="customer_id" name="customer_id" form="pos-sale-form">
                                 <option value="">Client comptoir</option>
                                 @foreach ($customers as $customer)
@@ -1447,7 +1518,7 @@
                             @error('sale_date')<div class="field-error">{{ $message }}</div>@enderror
                         </div>
                         <div>
-                            <label for="method">Mode de paiement</label>
+                            <label for="method">Mode de paiement <span class="pos-help-chip" title="Choisis le mode reel utilise par le client pour eviter les ecarts de caisse.">?</span></label>
                             <select id="method" name="method" form="pos-sale-form" required>
                                 @foreach ($methods as $key => $label)
                                     <option value="{{ $key }}" @selected(old('method', 'cash') === $key)>{{ $label }}</option>
@@ -1477,7 +1548,7 @@
                     <div class="pos-cart-body">
                         @if ($errors->any())
                             <div class="alert-error">
-                                <strong>Le ticket ne peut pas etre valide pour le moment.</strong>
+                                <strong>Le ticket n est pas encore pret. Corrige les points ci-dessous.</strong>
                                 @foreach ($errors->all() as $error)
                                     <div>{{ $error }}</div>
                                 @endforeach
@@ -1651,10 +1722,14 @@
         const syncQueueWrap = document.getElementById('pos-sync-queue');
         const syncNowButton = document.getElementById('pos-sync-now');
         const installAppButton = document.getElementById('pos-install-app');
+        const quickSellButton = document.getElementById('pos-quick-sell');
+        const quickCashButton = document.getElementById('pos-quick-cash');
+        const quickReceiveButton = document.getElementById('pos-quick-receive');
         const csrfToken = saleForm.querySelector('input[name="_token"]').value;
         const queueStorageKey = `nema-erp-pos-offline:${@json($session->id)}:queue`;
         const offlineDbName = 'nema-erp-pos-offline';
         const offlineDbStore = 'queue_store';
+        const maxRetryDelaySeconds = 5 * 60;
         const serviceWorkerUrl = @json(parse_url(asset('pos-sw.js'), PHP_URL_PATH) ?: '/pos-sw.js');
         let pendingQueue = [];
         let syncInFlight = false;
@@ -1663,6 +1738,24 @@
 
         const byId = Object.fromEntries(productCatalog.map((product) => [String(product.id), product]));
         const accountsById = Object.fromEntries(paymentAccounts.map((account) => [String(account.id), account]));
+        const hardwareThreads = Number(window.navigator.hardwareConcurrency || 0);
+        const deviceMemoryGb = Number(window.navigator.deviceMemory || 0);
+        const isNarrowScreen = window.matchMedia('(max-width: 820px)').matches;
+        const isLowPowerDevice = isNarrowScreen || (hardwareThreads > 0 && hardwareThreads <= 4) || (deviceMemoryGb > 0 && deviceMemoryGb <= 4);
+        const maxVisibleProducts = isLowPowerDevice ? 60 : 140;
+        const simplifyErrorMessage = (message) => {
+            const text = String(message || '').trim();
+            if (!text) {
+                return 'Operation impossible pour le moment. Reessaie ou demande au responsable.';
+            }
+            if (/CSRF|419/i.test(text)) {
+                return 'Session expirée. Recharge la page puis recommence.';
+            }
+            if (/network|fetch|connexion|timeout/i.test(text)) {
+                return 'Connexion instable. Le ticket peut etre garde hors ligne puis synchronise.';
+            }
+            return text;
+        };
         const methodConfigsByCode = Object.fromEntries(paymentMethodConfigs.map((config) => [config.method_code, config]));
         const defaultMethod = paymentMethodConfigs.find((config) => config.is_default)?.method_code || methodInput.options[0]?.value || 'cash';
         const methodLabels = methods;
@@ -2389,9 +2482,37 @@
                 minute: '2-digit',
             });
         };
+        const computeRetryDelaySeconds = (attemptCount) => {
+            const safeAttempt = Math.max(1, Number.isFinite(attemptCount) ? attemptCount : 1);
+            return Math.min(maxRetryDelaySeconds, Math.pow(2, Math.min(8, safeAttempt - 1)) * 5);
+        };
+        const shouldAttemptQueuedSale = (queued) => {
+            if (!queued?.next_retry_at) {
+                return true;
+            }
+            const retryAt = new Date(queued.next_retry_at).getTime();
+            return Number.isNaN(retryAt) || retryAt <= Date.now();
+        };
+        const formatRetryHint = (queued) => {
+            if (!queued?.next_retry_at) {
+                return '';
+            }
+
+            const retryAt = new Date(queued.next_retry_at).getTime();
+            if (Number.isNaN(retryAt)) {
+                return '';
+            }
+
+            if (retryAt <= Date.now()) {
+                return 'Pret pour une nouvelle tentative.';
+            }
+
+            return `Nouvelle tentative apres ${queueTimestamp(queued.next_retry_at)}.`;
+        };
         const normalizeQueuedSale = (queued) => {
             const payload = queued?.payload && typeof queued.payload === 'object' ? queued.payload : {};
             const syncKey = normalizeSyncKey(queued?.sync_key || payload?.pos_sync_key || generateSyncKey());
+            const parsedAttemptCount = Number(queued?.attempt_count);
 
             return {
                 id: queued?.id || `queued-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -2401,6 +2522,9 @@
                 total: n(queued?.total, 0),
                 created_at: queued?.created_at || new Date().toISOString(),
                 last_error: queued?.last_error || '',
+                attempt_count: Number.isFinite(parsedAttemptCount) && parsedAttemptCount > 0 ? Math.floor(parsedAttemptCount) : 0,
+                last_attempt_at: queued?.last_attempt_at || null,
+                next_retry_at: queued?.next_retry_at || null,
                 csrf_token: queued?.csrf_token || csrfToken,
                 store_url: toAppRelativeUrl(queued?.store_url || saleStoreUrl, saleStoreUrl),
                 payload: {
@@ -2453,6 +2577,8 @@
                             <div class="pos-sync-item-meta">${money(queued.total)} · ${esc(queueTimestamp(queued.created_at))}</div>
                             <div class="pos-sync-item-meta">Cle sync ${esc(queued.sync_key.slice(0, 12))}...</div>
                             ${queued.last_error ? `<div class="pos-sync-item-error">${esc(queued.last_error)}</div>` : '<div class="pos-sync-item-meta">En attente de synchronisation.</div>'}
+                            ${queued.attempt_count ? `<div class="pos-sync-item-meta">Tentatives: ${queued.attempt_count}${queued.last_attempt_at ? ` · derniere: ${esc(queueTimestamp(queued.last_attempt_at))}` : ''}</div>` : ''}
+                            ${formatRetryHint(queued) ? `<div class="pos-sync-item-meta">${esc(formatRetryHint(queued))}</div>` : ''}
                         </div>
                         <div class="pos-sync-item-actions">
                             <button type="button" data-offline-restore="${esc(queued.sync_key)}">Reprendre</button>
@@ -2594,6 +2720,10 @@
             let syncedCount = 0;
 
             for (const queued of [...pendingQueue]) {
+                if (!shouldAttemptQueuedSale(queued)) {
+                    continue;
+                }
+
                 try {
                     const response = await fetch(saleStoreUrl, {
                         method: 'POST',
@@ -2624,12 +2754,18 @@
                     persistPendingQueue();
                     updateOfflineUi();
                 } catch (error) {
-                    const message = error?.message || 'Impossible de synchroniser un ticket hors ligne.';
+                    const message = simplifyErrorMessage(error?.message || 'Impossible de synchroniser un ticket hors ligne.');
+                    const attemptCount = (queued.attempt_count || 0) + 1;
+                    const retryDelaySeconds = computeRetryDelaySeconds(attemptCount);
+                    const nextRetryAt = new Date(Date.now() + (retryDelaySeconds * 1000)).toISOString();
                     pendingQueue = pendingQueue.map((entry) => entry.sync_key === queued.sync_key ? {
                         ...entry,
                         last_error: message,
+                        attempt_count: attemptCount,
+                        last_attempt_at: new Date().toISOString(),
+                        next_retry_at: nextRetryAt,
                     } : entry);
-                    lastSyncMessage = message;
+                    lastSyncMessage = `${message} Nouvelle tentative automatique dans ${retryDelaySeconds}s.`;
                     syncInFlight = false;
                     persistPendingQueue();
                     updateOfflineUi();
@@ -2727,7 +2863,7 @@
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(data.message || 'Impossible de supprimer cette commande en attente.');
+                throw new Error(simplifyErrorMessage(data.message || 'Impossible de supprimer cette commande en attente.'));
             }
         };
         const deletePersistedDraft = async (order) => {
@@ -2786,7 +2922,7 @@
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(data.message || 'Impossible de mettre cette commande en attente.');
+                    throw new Error(simplifyErrorMessage(data.message || 'Impossible de mettre cette commande en attente.'));
                 }
                 if (data.draft) {
                     const index = state.orders.findIndex((entry) => entry.uid === order.uid);
@@ -2798,7 +2934,7 @@
                 renderCart();
                 feedback.textContent = data.message || `${order.label} mise en attente.`;
             } catch (error) {
-                feedback.textContent = error?.message || 'Une erreur est survenue pendant la mise en attente.';
+                feedback.textContent = simplifyErrorMessage(error?.message || 'Une erreur est survenue pendant la mise en attente.');
             } finally {
                 if (saveDraftButton) {
                     saveDraftButton.disabled = false;
@@ -2813,7 +2949,7 @@
             try {
                 await deletePersistedDraft(order);
             } catch (error) {
-                feedback.textContent = error?.message || 'Impossible de supprimer cette commande en attente.';
+                feedback.textContent = simplifyErrorMessage(error?.message || 'Impossible de supprimer cette commande en attente.');
                 return;
             }
             if (state.orders.length === 1) {
@@ -3241,7 +3377,10 @@
                 return;
             }
 
-            productGrid.innerHTML = `<div class="pos-grid">${filtered.map((product) => {
+            const visibleProducts = filtered.slice(0, maxVisibleProducts);
+            const hiddenCount = Math.max(0, filtered.length - visibleProducts.length);
+
+            productGrid.innerHTML = `<div class="pos-grid">${visibleProducts.map((product) => {
                 const availableQty = product.type === 'stockable' ? n(product.available_qty, 0) : null;
                 const isUnavailable = product.type === 'stockable' && availableQty <= 0.0001;
                 const stockBadge = product.type === 'service'
@@ -3278,7 +3417,7 @@
                     <div class="price">${money(product.price)}</div>
                 </button>
             `;
-            }).join('')}</div>`;
+            }).join('')}</div>${hiddenCount > 0 ? `<div class="pos-empty" style="margin-top:10px;">${hiddenCount} article${hiddenCount > 1 ? 's' : ''} masque(s) pour garder la caisse fluide. Affine la recherche pour les afficher.</div>` : ''}`;
             updateContext();
         };
 
@@ -3608,10 +3747,16 @@
             renderCart();
         });
 
+        let searchDebounceTimer = null;
         searchInput.addEventListener('input', (event) => {
             state.search = event.target.value;
             feedback.textContent = state.search ? 'Resultats filtres en direct.' : 'Scanne un code-barres ou clique sur un article pour l ajouter au panier.';
-            renderProducts();
+            if (searchDebounceTimer) {
+                window.clearTimeout(searchDebounceTimer);
+            }
+            searchDebounceTimer = window.setTimeout(() => {
+                renderProducts();
+            }, isLowPowerDevice ? 120 : 60);
         });
         searchInput.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter') {
@@ -3634,6 +3779,23 @@
             }
             feedback.textContent = 'Aucun article trouve pour ce scan ou cette recherche.';
         });
+        if (quickSellButton) {
+            quickSellButton.addEventListener('click', () => {
+                searchInput.focus();
+                searchInput.select();
+                feedback.textContent = 'Mode vendre actif: scanne ou recherche un article.';
+            });
+        }
+        if (quickCashButton) {
+            quickCashButton.addEventListener('click', () => {
+                saleForm.requestSubmit();
+            });
+        }
+        if (quickReceiveButton) {
+            quickReceiveButton.addEventListener('click', () => {
+                window.location.href = @json(route('goods-receipts.index'));
+            });
+        }
 
         document.addEventListener('click', (event) => {
             const touchButton = event.target.closest('[data-pos-action]');
@@ -3819,14 +3981,6 @@
         searchInput.focus();
     </script>
 @endsection
-
-
-
-
-
-
-
-
 
 
 

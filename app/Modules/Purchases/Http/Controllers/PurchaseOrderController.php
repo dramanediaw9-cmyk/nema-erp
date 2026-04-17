@@ -48,10 +48,27 @@ class PurchaseOrderController extends Controller
         abort_if(! $companyId || ! $branchId, 403);
 
         return view('purchase-orders.create', [
-            'suppliers' => Partner::query()->suppliers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'warehouses' => Warehouse::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
-            'products' => Product::query()->with('parent')->where('company_id', $companyId)->purchasable()->orderBy('name')->get(),
-            'defaultRows' => old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_cost' => ''])),
+            'suppliers' => Partner::query()
+                ->suppliers()
+                ->with('priceList:id,name')
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'company_id', 'code', 'name', 'price_list_id']),
+            'warehouses' => Warehouse::query()
+                ->where('company_id', $companyId)
+                ->where('branch_id', $branchId)
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_default']),
+            'products' => Product::query()
+                ->with('parent:id,name')
+                ->where('company_id', $companyId)
+                ->purchasable()
+                ->orderBy('name')
+                ->get(['id', 'company_id', 'parent_id', 'sku', 'name', 'unit', 'description', 'purchase_description', 'purchase_price']),
+            'defaultRows' => old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_cost' => ''])),
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
         ]);

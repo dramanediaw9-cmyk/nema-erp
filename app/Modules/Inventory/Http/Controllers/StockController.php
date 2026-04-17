@@ -421,10 +421,37 @@ class StockController extends Controller
 
     private function decorateStockRows(Collection $products, int $companyId, int $branchId, ?int $warehouseId = null): Collection
     {
-        return $products->map(function (Product $product) use ($companyId, $branchId, $warehouseId) {
-            $product->reserved_stock = $this->stockService->reservedQuantity($companyId, $branchId, $product->id, $warehouseId);
-            $product->saleable_stock = $this->stockService->saleableQuantity($product, $companyId, $branchId, $warehouseId);
-            $product->available_to_promise = $this->stockService->reservableQuantity($product, $companyId, $branchId, $warehouseId);
+        $productIds = $products->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($productIds->isEmpty()) {
+            return $products;
+        }
+
+        $reservedByProduct = DB::table('sales_order_items')
+            ->join('sales_orders', 'sales_order_items.sales_order_id', '=', 'sales_orders.id')
+            ->where('sales_orders.company_id', $companyId)
+            ->where('sales_orders.branch_id', $branchId)
+            ->whereIn('sales_orders.status', ['confirmed', 'partial_delivered'])
+            ->whereNull('sales_orders.converted_sales_invoice_id')
+            ->whereIn('sales_order_items.product_id', $productIds->all())
+            ->whereRaw('sales_order_items.qty > sales_order_items.delivered_qty')
+            ->when($warehouseId, fn ($query, int $resolvedWarehouseId) => $query->where('sales_orders.warehouse_id', $resolvedWarehouseId))
+            ->groupBy('sales_order_items.product_id')
+            ->selectRaw('sales_order_items.product_id, COALESCE(SUM(sales_order_items.qty - sales_order_items.delivered_qty), 0) as reserved_qty')
+            ->pluck('reserved_qty', 'sales_order_items.product_id');
+
+        return $products->map(function (Product $product) use ($companyId, $branchId, $warehouseId, $reservedByProduct) {
+            $reservedStock = (float) ($reservedByProduct[(string) $product->id] ?? 0);
+            $saleableStock = in_array($product->tracking_type, ['lot', 'serial'], true)
+                ? $this->stockService->saleableQuantity($product, $companyId, $branchId, $warehouseId)
+                : (float) $product->current_stock;
+
+            $product->reserved_stock = $reservedStock;
+            $product->saleable_stock = $saleableStock;
+            $product->available_to_promise = max(0, round($saleableStock - $reservedStock, 3));
 
             return $product;
         });
@@ -668,8 +695,6 @@ class StockController extends Controller
             ->get();
     }
 }
-
-
 
 
 

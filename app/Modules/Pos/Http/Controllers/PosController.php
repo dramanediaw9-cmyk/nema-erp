@@ -5,6 +5,8 @@ namespace App\Modules\Pos\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Company\Services\PricingService;
+use App\Modules\Inventory\Models\ProductLot;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
@@ -21,6 +23,7 @@ use App\Support\CurrentWorkspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -142,7 +145,22 @@ class PosController extends Controller
             ->where('company_id', $companyId)
             ->saleable()
             ->orderBy('name')
-            ->get();
+            ->get([
+                'id',
+                'company_id',
+                'parent_id',
+                'category_id',
+                'name',
+                'sku',
+                'barcode',
+                'image_path',
+                'image_disk',
+                'sale_price',
+                'type',
+                'unit',
+                'tracking_type',
+            ]);
+        $saleableByProduct = $this->saleableQtyByProduct($products, $companyId, $branchId, $session->warehouse_id);
         $priceRules = $this->pricingService->rulesForPriceList(
             $companyId,
             $activeProfile?->price_list_id,
@@ -282,7 +300,7 @@ class PosController extends Controller
                         'max_selectable' => $combo->max_selectable,
                     ] : null,
                     'available_qty' => $product->type === 'stockable'
-                        ? round($this->stockService->saleableQuantity($product, $companyId, $branchId, $session->warehouse_id), 3)
+                        ? round((float) ($saleableByProduct[$product->id] ?? 0), 3)
                         : null,
                 ];
             })->values(),
@@ -792,7 +810,65 @@ class PosController extends Controller
 
         return $this->posService->currentOpenSession($companyId, $branchId, $userId);
     }
-        private function receiptData(SalesInvoice $sale): array
+    private function saleableQtyByProduct(Collection $products, int $companyId, int $branchId, ?int $warehouseId = null): array
+    {
+        $stockableProducts = $products
+            ->where('type', 'stockable')
+            ->values();
+
+        if ($stockableProducts->isEmpty()) {
+            return [];
+        }
+
+        $stockableIds = $stockableProducts->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $baseStockByProduct = StockMovement::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->whereIn('product_id', $stockableIds->all())
+            ->when($warehouseId, fn ($query, int $resolvedWarehouseId) => $query->where('warehouse_id', $resolvedWarehouseId))
+            ->groupBy('product_id')
+            ->selectRaw('product_id, COALESCE(SUM(quantity_in - quantity_out), 0) as saleable_qty')
+            ->pluck('saleable_qty', 'product_id')
+            ->map(fn ($value) => (float) $value)
+            ->all();
+
+        $trackedIds = $stockableProducts
+            ->filter(fn (Product $product) => in_array($product->tracking_type, ['lot', 'serial'], true))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($trackedIds->isEmpty()) {
+            return $baseStockByProduct;
+        }
+
+        $trackedSaleable = ProductLot::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->whereIn('product_id', $trackedIds->all())
+            ->where('quantity_available', '>', 0)
+            ->when($warehouseId, fn ($query, int $resolvedWarehouseId) => $query->where('warehouse_id', $resolvedWarehouseId))
+            ->where(function ($query): void {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', now()->toDateString());
+            })
+            ->groupBy('product_id')
+            ->selectRaw('product_id, COALESCE(SUM(quantity_available), 0) as saleable_qty')
+            ->pluck('saleable_qty', 'product_id')
+            ->map(fn ($value) => (float) $value)
+            ->all();
+
+        foreach ($trackedSaleable as $productId => $saleableQty) {
+            $baseStockByProduct[(int) $productId] = $saleableQty;
+        }
+
+        return $baseStockByProduct;
+    }
+
+    private function receiptData(SalesInvoice $sale): array
     {
         $invoice = $sale->load([
             'company',
@@ -852,8 +928,6 @@ class PosController extends Controller
         ];
     }
 }
-
-
 
 
 

@@ -3,6 +3,7 @@ const RUNTIME_CACHE = 'nema-pos-runtime-v3';
 const DB_NAME = 'nema-erp-pos-offline';
 const STORE_NAME = 'queue_store';
 const SYNC_TAG = 'nema-pos-sync';
+const MAX_RETRY_DELAY_SECONDS = 5 * 60;
 
 const scopeUrl = new URL(self.registration.scope);
 const OFFLINE_URL = new URL('pos-offline.html', scopeUrl).toString();
@@ -82,11 +83,47 @@ const extractErrorMessage = (data, fallback) => {
     return fallback;
 };
 
+const toIsoNow = () => new Date().toISOString();
+
+const computeBackoffSeconds = (attemptCount) => {
+    const safeAttempt = Math.max(1, Number.isFinite(attemptCount) ? attemptCount : 1);
+    return Math.min(MAX_RETRY_DELAY_SECONDS, Math.pow(2, Math.min(8, safeAttempt - 1)) * 5);
+};
+
+const normalizeQueuedEntry = (entry) => {
+    const attemptCount = Number.isFinite(Number(entry?.attempt_count)) ? Number(entry.attempt_count) : 0;
+    const lastAttemptAt = entry?.last_attempt_at && !Number.isNaN(Date.parse(entry.last_attempt_at))
+        ? entry.last_attempt_at
+        : null;
+    const nextRetryAt = entry?.next_retry_at && !Number.isNaN(Date.parse(entry.next_retry_at))
+        ? entry.next_retry_at
+        : null;
+
+    return {
+        ...entry,
+        attempt_count: attemptCount,
+        last_attempt_at: lastAttemptAt,
+        next_retry_at: nextRetryAt,
+        last_error: entry?.last_error || '',
+    };
+};
+
+const shouldAttemptEntry = (entry, nowMs) => {
+    if (!entry?.next_retry_at) {
+        return true;
+    }
+
+    const retryAt = Date.parse(entry.next_retry_at);
+
+    return Number.isNaN(retryAt) || retryAt <= nowMs;
+};
+
 const syncQueuedTickets = async () => {
     const records = await getQueueRecords();
+    const nowMs = Date.now();
 
     for (const record of records) {
-        const queue = Array.isArray(record.value) ? record.value : [];
+        const queue = Array.isArray(record.value) ? record.value.map(normalizeQueuedEntry) : [];
         if (!queue.length) {
             await deleteQueueRecord(record.key);
             continue;
@@ -94,7 +131,13 @@ const syncQueuedTickets = async () => {
 
         const remaining = [];
 
-        for (const entry of queue) {
+        for (const queuedEntry of queue) {
+            const entry = normalizeQueuedEntry(queuedEntry);
+            if (!shouldAttemptEntry(entry, nowMs)) {
+                remaining.push(entry);
+                continue;
+            }
+
             try {
                 const response = await fetch(entry.store_url || new URL('point-de-vente/vente', scopeUrl).toString(), {
                     method: 'POST',
@@ -110,14 +153,24 @@ const syncQueuedTickets = async () => {
 
                 if (!response.ok) {
                     const data = await response.json().catch(() => ({}));
+                    const attemptCount = entry.attempt_count + 1;
+                    const retryDelaySeconds = computeBackoffSeconds(attemptCount);
                     remaining.push({
                         ...entry,
+                        attempt_count: attemptCount,
+                        last_attempt_at: toIsoNow(),
+                        next_retry_at: new Date(Date.now() + (retryDelaySeconds * 1000)).toISOString(),
                         last_error: extractErrorMessage(data, 'Impossible de synchroniser un ticket hors ligne.'),
                     });
                 }
             } catch (error) {
+                const attemptCount = entry.attempt_count + 1;
+                const retryDelaySeconds = computeBackoffSeconds(attemptCount);
                 remaining.push({
                     ...entry,
+                    attempt_count: attemptCount,
+                    last_attempt_at: toIsoNow(),
+                    next_retry_at: new Date(Date.now() + (retryDelaySeconds * 1000)).toISOString(),
                     last_error: error?.message || 'Impossible de synchroniser un ticket hors ligne.',
                 });
             }
