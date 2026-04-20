@@ -11,13 +11,25 @@
                                 Validee par {{ $step->approver?->name ?? 'Systeme' }} le {{ $step->approved_at?->format('d/m/Y H:i') ?? 'N/A' }}
                             @else
                                 En attente de validation
+                                @if ($step->assignedApprover)
+                                    · assignee a {{ $step->assignedApprover->name }}
+                                @endif
+                                @if ($step->due_at)
+                                    · SLA {{ $step->due_at->format('d/m/Y H:i') }}
+                                @endif
+                                @if ($step->delegatedBy)
+                                    · deleguee par {{ $step->delegatedBy->name }}
+                                @endif
                             @endif
                         </div>
                     </div>
-                    <span class="badge {{ $step->status === 'approved' ? 'badge-success' : 'badge-warning' }}">
-                        {{ $step->status === 'approved' ? 'Validee' : 'En attente' }}
+                    <span class="badge {{ $step->status === 'approved' ? 'badge-success' : ($step->isOverdue() ? 'badge-danger' : 'badge-warning') }}">
+                        {{ $step->status === 'approved' ? 'Validee' : ($step->isOverdue() ? 'En retard' : 'En attente') }}
                     </span>
                 </div>
+                @if ($step->escalated_at)
+                    <div class="help" style="margin-top:10px;">Escaladee le {{ $step->escalated_at->format('d/m/Y H:i') }}{{ $step->assignedApprover ? ' vers '.$step->assignedApprover->name : '' }}.</div>
+                @endif
             </div>
         @endforeach
 

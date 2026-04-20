@@ -22,6 +22,12 @@ class ApprovalStep extends Model
         'label',
         'rule',
         'status',
+        'assigned_to',
+        'due_at',
+        'delegated_by',
+        'delegated_at',
+        'escalated_at',
+        'meta',
         'approved_at',
         'approved_by',
     ];
@@ -29,7 +35,11 @@ class ApprovalStep extends Model
     protected function casts(): array
     {
         return [
+            'due_at' => 'datetime',
+            'delegated_at' => 'datetime',
+            'escalated_at' => 'datetime',
             'approved_at' => 'datetime',
+            'meta' => 'array',
         ];
     }
 
@@ -43,8 +53,23 @@ class ApprovalStep extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function assignedApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function delegatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'delegated_by');
+    }
+
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    public function isOverdue(): bool
+    {
+        return $this->isPending() && $this->due_at?->isPast() === true;
     }
 }

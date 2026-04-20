@@ -172,19 +172,31 @@ class SettingsController extends Controller
             'workflows' => ['required', 'array'],
             'workflows.sales.step2_threshold' => ['required', 'integer', 'min:0'],
             'workflows.sales.critical_threshold' => ['required', 'integer', 'min:0'],
+            'workflows.sales.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.sales.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
             'workflows.purchases.step2_threshold' => ['required', 'integer', 'min:0'],
             'workflows.purchases.critical_threshold' => ['required', 'integer', 'min:0'],
+            'workflows.purchases.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.purchases.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
             'workflows.expenses.step2_threshold' => ['required', 'integer', 'min:0'],
             'workflows.expenses.critical_threshold' => ['required', 'integer', 'min:0'],
+            'workflows.expenses.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.expenses.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
         ]);
 
         $validator->after(function ($validator) use ($request): void {
             foreach (['sales', 'purchases', 'expenses'] as $module) {
                 $step2Threshold = (int) data_get($request->all(), 'workflows.'.$module.'.step2_threshold', 0);
                 $criticalThreshold = (int) data_get($request->all(), 'workflows.'.$module.'.critical_threshold', 0);
+                $step1Sla = (int) data_get($request->all(), 'workflows.'.$module.'.step1_sla_hours', 0);
+                $step2Sla = (int) data_get($request->all(), 'workflows.'.$module.'.step2_sla_hours', 0);
 
                 if ($criticalThreshold < $step2Threshold) {
                     $validator->errors()->add('workflows.'.$module.'.critical_threshold', 'Le seuil de direction obligatoire doit etre superieur ou egal au seuil de double validation.');
+                }
+
+                if ($step2Sla > $step1Sla) {
+                    $validator->errors()->add('workflows.'.$module.'.step2_sla_hours', 'Le SLA de la deuxieme etape doit etre inferieur ou egal au SLA de la premiere etape.');
                 }
             }
         });
@@ -195,6 +207,8 @@ class SettingsController extends Controller
             ->map(fn (array $module) => [
                 'step2_threshold' => (int) $module['step2_threshold'],
                 'critical_threshold' => (int) $module['critical_threshold'],
+                'step1_sla_hours' => (int) $module['step1_sla_hours'],
+                'step2_sla_hours' => (int) $module['step2_sla_hours'],
             ])
             ->all();
 

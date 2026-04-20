@@ -2,6 +2,7 @@
 
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Automation\Services\AutomationEngineService;
+use App\Modules\Core\Approvals\Services\ApprovalFlowService;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Notifications\Services\NotificationService;
@@ -164,6 +165,52 @@ Artisan::command('nema:automation:run {--company=* : Limite le traitement a une 
 
     return 0;
 })->purpose('Execute les regles d automatisation du noyau');
+
+Artisan::command('nema:approvals:escalate-stale {--company=* : Limite le traitement a une ou plusieurs societes} {--module= : Filtre un module (sales, purchases, expenses)} {--limit=50 : Nombre maximum d etapes a escalader par societe}', function (ApprovalFlowService $approvalFlowService, OutboundNotificationService $outboundNotificationService) {
+    $companyIds = collect($this->option('company'))
+        ->filter(fn (mixed $value): bool => filled($value))
+        ->map(fn (mixed $value): int => (int) $value)
+        ->filter(fn (int $value): bool => $value > 0)
+        ->values();
+    $module = $this->option('module') ?: null;
+    if (! in_array($module, [null, 'sales', 'purchases', 'expenses'], true)) {
+        $this->error('Module invalide. Utilisez sales, purchases ou expenses.');
+
+        return 1;
+    }
+
+    $limit = max((int) $this->option('limit'), 1);
+    $companies = $companyIds->isNotEmpty()
+        ? Company::query()->whereIn('id', $companyIds)->orderBy('name')->get()
+        : Company::query()->orderBy('name')->get();
+
+    if ($companies->isEmpty()) {
+        $this->info('Aucune societe a traiter.');
+
+        return 0;
+    }
+
+    foreach ($companies as $company) {
+        $steps = $approvalFlowService->escalateOverdueSteps($company->id, $module, $limit);
+
+        foreach ($steps as $step) {
+            if (! $step->approvable) {
+                continue;
+            }
+
+            $outboundNotificationService->cancelQueuedForApprovalStep($step->approvable, (int) $step->step_order, 'Etape escaladee vers un valideur prioritaire.');
+            $outboundNotificationService->dispatchApprovalRequest($step->approvable, $step->module, $step);
+        }
+
+        $this->line(sprintf(
+            '%s : %d etape(s) escaladee(s).',
+            $company->name,
+            $steps->count(),
+        ));
+    }
+
+    return 0;
+})->purpose('Escalade les etapes d approbation depassant leur SLA');
 
 Artisan::command('nema:ops:health-check {--store : Enregistre un snapshot en base} {--json : Retourne le rapport en JSON} {--company=* : Limite le check a une ou plusieurs societes}', function (SystemHealthService $systemHealthService) {
     $companyIds = collect($this->option('company'))
@@ -494,6 +541,7 @@ Artisan::command('nema:ops:execute-priorities {--company=* : Limite l execution 
 
 Schedule::command('nema:notifications:dispatch-outbound --limit=50')->everyMinute();
 Schedule::command('nema:notifications:sync-internal')->everyFifteenMinutes();
+Schedule::command('nema:approvals:escalate-stale --limit=50')->hourlyAt(5);
 Schedule::command('nema:automation:run')->everyThirtyMinutes();
 Schedule::command('nema:integrations:dispatch-outbox --limit=50')->everyMinute();
 Schedule::command('nema:ops:health-check --store')->hourly();

@@ -48,14 +48,20 @@ class ApprovalSettingsService
             'sales' => [
                 'step2_threshold' => 100000,
                 'critical_threshold' => 500000,
+                'step1_sla_hours' => 24,
+                'step2_sla_hours' => 12,
             ],
             'purchases' => [
                 'step2_threshold' => 100000,
                 'critical_threshold' => 500000,
+                'step1_sla_hours' => 24,
+                'step2_sla_hours' => 12,
             ],
             'expenses' => [
                 'step2_threshold' => 100000,
                 'critical_threshold' => 500000,
+                'step1_sla_hours' => 24,
+                'step2_sla_hours' => 12,
             ],
         ];
     }

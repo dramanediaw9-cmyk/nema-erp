@@ -22,6 +22,7 @@
         <div class="card"><div class="muted">Ventes</div><div class="stat-value">{{ $summary['by_module']['sales'] }}</div></div>
         <div class="card"><div class="muted">Achats</div><div class="stat-value">{{ $summary['by_module']['purchases'] }}</div></div>
         <div class="card"><div class="muted">Depenses</div><div class="stat-value">{{ $summary['by_module']['expenses'] }}</div></div>
+        <div class="card"><div class="muted">En retard SLA</div><div class="stat-value">{{ $summary['overdue_count'] ?? 0 }}</div></div>
     </div>
 
     <section class="card" style="margin-bottom:18px;">
@@ -40,6 +41,11 @@
 
     <div class="grid">
         @forelse ($items as $item)
+            @php
+                $delegateCandidates = collect($item['delegate_candidates'] ?? collect())
+                    ->reject(fn ($candidate) => $candidate->id === auth()->id())
+                    ->values();
+            @endphp
             <section class="card">
                 <div style="display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap;">
                     <div style="max-width:820px;">
@@ -47,13 +53,29 @@
                             <strong>{{ $item['module_label'] }} {{ $item['number'] }}</strong>
                             <span class="badge badge-warning">{{ $item['pending_step']?->label }}</span>
                             <span class="badge badge-muted">{{ $item['branch_name'] }}</span>
+                            @if ($item['is_overdue'] ?? false)
+                                <span class="badge badge-danger">SLA depasse</span>
+                            @endif
+                            @if ($item['pending_step']?->escalated_at)
+                                <span class="badge badge-danger">Escaladee</span>
+                            @endif
                         </div>
                         <div style="margin-top:12px;">{{ $item['counterpart'] }}</div>
                         <div class="muted" style="margin-top:8px;">
                             Date document : {{ $item['document_date'] }} · Cree par {{ $item['creator_name'] }} · Montant {{ number_format($item['amount'], 0, ',', ' ') }} XOF
                         </div>
+                        <div class="muted" style="margin-top:8px;">
+                            @if ($item['assigned_approver_name'])
+                                Assigne a {{ $item['assigned_approver_name'] }}
+                            @else
+                                Etape non assignee explicitement
+                            @endif
+                            @if ($item['due_at'])
+                                · SLA {{ $item['due_at']->format('d/m/Y H:i') }}
+                            @endif
+                        </div>
                     </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
                         <a href="{{ $item['detail_url'] }}" class="button button-secondary">Ouvrir</a>
                         <form method="POST" action="{{ $item['approve_url'] }}">
                             @csrf
@@ -61,6 +83,27 @@
                         </form>
                     </div>
                 </div>
+                @if ($item['delegate_url'] && $delegateCandidates->isNotEmpty())
+                    <form method="POST" action="{{ $item['delegate_url'] }}" class="form-grid" style="margin-top:16px; grid-template-columns:minmax(220px, 1.2fr) minmax(220px, 2fr) auto; align-items:end;">
+                        @csrf
+                        <div>
+                            <label>Deleguer a</label>
+                            <select name="delegate_to" required>
+                                <option value="">Choisir un valideur</option>
+                                @foreach ($delegateCandidates as $candidate)
+                                    <option value="{{ $candidate->id }}">{{ $candidate->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label>Note de delegation</label>
+                            <input type="text" name="note" maxlength="500" placeholder="Motif, contexte, urgence...">
+                        </div>
+                        <div class="actions" style="margin-top:0;">
+                            <button type="submit" class="button button-secondary">Deleguer</button>
+                        </div>
+                    </form>
+                @endif
             </section>
         @empty
             <section class="card empty-state">

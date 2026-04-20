@@ -162,6 +162,23 @@ class OutboundNotificationService
             ]);
     }
 
+    public function cancelQueuedForApprovalStep(Model $document, int $stepOrder, string $reason = 'Etape d approbation reaffectee.'): int
+    {
+        $failedAt = now();
+
+        return OutboundNotification::query()
+            ->where('resource_type', $document::class)
+            ->where('resource_id', $document->getKey())
+            ->where('step_order', $stepOrder)
+            ->where('status', 'queued')
+            ->update([
+                'status' => 'failed',
+                'failed_at' => $failedAt,
+                'failure_reason' => Str::limit(trim($reason) ?: 'Etape d approbation reaffectee.', 1000),
+                'updated_at' => $failedAt,
+            ]);
+    }
+
     private function queue(
         Model $document,
         string $module,

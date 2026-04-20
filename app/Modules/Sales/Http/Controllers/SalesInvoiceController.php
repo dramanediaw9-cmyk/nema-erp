@@ -270,6 +270,8 @@ class SalesInvoiceController extends Controller
             'approver',
             'cancelledBy',
             'approvalSteps.approver',
+            'approvalSteps.assignedApprover',
+            'approvalSteps.delegatedBy',
             'paymentAllocations.payment.cashAccount',
             'paymentAllocations.payment.creator',
             'internalComments.creator',
@@ -318,6 +320,8 @@ class SalesInvoiceController extends Controller
                 'approver',
                 'cancelledBy',
                 'approvalSteps.approver',
+                'approvalSteps.assignedApprover',
+                'approvalSteps.delegatedBy',
                 'paymentAllocations.payment.cashAccount',
             ]),
         ], 'facture-'.$sale->invoice_number.'.pdf');

@@ -189,7 +189,7 @@ class ExpenseController extends Controller
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
         return view('expenses.show', [
-            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'internalComments.creator', 'attachments.creator']),
+            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
             'journalEntries' => JournalEntry::query()
                 ->with(['creator'])
                 ->where('company_id', $expense->company_id)
@@ -205,7 +205,7 @@ class ExpenseController extends Controller
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
         return $this->pdfDocumentService->inline('expenses.print', [
-            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'internalComments.creator', 'attachments.creator']),
+            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
         ], 'depense-'.$expense->expense_number.'.pdf');
     }
 

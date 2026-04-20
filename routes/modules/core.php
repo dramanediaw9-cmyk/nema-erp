@@ -5,6 +5,7 @@ use App\Modules\Core\Access\Http\Controllers\RoleController;
 use App\Modules\Core\Access\Http\Controllers\UserController;
 use App\Modules\Core\Automation\Http\Controllers\AutomationController;
 use App\Modules\Core\Approvals\Http\Controllers\ApprovalPortalController;
+use App\Modules\Core\Approvals\Http\Controllers\ApprovalStepController;
 use App\Modules\Core\Audit\Http\Controllers\ActivityLogController;
 use App\Modules\Core\Auth\Http\Controllers\AuthenticatedSessionController;
 use App\Modules\Core\Branch\Http\Controllers\BranchController;
@@ -66,6 +67,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/approbations', [ApprovalPortalController::class, 'index'])
         ->middleware('permission:approvals.view')
         ->name('approvals.index');
+    Route::post('/approbations/etapes/{approvalStep}/deleguer', [ApprovalStepController::class, 'delegate'])
+        ->middleware('permission:approvals.view')
+        ->name('approvals.steps.delegate');
 
     Route::get('/alertes', [NotificationController::class, 'index'])
         ->middleware('permission:notifications.view')

@@ -198,7 +198,7 @@
     <div class="split" style="margin-top:18px;">
         <section class="card">
             <h2 style="margin-top:0;">Workflow d approbation</h2>
-            <div class="help" style="margin-bottom:16px;">Les roles restent fixes dans cette version : validation operationnelle puis direction. Tu ajustes ici les seuils qui declenchent la deuxieme etape.</div>
+            <div class="help" style="margin-bottom:16px;">Les roles restent fixes dans cette version : validation operationnelle puis direction. Tu ajustes ici les seuils, le SLA de chaque etape et donc le point de bascule de l escalade automatique.</div>
             <form method="POST" action="{{ route('settings.approvals.update') }}">
                 @csrf
                 @method('PUT')
@@ -214,6 +214,14 @@
                                 <div>
                                     <label>Seuil direction obligatoire</label>
                                     <input type="number" min="0" step="1" name="workflows[{{ $key }}][critical_threshold]" value="{{ old('workflows.'.$key.'.critical_threshold', $approvalWorkflows[$key]['critical_threshold']) }}" required>
+                                </div>
+                                <div>
+                                    <label>SLA etape 1 (heures)</label>
+                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step1_sla_hours]" value="{{ old('workflows.'.$key.'.step1_sla_hours', $approvalWorkflows[$key]['step1_sla_hours']) }}" required>
+                                </div>
+                                <div>
+                                    <label>SLA etape 2 (heures)</label>
+                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step2_sla_hours]" value="{{ old('workflows.'.$key.'.step2_sla_hours', $approvalWorkflows[$key]['step2_sla_hours']) }}" required>
                                 </div>
                             </div>
                         </div>
