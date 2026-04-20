@@ -47,34 +47,35 @@ class IntegrationOutboxService
 
     public function updateConfiguration(int $companyId, ?int $tenantId, array $configuration): Setting
     {
-        return Setting::query()->updateOrCreate(
-            ['company_id' => $companyId, 'key' => 'integrations'],
-            [
-                'tenant_id' => $tenantId,
-                'value' => [
-                    'webhook' => [
-                        'enabled' => (bool) ($configuration['enabled'] ?? false),
-                        'url' => trim((string) ($configuration['url'] ?? '')),
-                        'secret' => trim((string) ($configuration['secret'] ?? '')),
-                        'timeout' => max((int) ($configuration['timeout'] ?? config('services.integrations.webhook_timeout', 10)), 1),
-                    ],
-                ],
-            ]
-        );
+        $setting = Setting::query()->firstOrNew([
+            'company_id' => $companyId,
+            'key' => 'integrations',
+        ]);
+
+        $value = is_array($setting->value) ? $setting->value : [];
+        $value['webhook'] = [
+            'enabled' => (bool) ($configuration['enabled'] ?? false),
+            'url' => trim((string) ($configuration['url'] ?? '')),
+            'secret' => trim((string) ($configuration['secret'] ?? '')),
+            'timeout' => max((int) ($configuration['timeout'] ?? config('services.integrations.webhook_timeout', 10)), 1),
+        ];
+
+        $setting->fill([
+            'tenant_id' => $tenantId,
+            'value' => $value,
+        ])->save();
+
+        return $setting->fresh();
     }
 
     public function processPending(?int $companyId = null, int $limit = 50): array
     {
+        $ids = $this->claimDispatchableEventIds($companyId, $limit);
+
         $events = IntegrationEvent::query()
             ->with(['company', 'latestDelivery'])
-            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
-            ->where('status', 'pending')
-            ->where(function ($query): void {
-                $query->whereNull('available_at')->orWhere('available_at', '<=', now());
-            })
-            ->orderBy('available_at')
+            ->whereIn('id', $ids)
             ->orderBy('id')
-            ->limit(max($limit, 1))
             ->get();
 
         $summary = [
@@ -93,6 +94,7 @@ class IntegrationOutboxService
 
             if (($configurations[$key]['enabled'] ?? false) !== true) {
                 $summary['skipped']++;
+                $this->releaseClaimedEvent($event);
 
                 continue;
             }
@@ -118,6 +120,16 @@ class IntegrationOutboxService
                 ->whereKey($event->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ($event->status === 'pending') {
+                $event->forceFill([
+                    'status' => 'processing',
+                ])->save();
+            }
+
+            if ($event->status !== 'processing') {
+                return $event->fresh(['company', 'latestDelivery', 'deliveries']);
+            }
 
             $configuration = $this->configurationForCompany((int) $event->company_id);
             $attemptNumber = (int) $event->attempts + 1;
@@ -198,6 +210,53 @@ class IntegrationOutboxService
 
             return $event->fresh(['company', 'latestDelivery', 'deliveries']);
         });
+    }
+
+    private function claimDispatchableEventIds(?int $companyId, int $limit): array
+    {
+        return DB::transaction(function () use ($companyId, $limit): array {
+            $ids = IntegrationEvent::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->where(function ($query): void {
+                    $query->where('status', 'pending')
+                        ->orWhere(function ($processingQuery): void {
+                            $processingQuery->where('status', 'processing')
+                                ->where('updated_at', '<=', now()->subMinutes(15));
+                        });
+                })
+                ->where(function ($query): void {
+                    $query->whereNull('available_at')->orWhere('available_at', '<=', now());
+                })
+                ->orderBy('available_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->limit(max($limit, 1))
+                ->pluck('id');
+
+            if ($ids->isEmpty()) {
+                return [];
+            }
+
+            IntegrationEvent::query()
+                ->whereIn('id', $ids)
+                ->update([
+                    'status' => 'processing',
+                    'updated_at' => now(),
+                ]);
+
+            return $ids->map(fn ($id): int => (int) $id)->all();
+        });
+    }
+
+    private function releaseClaimedEvent(IntegrationEvent $event): void
+    {
+        IntegrationEvent::query()
+            ->whereKey($event->id)
+            ->where('status', 'processing')
+            ->update([
+                'status' => 'pending',
+                'updated_at' => now(),
+            ]);
     }
 
     private function deliveryPayload(IntegrationEvent $event): array

@@ -9,7 +9,9 @@ use App\Modules\Core\Automation\Models\AutomationRule;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Services\IntegrationSecretGovernanceService;
 use App\Modules\Core\Notifications\Models\InternalNotification;
+use App\Modules\Expenses\Models\Expense;
 use App\Modules\Manufacturing\Models\ProductionOrder;
+use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Projects\Models\ProjectTask;
 use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Support\Collection;
@@ -280,6 +282,14 @@ class AutomationEngineService
             ->where('status', 'pending')
             ->where('created_at', '<=', $thresholdDate);
 
+        if ($branchId) {
+            $query->whereHasMorph(
+                'approvable',
+                [SalesInvoice::class, PurchaseBill::class, Expense::class],
+                fn ($approvableQuery) => $approvableQuery->where('branch_id', $branchId)
+            );
+        }
+
         $count = (int) (clone $query)->count();
         $breakdown = (clone $query)
             ->select('module')
@@ -300,6 +310,7 @@ class AutomationEngineService
                 ? $count.' etape(s) d approbation sont ouvertes depuis plus de '.$windowHours.' h.'
                 : 'Aucune approbation stale detectee.',
             details: [
+                'branch_id' => $branchId,
                 'window_hours' => $windowHours,
                 'breakdown' => $breakdown,
             ],

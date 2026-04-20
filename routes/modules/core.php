@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\InboundIntegrationWebhookController;
 use App\Modules\Core\Access\Http\Controllers\RoleController;
 use App\Modules\Core\Access\Http\Controllers\UserController;
 use App\Modules\Core\Automation\Http\Controllers\AutomationController;
@@ -24,6 +25,9 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
+
+Route::post('/integrations/webhooks/inbound/{company}', [InboundIntegrationWebhookController::class, 'store'])
+    ->name('integrations.webhooks.inbound.receive');
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');

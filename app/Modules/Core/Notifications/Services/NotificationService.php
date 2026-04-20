@@ -18,6 +18,7 @@ use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class NotificationService
 {
@@ -112,6 +113,17 @@ class NotificationService
         $this->syncLotExpiryAlerts($companyId, $branchId);
         $this->syncBranchSalesDropAlerts($companyId);
         $this->syncTechnicalMonitoringAlerts($companyId);
+    }
+
+    public function syncCompanyAlertsIfStale(int $companyId, ?int $branchId = null, int $ttlSeconds = 120): void
+    {
+        $cacheKey = sprintf('notifications:sync:%d:%s', $companyId, $branchId ?: 'global');
+
+        if (! Cache::add($cacheKey, now()->timestamp, max($ttlSeconds, 30))) {
+            return;
+        }
+
+        $this->syncCompanyAlerts($companyId, $branchId);
     }
 
     public function summaryForCompany(int $companyId, ?int $branchId = null, int $limit = 5): array

@@ -65,6 +65,74 @@ class IntegrationOutboxDispatchTest extends TestCase
         ]);
     }
 
+    public function test_dispatch_claims_event_before_webhook_delivery(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $this->configureWebhook($company, true, 'https://partner.test/nema/claim');
+
+        $event = IntegrationEvent::query()->create([
+            'tenant_id' => $company->tenant_id,
+            'company_id' => $company->id,
+            'aggregate_type' => Company::class,
+            'aggregate_id' => (string) $company->id,
+            'event_name' => 'platform.connection.synced',
+            'payload' => ['connection' => 'Partner API'],
+            'status' => 'pending',
+            'available_at' => now()->subMinute(),
+            'attempts' => 0,
+        ]);
+
+        Http::fake([
+            'https://partner.test/nema/claim' => function () use ($event) {
+                $this->assertSame('processing', $event->fresh()->status);
+
+                return Http::response(['received' => true], 200);
+            },
+        ]);
+
+        $this->artisan('nema:integrations:dispatch-outbox', [
+            '--company' => [$company->id],
+            '--limit' => 10,
+        ])->assertExitCode(0);
+
+        $this->assertSame('published', $event->fresh()->status);
+    }
+
+    public function test_dispatch_command_keeps_event_pending_when_company_webhook_is_disabled(): void
+    {
+        $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();
+        $this->configureWebhook($company, false, 'https://partner.test/nema/disabled');
+
+        $event = IntegrationEvent::query()->create([
+            'tenant_id' => $company->tenant_id,
+            'company_id' => $company->id,
+            'aggregate_type' => Company::class,
+            'aggregate_id' => (string) $company->id,
+            'event_name' => 'company.sync.skipped',
+            'payload' => ['company' => $company->name],
+            'status' => 'pending',
+            'available_at' => now()->subMinute(),
+            'attempts' => 0,
+        ]);
+
+        Http::fake();
+
+        $this->artisan('nema:integrations:dispatch-outbox', [
+            '--company' => [$company->id],
+            '--limit' => 10,
+        ])->assertExitCode(0);
+
+        $event->refresh();
+
+        $this->assertSame('pending', $event->status);
+        $this->assertSame(0, $event->attempts);
+        $this->assertNull($event->published_at);
+        $this->assertNull($event->last_error);
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('integration_event_deliveries', 0);
+    }
+
     public function test_dispatch_command_marks_event_as_failed_when_webhook_url_is_missing(): void
     {
         $company = Company::query()->where('name', 'Nema Distribution')->firstOrFail();

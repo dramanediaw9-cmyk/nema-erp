@@ -125,6 +125,47 @@ class OutboundNotificationTest extends TestCase
         $this->assertSame('wa-123', data_get($notification->meta, 'delivery.reference'));
     }
 
+    public function test_dispatch_claims_whatsapp_notification_before_delivery(): void
+    {
+        Http::fake([
+            'https://whatsapp.test/claim' => function (HttpRequest $request) {
+                $notificationId = $request->data()['notification_id'] ?? null;
+                $notification = OutboundNotification::query()->findOrFail($notificationId);
+
+                $this->assertSame('processing', $notification->status);
+
+                return Http::response(['id' => 'wa-claim-123'], 202);
+            },
+        ]);
+
+        config([
+            'services.whatsapp.webhook_url' => 'https://whatsapp.test/claim',
+            'services.whatsapp.api_token' => 'secret-token',
+            'services.whatsapp.from' => 'NEMA-ERP',
+            'services.whatsapp.timeout' => 10,
+        ]);
+
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->configureChannels($manager->company_id, false, true);
+        $invoice = $this->createPendingApprovalInvoice($manager, 'OUTBOUND-WHATSAPP-CLAIM');
+
+        $this->artisan('nema:notifications:dispatch-outbound', [
+            '--company' => [$manager->company_id],
+            '--limit' => 10,
+        ])->assertExitCode(0);
+
+        $notification = OutboundNotification::query()
+            ->where('company_id', $manager->company_id)
+            ->where('channel', 'whatsapp')
+            ->where('resource_type', SalesInvoice::class)
+            ->where('resource_id', $invoice->id)
+            ->firstOrFail();
+
+        $this->assertSame('sent', $notification->status);
+        $this->assertSame('wa-claim-123', data_get($notification->meta, 'delivery.reference'));
+    }
+
     public function test_dispatch_command_marks_whatsapp_notifications_as_failed_when_webhook_is_missing(): void
     {
         config([

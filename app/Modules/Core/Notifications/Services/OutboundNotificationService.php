@@ -13,6 +13,7 @@ use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -87,13 +88,12 @@ class OutboundNotificationService
 
     public function processQueued(int $companyId, int $limit = 50): array
     {
+        $ids = $this->claimDispatchableNotificationIds($companyId, $limit);
+
         $notifications = OutboundNotification::query()
             ->with(['company', 'branch', 'user'])
-            ->where('company_id', $companyId)
-            ->where('status', 'queued')
-            ->orderBy('queued_at')
+            ->whereIn('id', $ids)
             ->orderBy('id')
-            ->limit(max($limit, 1))
             ->get();
 
         $summary = [
@@ -211,6 +211,25 @@ class OutboundNotificationService
 
     private function deliver(OutboundNotification $notification): OutboundNotification
     {
+        $notification = DB::transaction(function () use ($notification) {
+            $locked = OutboundNotification::query()
+                ->whereKey($notification->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($locked->status === 'queued') {
+                $locked->forceFill([
+                    'status' => 'processing',
+                ])->save();
+            }
+
+            return $locked;
+        });
+
+        if ($notification->status !== 'processing') {
+            return $notification->fresh(['company', 'branch', 'user']);
+        }
+
         try {
             $delivery = match ($notification->channel) {
                 'email' => $this->deliverEmail($notification),
@@ -222,6 +241,39 @@ class OutboundNotificationService
         } catch (Throwable $exception) {
             return $this->markAsFailed($notification, $exception->getMessage());
         }
+    }
+
+    private function claimDispatchableNotificationIds(int $companyId, int $limit): array
+    {
+        return DB::transaction(function () use ($companyId, $limit): array {
+            $ids = OutboundNotification::query()
+                ->where('company_id', $companyId)
+                ->where(function ($query): void {
+                    $query->where('status', 'queued')
+                        ->orWhere(function ($processingQuery): void {
+                            $processingQuery->where('status', 'processing')
+                                ->where('updated_at', '<=', now()->subMinutes(15));
+                        });
+                })
+                ->orderBy('queued_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->limit(max($limit, 1))
+                ->pluck('id');
+
+            if ($ids->isEmpty()) {
+                return [];
+            }
+
+            OutboundNotification::query()
+                ->whereIn('id', $ids)
+                ->update([
+                    'status' => 'processing',
+                    'updated_at' => now(),
+                ]);
+
+            return $ids->map(fn ($id): int => (int) $id)->all();
+        });
     }
 
     private function deliverEmail(OutboundNotification $notification): array

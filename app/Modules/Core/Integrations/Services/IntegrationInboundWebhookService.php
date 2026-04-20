@@ -10,6 +10,8 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class IntegrationInboundWebhookService
 {
@@ -115,10 +117,75 @@ class IntegrationInboundWebhookService
             'error_message' => $isDuplicate ? 'Evenement externe deja recu.' : null,
         ]);
 
+        $routing = $isDuplicate
+            ? ['handled' => false, 'action' => 'duplicate']
+            : $this->applyRouting($receipt, $integrationEvent, $payload);
+
         return [
             'receipt' => $receipt->fresh(['integrationEvent']),
             'duplicate' => $isDuplicate,
+            'routing' => $routing,
         ];
+    }
+
+    private function applyRouting(IntegrationInboundWebhook $receipt, ?IntegrationEvent $integrationEvent, array $payload): array
+    {
+        if (! $integrationEvent) {
+            return [
+                'handled' => false,
+                'action' => 'logged_only',
+            ];
+        }
+
+        $status = $this->normalizedInboundStatus($payload);
+
+        if (! $status) {
+            return [
+                'handled' => false,
+                'action' => 'logged_only',
+                'integration_event_id' => $integrationEvent->id,
+            ];
+        }
+
+        return DB::transaction(function () use ($receipt, $integrationEvent, $payload, $status): array {
+            $event = IntegrationEvent::query()
+                ->whereKey($integrationEvent->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($status === 'success') {
+                $event->forceFill([
+                    'status' => 'published',
+                    'available_at' => null,
+                    'published_at' => $event->published_at ?? now(),
+                    'last_error' => null,
+                ])->save();
+
+                return [
+                    'handled' => true,
+                    'action' => 'integration_event_published',
+                    'integration_event_id' => $event->id,
+                    'receipt_id' => $receipt->id,
+                ];
+            }
+
+            $reason = $this->failureReason($payload) ?: 'Webhook entrant partenaire en echec.';
+            $attemptNumber = max((int) $event->attempts, 1);
+
+            $event->forceFill([
+                'status' => 'failed',
+                'published_at' => null,
+                'available_at' => now()->addMinutes(min($attemptNumber * 5, 60)),
+                'last_error' => Str::limit($reason, 1000, ''),
+            ])->save();
+
+            return [
+                'handled' => true,
+                'action' => 'integration_event_failed',
+                'integration_event_id' => $event->id,
+                'receipt_id' => $receipt->id,
+            ];
+        });
     }
 
     private function reject(
@@ -183,6 +250,43 @@ class IntegrationInboundWebhookService
         $expected = hash_hmac('sha256', $rawBody, $secret);
 
         return hash_equals($expected, $provided);
+    }
+
+    private function normalizedInboundStatus(array $payload): ?string
+    {
+        $raw = Str::lower(trim((string) (
+            data_get($payload, 'status')
+            ?: data_get($payload, 'delivery.status')
+            ?: data_get($payload, 'result')
+            ?: data_get($payload, 'outcome')
+            ?: data_get($payload, 'payload.status')
+            ?: ''
+        )));
+
+        if ($raw === '') {
+            return null;
+        }
+
+        if (in_array($raw, ['accepted', 'received', 'processed', 'published', 'ok', 'success'], true)) {
+            return 'success';
+        }
+
+        if (in_array($raw, ['failed', 'rejected', 'error', 'invalid'], true)) {
+            return 'failed';
+        }
+
+        return null;
+    }
+
+    private function failureReason(array $payload): string
+    {
+        return trim((string) (
+            data_get($payload, 'message')
+            ?: data_get($payload, 'error')
+            ?: data_get($payload, 'reason')
+            ?: data_get($payload, 'delivery.error')
+            ?: ''
+        ));
     }
 
     private function payload(Request $request): array

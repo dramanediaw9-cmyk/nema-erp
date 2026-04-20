@@ -30,6 +30,7 @@ class CorePulseService
         $profile = $this->deploymentProfileService->profileForCompany($company);
         $readiness = $this->deploymentReadinessService->summary($company, $profile);
         $slaTarget = max((int) config('ops.core_pulse_sla_score', 75), 1);
+        $history = $this->history($company->id);
 
         $activeRules = AutomationRule::query()
             ->where('company_id', $company->id)
@@ -62,12 +63,11 @@ class CorePulseService
             ? 'dominant'
             : ($score >= 70 ? 'competitive' : ($score >= 50 ? 'progressing' : 'fragile'));
 
-        $history = $this->history($company->id);
-        $trend7d = $this->trend($history, 7);
-        $trend30d = $this->trend($history, 30);
+        $trend7d = $this->trendFromScore($score, $history, 7);
+        $trend30d = $this->trendFromScore($score, $history, 30);
         $slaMet = $score >= $slaTarget;
 
-        return [
+        $summary = [
             'status' => $status,
             'score' => $score,
             'company_id' => $company->id,
@@ -97,6 +97,10 @@ class CorePulseService
 
         if ($store) {
             $this->storeSnapshot($company, $summary);
+            $summary['history'] = $this->history($company->id)
+                ->take(20)
+                ->values()
+                ->all();
         }
 
         return $summary;
@@ -182,17 +186,16 @@ class CorePulseService
             ]);
     }
 
-    private function trend(Collection $history, int $days): int
+    private function trendFromScore(int $currentScore, Collection $history, int $days): int
     {
-        $current = $history->first();
         $reference = $history
             ->first(fn (array $entry): bool => Carbon::parse((string) ($entry['captured_at'] ?? now()->toDateTimeString()))->lte(now()->subDays($days)))
             ?? $history->last();
 
-        if (! $current || ! $reference) {
+        if (! $reference) {
             return 0;
         }
 
-        return (int) $current['score'] - (int) $reference['score'];
+        return $currentScore - (int) $reference['score'];
     }
 }

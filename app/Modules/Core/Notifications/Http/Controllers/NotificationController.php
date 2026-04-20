@@ -25,7 +25,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $branchScopeId = $user ? $user->resolvedBranchScope(null, $workspace->branchId()) : $workspace->branchId();
 
-        $this->notificationService->syncCompanyAlerts($companyId, $branchScopeId);
+        $this->notificationService->syncCompanyAlertsIfStale($companyId, $branchScopeId);
 
         $scope = $request->string('scope')->value() ?: 'active';
         if (! in_array($scope, ['active', 'resolved', 'all'], true)) {
