@@ -297,6 +297,7 @@
                         <option value="">Tous</option>
                         <option value="validated" @selected(($filters['status'] ?? null) === 'validated')>Approuvees</option>
                         <option value="pending_approval" @selected(($filters['status'] ?? null) === 'pending_approval')>En attente</option>
+                        <option value="rejected" @selected(($filters['status'] ?? null) === 'rejected')>Rejetees</option>
                         <option value="cancelled" @selected(($filters['status'] ?? null) === 'cancelled')>Annulees</option>
                     </select>
                 </div>
@@ -360,11 +361,13 @@
                         $nextStep = $invoice->approvalSteps->firstWhere('status', 'pending');
                         $workflowLabel = match ($invoice->status) {
                             'validated' => 'Approuvee',
+                            'rejected' => 'Rejetee',
                             'cancelled' => 'Annulee',
                             default => 'En attente',
                         };
                         $workflowClass = match ($invoice->status) {
                             'validated' => 'badge-success',
+                            'rejected' => 'badge-danger',
                             'cancelled' => 'badge-danger',
                             default => 'badge-warning',
                         };
@@ -373,6 +376,9 @@
 
                         if ($invoice->status === 'cancelled') {
                             $followUpLabel = 'Annulee';
+                            $followUpClass = 'badge-danger';
+                        } elseif ($invoice->status === 'rejected') {
+                            $followUpLabel = 'Rejetee';
                             $followUpClass = 'badge-danger';
                         } elseif ($invoice->status !== 'validated') {
                             $followUpLabel = 'Workflow';
@@ -408,6 +414,8 @@
                             </span>
                             @if ($invoice->status === 'pending_approval' && $nextStep)
                                 <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
+                            @elseif ($invoice->status === 'rejected')
+                                <div class="muted row-note">Rejetee le {{ $invoice->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
                             @elseif ($invoice->status === 'cancelled')
                                 <div class="muted row-note">Annulee le {{ $invoice->cancelled_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
                             @endif

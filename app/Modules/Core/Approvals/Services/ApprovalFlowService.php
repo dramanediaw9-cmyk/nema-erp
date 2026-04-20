@@ -49,6 +49,48 @@ class ApprovalFlowService
         return $this->advance($document, $module, $user, $onFinalApproval, true);
     }
 
+    public function reject(Model $document, string $module, User $user, callable $onRejected, ?string $reason = null): array
+    {
+        return DB::transaction(function () use ($document, $module, $user, $onRejected, $reason) {
+            $document = $document->newQuery()->whereKey($document->getKey())->lockForUpdate()->firstOrFail();
+            $this->ensurePendingApprovalDocument($document);
+
+            $pendingStep = $this->currentPendingStep($document);
+            if (! $pendingStep || ! $this->canUserApproveStep($user, $module, $pendingStep)) {
+                throw ValidationException::withMessages([
+                    'approval' => 'Vous ne pouvez pas rejeter cette etape d approbation.',
+                ]);
+            }
+
+            $reason = Str::limit(trim((string) $reason), 1000, '');
+            $rejectedStep = ApprovalStep::query()
+                ->whereKey($pendingStep->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $rejectedStep->forceFill([
+                'status' => 'rejected',
+                'approved_at' => null,
+                'approved_by' => null,
+                'rejected_at' => now(),
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason !== '' ? $reason : null,
+            ])->save();
+
+            $document->approvalSteps()
+                ->where('status', 'pending')
+                ->where('step_order', '>', $rejectedStep->step_order)
+                ->delete();
+
+            $document = $onRejected($document, $user, $reason !== '' ? $reason : null);
+
+            return [
+                'document' => $document->loadMissing('approvalSteps.approver', 'approvalSteps.rejectedBy', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy'),
+                'rejected_step' => $rejectedStep->fresh(['approver', 'rejectedBy', 'assignedApprover', 'delegatedBy']),
+            ];
+        });
+    }
+
     public function currentPendingStep(Model $document): ?ApprovalStep
     {
         return $document->approvalSteps()
@@ -226,6 +268,7 @@ class ApprovalFlowService
     {
         return DB::transaction(function () use ($document, $module, $user, $onFinalApproval, $strict) {
             $document = $document->newQuery()->whereKey($document->getKey())->lockForUpdate()->firstOrFail();
+            $this->ensurePendingApprovalDocument($document);
             $this->initialize($document, $module, (float) $document->total);
 
             $approvedSteps = collect();
@@ -258,7 +301,7 @@ class ApprovalFlowService
             }
 
             return [
-                'document' => $document->loadMissing('approvalSteps.approver'),
+                'document' => $document->loadMissing('approvalSteps.approver', 'approvalSteps.rejectedBy'),
                 'approved_steps' => $approvedSteps,
                 'is_fully_approved' => $isFullyApproved,
                 'next_step' => $this->currentPendingStep($document),
@@ -407,5 +450,14 @@ class ApprovalFlowService
     private function dueAtForHours(int $hours): ?Carbon
     {
         return $hours > 0 ? now()->addHours($hours) : null;
+    }
+
+    private function ensurePendingApprovalDocument(Model $document): void
+    {
+        if ((string) $document->getAttribute('status') !== 'pending_approval') {
+            throw ValidationException::withMessages([
+                'approval' => 'Ce document n est plus en attente d approbation.',
+            ]);
+        }
     }
 }

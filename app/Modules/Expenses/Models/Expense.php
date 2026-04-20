@@ -40,6 +40,9 @@ class Expense extends Model
         'notes',
         'approved_at',
         'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_reason',
         'created_by',
     ];
 
@@ -49,6 +52,7 @@ class Expense extends Model
             'expense_date' => 'date',
             'payment_date' => 'date',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'total' => 'decimal:2',
         ];
     }
@@ -86,6 +90,11 @@ class Expense extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function approvalSteps(): MorphMany

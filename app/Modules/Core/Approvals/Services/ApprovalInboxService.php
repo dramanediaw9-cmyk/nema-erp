@@ -117,6 +117,7 @@ class ApprovalInboxService
             'assigned_approver_name' => $pendingStep?->assignedApprover?->name,
             'detail_url' => $this->detailUrl($module, $document),
             'approve_url' => $this->approveUrl($module, $document),
+            'reject_url' => $this->rejectUrl($module, $document),
             'delegate_url' => $pendingStep ? route('approvals.steps.delegate', $pendingStep) : null,
             'delegate_candidates' => $pendingStep
                 ? $this->approvalFlowService->candidateApprovers($document->company_id, $module, $pendingStep)
@@ -139,6 +140,15 @@ class ApprovalInboxService
             'sales' => route('sales.approve', $document),
             'purchases' => route('purchases.approve', $document),
             default => route('expenses.approve', $document),
+        };
+    }
+
+    private function rejectUrl(string $module, Model $document): string
+    {
+        return match ($module) {
+            'sales' => route('sales.reject', $document),
+            'purchases' => route('purchases.reject', $document),
+            default => route('expenses.reject', $document),
         };
     }
 }

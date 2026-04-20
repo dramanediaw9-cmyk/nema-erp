@@ -53,6 +53,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/ventes', [SalesInvoiceController::class, 'store'])->middleware('permission:sales.manage')->name('sales.store');
     Route::post('/ventes/{sale}/annuler', [SalesInvoiceController::class, 'cancel'])->middleware('permission:sales.cancel')->name('sales.cancel');
     Route::post('/ventes/{sale}/approuver', [SalesInvoiceController::class, 'approve'])->middleware('permission:sales.approve')->name('sales.approve');
+    Route::post('/ventes/{sale}/rejeter', [SalesInvoiceController::class, 'reject'])->middleware('permission:sales.approve')->name('sales.reject');
     Route::get('/ventes/{sale}', [SalesInvoiceController::class, 'show'])->middleware('permission:sales.view')->name('sales.show');
     Route::get('/ventes/{sale}/imprimer', [SalesInvoiceController::class, 'print'])->middleware('permission:sales.view')->name('sales.print');
 });

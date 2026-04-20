@@ -69,6 +69,46 @@ class ExpenseService
         });
     }
 
+    public function reject(Expense $expense, User $user, ?string $reason = null): Expense
+    {
+        return DB::transaction(function () use ($expense, $user, $reason) {
+            $expense = Expense::query()
+                ->with(['category', 'cashAccount', 'supplier', 'branch', 'company'])
+                ->whereKey($expense->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($expense->status !== 'pending_approval') {
+                throw ValidationException::withMessages([
+                    'expense' => 'Cette depense n est pas en attente d approbation.',
+                ]);
+            }
+
+            $rejectedAt = now();
+
+            $expense->update([
+                'status' => 'rejected',
+                'approved_at' => null,
+                'approved_by' => null,
+                'rejected_at' => $rejectedAt,
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
+            ]);
+
+            $expense = $expense->fresh(['category', 'cashAccount', 'supplier', 'branch', 'company', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy']);
+
+            $this->integrationOutboxService->record($expense, 'expenses.expense.rejected', [
+                'expense_number' => $expense->expense_number,
+                'status' => $expense->status,
+                'rejected_at' => $rejectedAt->toIso8601String(),
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
+            ]);
+
+            return $expense;
+        });
+    }
+
     private function persistExpense(
         int $companyId,
         int $branchId,

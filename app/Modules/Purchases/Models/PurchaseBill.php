@@ -50,6 +50,9 @@ class PurchaseBill extends Model
         'validated_at',
         'approved_at',
         'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_reason',
         'created_by',
     ];
 
@@ -60,6 +63,7 @@ class PurchaseBill extends Model
             'due_date' => 'date',
             'validated_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'subtotal' => 'decimal:2',
             'net_total' => 'decimal:2',
             'tax_total' => 'decimal:2',
@@ -117,6 +121,11 @@ class PurchaseBill extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function items(): HasMany

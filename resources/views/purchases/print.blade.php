@@ -16,7 +16,7 @@
             <div><strong>Date :</strong> {{ $bill->bill_date?->format('d/m/Y') }}</div>
             <div class="meta">Echeance : {{ $bill->due_date?->format('d/m/Y') ?: 'Non definie' }}</div>
             <div class="meta">Agence : {{ $bill->branch?->name }}</div>
-            <div class="meta">Workflow : {{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</div>
+            <div class="meta">Workflow : {{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente') }}</div>
             <div class="meta">Devise : {{ $bill->company?->currency_code ?: 'XOF' }}</div>
         </div>
     </section>
@@ -32,7 +32,8 @@
         </div>
         <div class="panel">
             <h2>Situation</h2>
-            <div><strong>Workflow :</strong> {{ $bill->status === 'validated' ? 'Approuvee' : 'En attente d approbation' }}</div>
+            <div><strong>Workflow :</strong> {{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente d approbation') }}</div>
+            <div><strong>Rejetee par :</strong> {{ $bill->rejector?->name ?? 'Non rejetee' }}</div>
             <div><strong>Statut paiement :</strong> {{ $bill->payment_status === 'paid' ? 'Payee' : ($bill->payment_status === 'partial' ? 'Partiellement reglee' : 'Impayee') }}</div>
             <div><strong>Montant regle :</strong> {{ number_format((float) $bill->amount_paid, 0, ',', ' ') }} XOF</div>
             <div><strong>Solde restant :</strong> {{ number_format((float) $bill->balance_due, 0, ',', ' ') }} XOF</div>

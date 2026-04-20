@@ -297,6 +297,7 @@
                         <option value="">Tous</option>
                         <option value="validated" @selected(($filters['status'] ?? null) === 'validated')>Approuvees</option>
                         <option value="pending_approval" @selected(($filters['status'] ?? null) === 'pending_approval')>En attente</option>
+                        <option value="rejected" @selected(($filters['status'] ?? null) === 'rejected')>Rejetees</option>
                     </select>
                 </div>
                 <div>
@@ -360,7 +361,10 @@
                         $followUpLabel = 'Dans les delais';
                         $followUpClass = 'badge-success';
 
-                        if ($bill->status !== 'validated') {
+                        if ($bill->status === 'rejected') {
+                            $followUpLabel = 'Rejetee';
+                            $followUpClass = 'badge-danger';
+                        } elseif ($bill->status !== 'validated') {
                             $followUpLabel = 'Workflow';
                             $followUpClass = 'badge-warning';
                         } elseif ($bill->payment_status === 'paid') {
@@ -389,11 +393,13 @@
                         <td>{{ $bill->supplier?->name }}</td>
                         <td class="col-optional-lg">{{ $bill->branch?->name }}</td>
                         <td>
-                            <span class="badge {{ $bill->status === 'validated' ? 'badge-success' : 'badge-warning' }}">
-                                {{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}
+                            <span class="badge {{ $bill->status === 'validated' ? 'badge-success' : ($bill->status === 'rejected' ? 'badge-danger' : 'badge-warning') }}">
+                                {{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente') }}
                             </span>
-                            @if ($bill->status !== 'validated' && $nextStep)
+                            @if ($bill->status === 'pending_approval' && $nextStep)
                                 <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
+                            @elseif ($bill->status === 'rejected')
+                                <div class="muted row-note">Rejetee le {{ $bill->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
                             @endif
                         </td>
                         <td>{{ number_format((float) $bill->total, 0, ',', ' ') }} XOF</td>
@@ -416,7 +422,7 @@
                                             <button type="submit" class="button button-primary">Approuver</button>
                                         </form>
                                     @endallowed
-                                @elseif ($bill->payment_status !== 'paid')
+                                @elseif ($bill->status === 'validated' && $bill->payment_status !== 'paid')
                                     @allowed('payments.manage')
                                         <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Regler</a>
                                     @endallowed

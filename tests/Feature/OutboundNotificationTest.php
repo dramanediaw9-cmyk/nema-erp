@@ -231,6 +231,103 @@ class OutboundNotificationTest extends TestCase
         ]);
     }
 
+    public function test_approving_pending_step_cancels_obsolete_notifications_for_that_step(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $director = User::query()->where('email', 'dg@nema-erp.test')->firstOrFail();
+
+        $this->configureChannels($manager->company_id, true, true);
+        $invoice = $this->createPendingApprovalInvoice($manager, 'OUTBOUND-CANCEL-ON-APPROVE');
+
+        $this->actingAs($director)
+            ->withSession([
+                'current_company_id' => $director->company_id,
+                'current_branch_id' => $director->branch_id,
+            ])
+            ->post(route('sales.approve', $invoice))
+            ->assertRedirect(route('sales.show', $invoice));
+
+        $this->assertSame(2, OutboundNotification::query()
+            ->where('company_id', $manager->company_id)
+            ->where('resource_type', SalesInvoice::class)
+            ->where('resource_id', $invoice->id)
+            ->where('status', 'cancelled')
+            ->count());
+        $this->assertSame(0, OutboundNotification::query()
+            ->where('company_id', $manager->company_id)
+            ->where('resource_type', SalesInvoice::class)
+            ->where('resource_id', $invoice->id)
+            ->where('status', 'failed')
+            ->count());
+    }
+
+    public function test_rejecting_pending_step_cancels_queued_notifications_without_marking_them_failed(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $director = User::query()->where('email', 'dg@nema-erp.test')->firstOrFail();
+
+        $this->configureChannels($manager->company_id, true, true);
+        $invoice = $this->createPendingApprovalInvoice($manager, 'OUTBOUND-CANCEL-ON-REJECT');
+
+        $this->actingAs($director)
+            ->withSession([
+                'current_company_id' => $director->company_id,
+                'current_branch_id' => $director->branch_id,
+            ])
+            ->post(route('sales.reject', $invoice), [
+                'rejection_reason' => 'Correction requise avant validation.',
+            ])
+            ->assertRedirect(route('sales.show', $invoice));
+
+        $this->assertSame(2, OutboundNotification::query()
+            ->where('company_id', $manager->company_id)
+            ->where('resource_type', SalesInvoice::class)
+            ->where('resource_id', $invoice->id)
+            ->where('status', 'cancelled')
+            ->count());
+        $this->assertSame(0, OutboundNotification::query()
+            ->where('company_id', $manager->company_id)
+            ->where('resource_type', SalesInvoice::class)
+            ->where('resource_id', $invoice->id)
+            ->where('status', 'failed')
+            ->count());
+    }
+
+    public function test_retry_failed_does_not_requeue_cancelled_notifications(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        OutboundNotification::query()->create([
+            'company_id' => $manager->company_id,
+            'branch_id' => $manager->branch_id,
+            'user_id' => $manager->id,
+            'code' => 'cancelled-outbound-ignore',
+            'channel' => 'email',
+            'recipient' => 'dg@example.test',
+            'subject' => 'Annulee',
+            'message' => 'Notification annulee par le workflow.',
+            'status' => 'cancelled',
+            'failed_at' => now(),
+            'failure_reason' => 'Workflow rejete avant validation finale.',
+            'queued_at' => now()->subMinutes(5),
+        ]);
+
+        $this->actingAs($manager)
+            ->withSession([
+                'current_company_id' => $manager->company_id,
+                'current_branch_id' => $manager->branch_id,
+            ])
+            ->post(route('notifications.outbound.retry-failed'))
+            ->assertRedirect(route('notifications.outbound.index'));
+
+        $this->assertDatabaseHas('outbound_notifications', [
+            'company_id' => $manager->company_id,
+            'code' => 'cancelled-outbound-ignore',
+            'status' => 'cancelled',
+            'failure_reason' => 'Workflow rejete avant validation finale.',
+        ]);
+    }
+
     private function configureChannels(int $companyId, bool $emailEnabled, bool $whatsAppEnabled): void
     {
         Setting::query()->updateOrCreate(

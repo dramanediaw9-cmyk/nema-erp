@@ -124,9 +124,9 @@ class SalesInvoiceController
         $customerId = $request->integer('customer_id');
 
         return SalesInvoice::query()
-            ->with(['customer', 'branch', 'warehouse', 'approver', 'approvalSteps'])
+            ->with(['customer', 'branch', 'warehouse', 'approver', 'rejector', 'approvalSteps'])
             ->where('company_id', $companyId)
-            ->when(in_array($status, ['validated', 'pending_approval'], true), fn (Builder $query) => $query->where('status', $status))
+            ->when(in_array($status, ['validated', 'pending_approval', 'cancelled', 'rejected'], true), fn (Builder $query) => $query->where('status', $status))
             ->when(in_array($paymentStatus, ['unpaid', 'partial', 'paid'], true), fn (Builder $query) => $query->where('payment_status', $paymentStatus))
             ->when($branchId > 0, fn (Builder $query) => $query->where('branch_id', $branchId))
             ->when($customerId > 0, fn (Builder $query) => $query->where('customer_id', $customerId))
@@ -164,7 +164,10 @@ class SalesInvoiceController
             'items.taxRule',
             'creator',
             'approver',
+            'cancelledBy',
+            'rejector',
             'approvalSteps.approver',
+            'approvalSteps.rejectedBy',
             'paymentAllocations.payment.cashAccount',
         ]);
     }

@@ -240,6 +240,9 @@ class SalesInvoiceController extends Controller
 
         /** @var SalesInvoice $invoice */
         $invoice = $result['document'];
+        foreach ($result['approved_steps'] as $approvedStep) {
+            $this->outboundNotificationService->cancelQueuedForApprovalStep($invoice, (int) $approvedStep->step_order, 'Etape deja approuvee, notification obsolete.');
+        }
         $this->outboundNotificationService->dispatchApprovalRequest($invoice, 'sales', $result['next_step']);
 
         $this->activityLogger->log('sales.approve', 'Approbation facture de vente', $invoice, [
@@ -256,6 +259,36 @@ class SalesInvoiceController extends Controller
         return redirect()->route('sales.show', $invoice)->with('success', $message);
     }
 
+    public function reject(SalesInvoice $sale, CurrentWorkspace $workspace, Request $request): RedirectResponse
+    {
+        abort_if($workspace->companyId() !== $sale->company_id, 403);
+
+        $data = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $result = $this->approvalFlowService->reject(
+            $sale,
+            'sales',
+            $request->user(),
+            fn (SalesInvoice $pendingInvoice, $user, ?string $reason) => $this->salesInvoiceService->reject($pendingInvoice, $user, $reason),
+            $data['rejection_reason'],
+        );
+
+        /** @var SalesInvoice $invoice */
+        $invoice = $result['document'];
+        $this->outboundNotificationService->cancelQueuedForResource($invoice, 'Workflow rejete avant validation finale.');
+
+        $this->activityLogger->log('sales.reject', 'Rejet facture de vente', $invoice, [
+            'invoice_number' => $invoice->invoice_number,
+            'rejected_by' => $request->user()->id,
+            'rejected_step_order' => $result['rejected_step']->step_order,
+            'rejection_reason' => $data['rejection_reason'],
+        ]);
+
+        return redirect()->route('sales.show', $invoice)->with('success', 'Facture client rejetee avec motif.');
+    }
+
     public function show(SalesInvoice $sale, CurrentWorkspace $workspace): View
     {
         abort_if($workspace->companyId() !== $sale->company_id, 403);
@@ -269,7 +302,9 @@ class SalesInvoiceController extends Controller
             'creator',
             'approver',
             'cancelledBy',
+            'rejector',
             'approvalSteps.approver',
+            'approvalSteps.rejectedBy',
             'approvalSteps.assignedApprover',
             'approvalSteps.delegatedBy',
             'paymentAllocations.payment.cashAccount',
@@ -319,7 +354,9 @@ class SalesInvoiceController extends Controller
                 'items.product',
                 'approver',
                 'cancelledBy',
+                'rejector',
                 'approvalSteps.approver',
+                'approvalSteps.rejectedBy',
                 'approvalSteps.assignedApprover',
                 'approvalSteps.delegatedBy',
                 'paymentAllocations.payment.cashAccount',
@@ -370,7 +407,7 @@ class SalesInvoiceController extends Controller
     private function filters(Request $request): array
     {
         $status = $request->string('status')->trim()->value() ?: null;
-        if (! in_array($status, ['validated', 'pending_approval', 'cancelled'], true)) {
+        if (! in_array($status, ['validated', 'pending_approval', 'cancelled', 'rejected'], true)) {
             $status = null;
         }
 
@@ -437,6 +474,7 @@ class SalesInvoiceController extends Controller
         return match ($invoice->status) {
             'validated' => 'Approuvee',
             'cancelled' => 'Annulee',
+            'rejected' => 'Rejetee',
             default => 'En attente',
         };
     }
@@ -445,6 +483,10 @@ class SalesInvoiceController extends Controller
     {
         if ($invoice->status === 'cancelled') {
             return 'Annulee';
+        }
+
+        if ($invoice->status === 'rejected') {
+            return 'Rejetee';
         }
 
         if ($invoice->status !== 'validated') {

@@ -24,6 +24,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/achats/creer', [PurchaseBillController::class, 'create'])->middleware('permission:purchases.manage')->name('purchases.create');
     Route::post('/achats', [PurchaseBillController::class, 'store'])->middleware('permission:purchases.manage')->name('purchases.store');
     Route::post('/achats/{purchase}/approuver', [PurchaseBillController::class, 'approve'])->middleware('permission:purchases.approve')->name('purchases.approve');
+    Route::post('/achats/{purchase}/rejeter', [PurchaseBillController::class, 'reject'])->middleware('permission:purchases.approve')->name('purchases.reject');
     Route::get('/achats/{purchase}', [PurchaseBillController::class, 'show'])->middleware('permission:purchases.view')->name('purchases.show');
     Route::get('/achats/{purchase}/imprimer', [PurchaseBillController::class, 'print'])->middleware('permission:purchases.view')->name('purchases.print');
 

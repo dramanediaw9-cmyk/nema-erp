@@ -5,6 +5,13 @@
 
 @section('content')
     @php($paymentMethodOptions = $paymentMethodOptions ?? \App\Support\PaymentMethodCatalog::options())
+    @php
+        $workflowLabel = match ($expense->status) {
+            'validated' => 'Approuvee',
+            'rejected' => 'Rejetee',
+            default => 'En attente',
+        };
+    @endphp
 
     <div class="page-head">
         <div>
@@ -21,6 +28,11 @@
                     <form method="POST" action="{{ route('expenses.approve', $expense) }}">
                         @csrf
                         <button type="submit" class="button button-primary">Valider l etape suivante</button>
+                    </form>
+                    <form method="POST" action="{{ route('expenses.reject', $expense) }}" style="display:grid; gap:8px;">
+                        @csrf
+                        <input type="text" name="rejection_reason" maxlength="1000" required placeholder="Motif du rejet">
+                        <button type="submit" class="button button-secondary">Rejeter avec motif</button>
                     </form>
                 @endallowed
             @endif
@@ -51,7 +63,7 @@
     </section>
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Workflow</div><div class="stat-value" style="font-size:24px;">{{ $expense->status === 'validated' ? 'Approuvee' : 'En attente' }}</div></div>
+        <div class="card"><div class="muted">Workflow</div><div class="stat-value" style="font-size:24px;">{{ $workflowLabel }}</div></div>
         <div class="card"><div class="muted">Montant</div><div class="stat-value">{{ number_format((float) $expense->total, 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Statut paiement</div><div class="stat-value" style="font-size:24px;">{{ $expense->payment_status === 'paid' ? 'Payee' : 'Non payee' }}</div></div>
         <div class="card"><div class="muted">Categorie</div><div class="stat-value" style="font-size:24px;">{{ $expense->category?->name }}</div></div>
@@ -61,10 +73,13 @@
         <section class="card">
             <h2 style="margin-top:0;">Validation</h2>
             <div class="grid">
-                <div><strong>Statut</strong><div class="muted">{{ $expense->status === 'validated' ? 'Approuvee' : 'En attente d approbation' }}</div></div>
+                <div><strong>Statut</strong><div class="muted">{{ $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente d approbation') }}</div></div>
                 <div><strong>Creee par</strong><div class="muted">{{ $expense->creator?->name ?? 'Systeme' }}</div></div>
                 <div><strong>Approuvee par</strong><div class="muted">{{ $expense->approver?->name ?? 'Non approuvee' }}</div></div>
                 <div><strong>Date d approbation</strong><div class="muted">{{ $expense->approved_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div><strong>Rejetee par</strong><div class="muted">{{ $expense->rejector?->name ?? 'Non rejetee' }}</div></div>
+                <div><strong>Date de rejet</strong><div class="muted">{{ $expense->rejected_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div style="grid-column:1 / -1;"><strong>Motif du rejet</strong><div class="muted">{{ $expense->rejection_reason ?: 'Aucun motif enregistre' }}</div></div>
             </div>
             @include('partials.approval-steps', ['approvalSteps' => $expense->approvalSteps])
         </section>
@@ -77,7 +92,7 @@
                 <div><strong>Date de paiement</strong><div class="muted">{{ $expense->payment_date?->format('d/m/Y') ?? 'Non renseignee' }}</div></div>
                 <div><strong>Mode</strong><div class="muted">{{ $expense->payment_method ? ($paymentMethodOptions[$expense->payment_method] ?? str($expense->payment_method)->replace('_', ' ')->title()) : 'Non renseigne' }}</div></div>
                 <div><strong>Reference</strong><div class="muted">{{ $expense->payment_reference ?: 'Aucune' }}</div></div>
-                <div><strong>Effet comptable</strong><div class="muted">{{ $expense->status === 'validated' ? 'Ecriture generee' : 'Ecriture en attente' }}</div></div>
+                <div><strong>Effet comptable</strong><div class="muted">{{ $expense->status === 'validated' ? 'Ecriture generee' : ($expense->status === 'rejected' ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
             </div>
         </section>
     </div>

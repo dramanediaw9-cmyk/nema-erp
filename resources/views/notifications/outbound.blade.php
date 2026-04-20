@@ -29,13 +29,15 @@
         <div class="card"><div class="muted">En attente</div><div class="stat-value">{{ $summary['queued'] }}</div></div>
         <div class="card"><div class="muted">Envoyees</div><div class="stat-value">{{ $summary['sent'] }}</div></div>
         <div class="card"><div class="muted">En echec</div><div class="stat-value">{{ $summary['failed'] }}</div></div>
+        <div class="card"><div class="muted">Annulees</div><div class="stat-value">{{ $summary['cancelled'] ?? 0 }}</div></div>
     </div>
 
-    @if (($summary['queued'] ?? 0) > 0 || ($summary['failed'] ?? 0) > 0 || ($summary['sent'] ?? 0) > 0)
+    @if (($summary['queued'] ?? 0) > 0 || ($summary['failed'] ?? 0) > 0 || ($summary['sent'] ?? 0) > 0 || ($summary['cancelled'] ?? 0) > 0)
         <div class="help" style="margin-bottom:18px;">
             Plus ancienne en attente : {{ $summary['oldest_queued_at'] ? \Illuminate\Support\Carbon::parse($summary['oldest_queued_at'])->format('d/m/Y H:i') : 'Aucune' }}
             · Dernier envoi : {{ $summary['last_sent_at'] ? \Illuminate\Support\Carbon::parse($summary['last_sent_at'])->format('d/m/Y H:i') : 'Aucun' }}
             · Dernier echec : {{ $summary['last_failed_at'] ? \Illuminate\Support\Carbon::parse($summary['last_failed_at'])->format('d/m/Y H:i') : 'Aucun' }}
+            · Derniere annulation : {{ ($summary['last_cancelled_at'] ?? null) ? \Illuminate\Support\Carbon::parse($summary['last_cancelled_at'])->format('d/m/Y H:i') : 'Aucune' }}
         </div>
     @endif
 
@@ -56,6 +58,7 @@
                     <option value="queued" @selected(($filters['status'] ?? null) === 'queued')>En attente</option>
                     <option value="sent" @selected(($filters['status'] ?? null) === 'sent')>Envoye</option>
                     <option value="failed" @selected(($filters['status'] ?? null) === 'failed')>En erreur</option>
+                    <option value="cancelled" @selected(($filters['status'] ?? null) === 'cancelled')>Annule</option>
                 </select>
             </div>
             <div class="actions" style="margin-top:0; justify-content:flex-start;">
@@ -93,14 +96,17 @@
                         </td>
                         <td>{{ $notification->meta['step_label'] ?? 'N/A' }}</td>
                         <td>
-                            <span class="badge {{ $notification->status === 'failed' ? 'badge-warning' : ($notification->status === 'sent' ? 'badge-success' : 'badge-muted') }}">
-                                {{ $notification->status === 'queued' ? 'En attente' : ($notification->status === 'sent' ? 'Envoye' : 'En erreur') }}
+                            <span class="badge {{ $notification->status === 'failed' ? 'badge-warning' : ($notification->status === 'sent' ? 'badge-success' : ($notification->status === 'cancelled' ? 'badge-danger' : 'badge-muted')) }}">
+                                {{ $notification->status === 'queued' ? 'En attente' : ($notification->status === 'sent' ? 'Envoye' : ($notification->status === 'cancelled' ? 'Annulee' : 'En erreur')) }}
                             </span>
                         </td>
                         <td>
                             @if ($notification->status === 'sent')
                                 <div>{{ $notification->sent_at?->format('d/m/Y H:i') ?: 'N/A' }}</div>
                                 <div class="muted">{{ strtoupper((string) data_get($notification->meta, 'delivery.transport', '')) }}</div>
+                            @elseif ($notification->status === 'cancelled')
+                                <div>{{ $notification->failed_at?->format('d/m/Y H:i') ?: 'N/A' }}</div>
+                                <div class="muted">Annulee par le workflow</div>
                             @elseif ($notification->status === 'failed')
                                 <div>{{ $notification->failed_at?->format('d/m/Y H:i') ?: 'N/A' }}</div>
                                 <div class="muted">Tentative en echec</div>

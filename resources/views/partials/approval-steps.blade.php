@@ -9,6 +9,8 @@
                         <div class="muted" style="margin-top:6px;">
                             @if ($step->status === 'approved')
                                 Validee par {{ $step->approver?->name ?? 'Systeme' }} le {{ $step->approved_at?->format('d/m/Y H:i') ?? 'N/A' }}
+                            @elseif ($step->status === 'rejected')
+                                Rejetee par {{ $step->rejectedBy?->name ?? 'Systeme' }} le {{ $step->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}
                             @else
                                 En attente de validation
                                 @if ($step->assignedApprover)
@@ -23,10 +25,13 @@
                             @endif
                         </div>
                     </div>
-                    <span class="badge {{ $step->status === 'approved' ? 'badge-success' : ($step->isOverdue() ? 'badge-danger' : 'badge-warning') }}">
-                        {{ $step->status === 'approved' ? 'Validee' : ($step->isOverdue() ? 'En retard' : 'En attente') }}
+                    <span class="badge {{ $step->status === 'approved' ? 'badge-success' : ($step->status === 'rejected' ? 'badge-danger' : ($step->isOverdue() ? 'badge-danger' : 'badge-warning')) }}">
+                        {{ $step->status === 'approved' ? 'Validee' : ($step->status === 'rejected' ? 'Rejetee' : ($step->isOverdue() ? 'En retard' : 'En attente')) }}
                     </span>
                 </div>
+                @if ($step->status === 'rejected' && $step->rejection_reason)
+                    <div class="help" style="margin-top:10px;">Motif : {{ $step->rejection_reason }}</div>
+                @endif
                 @if ($step->escalated_at)
                     <div class="help" style="margin-top:10px;">Escaladee le {{ $step->escalated_at->format('d/m/Y H:i') }}{{ $step->assignedApprover ? ' vers '.$step->assignedApprover->name : '' }}.</div>
                 @endif

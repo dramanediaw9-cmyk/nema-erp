@@ -29,7 +29,7 @@ class OutboundNotificationController extends Controller
         }
 
         $status = $request->string('status')->value() ?: null;
-        if (! in_array($status, ['queued', 'sent', 'failed'], true)) {
+        if (! in_array($status, ['queued', 'sent', 'failed', 'cancelled'], true)) {
             $status = null;
         }
 

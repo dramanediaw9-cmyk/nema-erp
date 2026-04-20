@@ -4,6 +4,18 @@
 @section('page-title', 'Facture '.$bill->bill_number)
 
 @section('content')
+    @php
+        $workflowLabel = match ($bill->status) {
+            'validated' => 'Approuvee',
+            'rejected' => 'Rejetee',
+            default => 'En attente',
+        };
+        $workflowTone = match ($bill->status) {
+            'validated' => 'badge-success',
+            'rejected' => 'badge-danger',
+            default => 'badge-warning',
+        };
+    @endphp
     <div class="premium-detail-page">
         <section class="card premium-detail-hero premium-detail-hero--sage">
             <div class="premium-detail-hero__grid">
@@ -12,7 +24,7 @@
                     <h2>{{ $bill->bill_number }} · {{ $bill->supplier?->name }}</h2>
                     <p class="muted">Facture du {{ $bill->bill_date?->format('d/m/Y') }} rattachee a l agence {{ $bill->branch?->name }} et a {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}. La page donne d abord une lecture approvisionnement et tresorerie avant le detail comptable.</p>
                     <div class="premium-detail-hero__meta">
-                        <span class="badge {{ $bill->status === 'validated' ? 'badge-success' : 'badge-warning' }}">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</span>
+                        <span class="badge {{ $workflowTone }}">{{ $workflowLabel }}</span>
                         <span class="badge badge-muted">Paiement : {{ str($bill->payment_status)->replace('_', ' ')->title() }}</span>
                         <span class="badge badge-muted">Agence : {{ $bill->branch?->name }}</span>
                         <span class="badge badge-muted">Depot : {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</span>
@@ -34,8 +46,13 @@
                                     @csrf
                                     <button type="submit" class="button button-primary">Valider l etape suivante</button>
                                 </form>
+                                <form method="POST" action="{{ route('purchases.reject', $bill) }}" style="display:grid; gap:8px;">
+                                    @csrf
+                                    <input type="text" name="rejection_reason" maxlength="1000" required placeholder="Motif du rejet">
+                                    <button type="submit" class="button button-secondary">Rejeter avec motif</button>
+                                </form>
                             @endallowed
-                        @elseif ($bill->payment_status !== 'paid')
+                        @elseif ($bill->status === 'validated' && $bill->payment_status !== 'paid')
                             @allowed('payments.manage')
                                 <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Enregistrer un reglement</a>
                             @endallowed
@@ -87,7 +104,7 @@
     @endif
 
     <div class="premium-stat-grid" style="margin-bottom:20px;">
-        <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente' }}</div><div class="hint">Etat de validation de la facture fournisseur.</div></article>
+        <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowLabel }}</div><div class="hint">Etat de validation de la facture fournisseur.</div></article>
         <article class="premium-stat-card"><div class="label">Total facture</div><div class="value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div><div class="hint">Montant total facture par le fournisseur.</div></article>
         <article class="premium-stat-card"><div class="label">Montant paye</div><div class="value">{{ number_format((float) $bill->amount_paid, 0, ',', ' ') }}</div><div class="hint">Reglements deja associes a cet achat.</div></article>
         <article class="premium-stat-card"><div class="label">Solde restant</div><div class="value">{{ number_format((float) $bill->balance_due, 0, ',', ' ') }}</div><div class="hint">Montant encore du au fournisseur.</div></article>
@@ -97,10 +114,13 @@
         <section class="card">
             <h2 style="margin-top:0;">Validation</h2>
             <div class="grid">
-                <div><strong>Statut</strong><div class="muted">{{ $bill->status === 'validated' ? 'Approuvee' : 'En attente d approbation' }}</div></div>
+                <div><strong>Statut</strong><div class="muted">{{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente d approbation') }}</div></div>
                 <div><strong>Creee par</strong><div class="muted">{{ $bill->creator?->name ?? 'Systeme' }}</div></div>
                 <div><strong>Approuvee par</strong><div class="muted">{{ $bill->approver?->name ?? 'Non approuvee' }}</div></div>
                 <div><strong>Date d approbation</strong><div class="muted">{{ $bill->approved_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div><strong>Rejetee par</strong><div class="muted">{{ $bill->rejector?->name ?? 'Non rejetee' }}</div></div>
+                <div><strong>Date de rejet</strong><div class="muted">{{ $bill->rejected_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div style="grid-column:1 / -1;"><strong>Motif du rejet</strong><div class="muted">{{ $bill->rejection_reason ?: 'Aucun motif enregistre' }}</div></div>
             </div>
             @include('partials.approval-steps', ['approvalSteps' => $bill->approvalSteps])
         </section>
@@ -110,8 +130,8 @@
             <div class="grid">
                 <div><strong>Statut paiement</strong><div class="muted">{{ $bill->payment_status === 'paid' ? 'Payee' : ($bill->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}</div></div>
                 <div><strong>Entrepot</strong><div class="muted">{{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</div></div>
-                <div><strong>Effet stock</strong><div class="muted">{{ $bill->goodsReceipt ? 'Stock deja receptionne avant facturation' : ($bill->status === 'validated' ? 'Stock mis a jour' : 'En attente d approbation finale') }}</div></div>
-                <div><strong>Effet comptable</strong><div class="muted">{{ $bill->status === 'validated' ? 'Ecriture generee' : 'Ecriture en attente' }}</div></div>
+                <div><strong>Effet stock</strong><div class="muted">{{ $bill->goodsReceipt ? 'Stock deja receptionne avant facturation' : ($bill->status === 'validated' ? 'Stock mis a jour' : ($bill->status === 'rejected' ? 'Aucun effet stock final' : 'En attente d approbation finale')) }}</div></div>
+                <div><strong>Effet comptable</strong><div class="muted">{{ $bill->status === 'validated' ? 'Ecriture generee' : ($bill->status === 'rejected' ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
                 <div><strong>Nombre de mouvements</strong><div class="muted">{{ $stockMovements->count() }} mouvement(s) de stock lie(s)</div></div>
             </div>
         </section>

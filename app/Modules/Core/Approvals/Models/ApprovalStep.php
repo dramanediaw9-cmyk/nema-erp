@@ -30,6 +30,9 @@ class ApprovalStep extends Model
         'meta',
         'approved_at',
         'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_reason',
     ];
 
     protected function casts(): array
@@ -39,6 +42,7 @@ class ApprovalStep extends Model
             'delegated_at' => 'datetime',
             'escalated_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'meta' => 'array',
         ];
     }
@@ -58,6 +62,11 @@ class ApprovalStep extends Model
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
     public function delegatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'delegated_by');
@@ -66,6 +75,11 @@ class ApprovalStep extends Model
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
     }
 
     public function isOverdue(): bool

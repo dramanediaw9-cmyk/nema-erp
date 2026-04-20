@@ -8,11 +8,13 @@
         $workflowLabel = match ($invoice->status) {
             'validated' => 'Approuvee',
             'cancelled' => 'Annulee',
+            'rejected' => 'Rejetee',
             default => 'En attente',
         };
         $workflowTone = match ($invoice->status) {
             'validated' => 'badge-success',
             'cancelled' => 'badge-danger',
+            'rejected' => 'badge-danger',
             default => 'badge-warning',
         };
         $canIssueCreditNote = $invoice->status === 'validated' && (float) $invoice->balance_due > 0 && $creditableLinesCount > 0;
@@ -50,6 +52,11 @@
                                 <form method="POST" action="{{ route('sales.approve', $invoice) }}">
                                     @csrf
                                     <button type="submit" class="button button-primary">Valider l etape suivante</button>
+                                </form>
+                                <form method="POST" action="{{ route('sales.reject', $invoice) }}" style="display:grid; gap:8px;">
+                                    @csrf
+                                    <input type="text" name="rejection_reason" maxlength="1000" required placeholder="Motif du rejet">
+                                    <button type="submit" class="button button-secondary">Rejeter avec motif</button>
                                 </form>
                             @endallowed
                             @allowed('sales.cancel')
@@ -338,6 +345,9 @@
                 <div><strong>Date d approbation</strong><div class="muted">{{ $invoice->approved_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
                 <div><strong>Annulee par</strong><div class="muted">{{ $invoice->cancelledBy?->name ?? 'Non annulee' }}</div></div>
                 <div><strong>Date d annulation</strong><div class="muted">{{ $invoice->cancelled_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div><strong>Rejetee par</strong><div class="muted">{{ $invoice->rejector?->name ?? 'Non rejetee' }}</div></div>
+                <div><strong>Date de rejet</strong><div class="muted">{{ $invoice->rejected_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
+                <div style="grid-column:1 / -1;"><strong>Motif du rejet</strong><div class="muted">{{ $invoice->rejection_reason ?: 'Aucun motif enregistre' }}</div></div>
             </div>
             @include('partials.approval-steps', ['approvalSteps' => $invoice->approvalSteps])
         </section>
@@ -347,10 +357,10 @@
             <div class="grid">
                 <div><strong>Statut paiement</strong><div class="muted">{{ $invoice->payment_status === 'paid' ? 'Payee' : ($invoice->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}</div></div>
                 <div><strong>Entrepot</strong><div class="muted">{{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</div></div>
-                <div><strong>Effet stock</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Stock mis a jour' : ($invoice->status === 'cancelled' ? 'Aucun effet stock final' : 'En attente d approbation finale') }}</div></div>
-                <div><strong>Effet comptable</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Ecriture generee' : ($invoice->status === 'cancelled' ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
+                <div><strong>Effet stock</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Stock mis a jour' : (in_array($invoice->status, ['cancelled', 'rejected'], true) ? 'Aucun effet stock final' : 'En attente d approbation finale') }}</div></div>
+                <div><strong>Effet comptable</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Ecriture generee' : (in_array($invoice->status, ['cancelled', 'rejected'], true) ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
                 <div><strong>Nombre de mouvements</strong><div class="muted">{{ $stockMovements->count() }} mouvement(s) de stock lie(s)</div></div>
-                <div><strong>Correction requise</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Avoir client seulement' : ($invoice->status === 'cancelled' ? 'Dossier clos' : 'Annulation possible sous permission') }}</div></div>
+                <div><strong>Correction requise</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Avoir client seulement' : ($invoice->status === 'cancelled' ? 'Dossier clos' : ($invoice->status === 'rejected' ? 'Correction puis nouvelle soumission' : 'Annulation possible sous permission')) }}</div></div>
             </div>
         </section>
     </div>
@@ -388,6 +398,8 @@
             <h2 style="margin-top:0;">Encaissements</h2>
             @if ($invoice->status === 'cancelled')
                 <p class="muted">Aucun paiement possible: cette facture a ete annulee avant validation finale.</p>
+            @elseif ($invoice->status === 'rejected')
+                <p class="muted">Aucun paiement possible: cette facture a ete rejetee et doit etre corrigee avant une nouvelle soumission.</p>
             @elseif ($invoice->status !== 'validated')
                 <p class="muted">Aucun paiement possible tant que la facture client n est pas completement approuvee.</p>
             @else

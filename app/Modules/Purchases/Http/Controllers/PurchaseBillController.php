@@ -87,7 +87,7 @@ class PurchaseBillController extends Controller
                     $bill->supplier?->name,
                     $bill->branch?->name,
                     $bill->warehouse?->name,
-                    $bill->status === 'validated' ? 'Approuvee' : 'En attente',
+                    $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente'),
                     number_format((float) $bill->total, 2, '.', ''),
                     number_format((float) $bill->amount_paid, 2, '.', ''),
                     number_format((float) $bill->balance_due, 2, '.', ''),
@@ -228,6 +228,9 @@ class PurchaseBillController extends Controller
 
         /** @var PurchaseBill $bill */
         $bill = $result['document'];
+        foreach ($result['approved_steps'] as $approvedStep) {
+            $this->outboundNotificationService->cancelQueuedForApprovalStep($bill, (int) $approvedStep->step_order, 'Etape deja approuvee, notification obsolete.');
+        }
         $this->outboundNotificationService->dispatchApprovalRequest($bill, 'purchases', $result['next_step']);
 
         $this->activityLogger->log('purchases.approve', 'Approbation facture fournisseur', $bill, [
@@ -244,6 +247,36 @@ class PurchaseBillController extends Controller
         return redirect()->route('purchases.show', $bill)->with('success', $message);
     }
 
+    public function reject(PurchaseBill $purchase, CurrentWorkspace $workspace, Request $request): RedirectResponse
+    {
+        abort_if($workspace->companyId() !== $purchase->company_id, 403);
+
+        $data = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $result = $this->approvalFlowService->reject(
+            $purchase,
+            'purchases',
+            $request->user(),
+            fn (PurchaseBill $pendingBill, $user, ?string $reason) => $this->purchaseBillService->reject($pendingBill, $user, $reason),
+            $data['rejection_reason'],
+        );
+
+        /** @var PurchaseBill $bill */
+        $bill = $result['document'];
+        $this->outboundNotificationService->cancelQueuedForResource($bill, 'Workflow rejete avant validation finale.');
+
+        $this->activityLogger->log('purchases.reject', 'Rejet facture fournisseur', $bill, [
+            'bill_number' => $bill->bill_number,
+            'rejected_by' => $request->user()->id,
+            'rejected_step_order' => $result['rejected_step']->step_order,
+            'rejection_reason' => $data['rejection_reason'],
+        ]);
+
+        return redirect()->route('purchases.show', $bill)->with('success', 'Facture fournisseur rejetee avec motif.');
+    }
+
     public function show(PurchaseBill $purchase, CurrentWorkspace $workspace): View
     {
         abort_if($workspace->companyId() !== $purchase->company_id, 403);
@@ -258,7 +291,9 @@ class PurchaseBillController extends Controller
             'items.product',
             'creator',
             'approver',
+            'rejector',
             'approvalSteps.approver',
+            'approvalSteps.rejectedBy',
             'approvalSteps.assignedApprover',
             'approvalSteps.delegatedBy',
             'paymentAllocations.payment.cashAccount',
@@ -300,7 +335,9 @@ class PurchaseBillController extends Controller
                 'company',
                 'items.product',
                 'approver',
+                'rejector',
                 'approvalSteps.approver',
+                'approvalSteps.rejectedBy',
                 'approvalSteps.assignedApprover',
                 'approvalSteps.delegatedBy',
                 'paymentAllocations.payment.cashAccount',
@@ -359,7 +396,7 @@ class PurchaseBillController extends Controller
     private function filters(Request $request): array
     {
         $status = $request->string('status')->trim()->value() ?: null;
-        if (! in_array($status, ['validated', 'pending_approval'], true)) {
+        if (! in_array($status, ['validated', 'pending_approval', 'rejected'], true)) {
             $status = null;
         }
 
@@ -423,6 +460,10 @@ class PurchaseBillController extends Controller
 
     private function followUpLabel(PurchaseBill $bill, $today, $soonDate): string
     {
+        if ($bill->status === 'rejected') {
+            return 'Rejetee';
+        }
+
         if ($bill->status !== 'validated') {
             return 'Workflow';
         }

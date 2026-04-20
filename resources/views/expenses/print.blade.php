@@ -16,7 +16,7 @@
             <div><strong>Date :</strong> {{ $expense->expense_date?->format('d/m/Y') }}</div>
             <div class="meta">Agence : {{ $expense->branch?->name }}</div>
             <div class="meta">Categorie : {{ $expense->category?->name }}</div>
-            <div class="meta">Workflow : {{ $expense->status === 'validated' ? 'Approuvee' : 'En attente' }}</div>
+            <div class="meta">Workflow : {{ $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente') }}</div>
             <div class="meta">Devise : {{ $expense->company?->currency_code ?: 'XOF' }}</div>
         </div>
     </section>
@@ -28,10 +28,11 @@
             <div><strong>Fournisseur :</strong> {{ $expense->supplier?->name ?: 'Non renseigne' }}</div>
             <div><strong>Saisi par :</strong> {{ $expense->creator?->name ?: 'Systeme' }}</div>
             <div><strong>Approuvee par :</strong> {{ $expense->approver?->name ?: 'Non approuvee' }}</div>
+            <div><strong>Rejetee par :</strong> {{ $expense->rejector?->name ?: 'Non rejetee' }}</div>
         </div>
         <div class="panel">
             <h2>Situation</h2>
-            <div><strong>Workflow :</strong> {{ $expense->status === 'validated' ? 'Approuvee' : 'En attente d approbation' }}</div>
+            <div><strong>Workflow :</strong> {{ $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente d approbation') }}</div>
             <div><strong>Statut paiement :</strong> {{ $expense->payment_status === 'paid' ? 'Payee' : 'Non payee' }}</div>
             <div><strong>Compte :</strong> {{ $expense->cashAccount?->name ?: 'Aucun' }}</div>
             <div><strong>Date de paiement :</strong> {{ $expense->payment_date?->format('d/m/Y') ?: 'Non renseignee' }}</div>
@@ -49,7 +50,7 @@
         </tr>
         <tr class="grand-total">
             <td>Workflow</td>
-            <td class="right">{{ $expense->status === 'validated' ? 'Approuvee' : 'En attente' }}</td>
+            <td class="right">{{ $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente') }}</td>
         </tr>
     </table>
 

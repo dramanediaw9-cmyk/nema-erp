@@ -16,6 +16,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/depenses/creer', [ExpenseController::class, 'create'])->middleware('permission:expenses.manage')->name('expenses.create');
     Route::post('/depenses', [ExpenseController::class, 'store'])->middleware('permission:expenses.manage')->name('expenses.store');
     Route::post('/depenses/{expense}/approuver', [ExpenseController::class, 'approve'])->middleware('permission:expenses.approve')->name('expenses.approve');
+    Route::post('/depenses/{expense}/rejeter', [ExpenseController::class, 'reject'])->middleware('permission:expenses.approve')->name('expenses.reject');
     Route::get('/depenses/{expense}', [ExpenseController::class, 'show'])->middleware('permission:expenses.view')->name('expenses.show');
     Route::get('/depenses/{expense}/imprimer', [ExpenseController::class, 'print'])->middleware('permission:expenses.view')->name('expenses.print');
 });

@@ -67,6 +67,9 @@ class SalesInvoice extends Model
         'approved_by',
         'cancelled_at',
         'cancelled_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_reason',
         'created_by',
     ];
 
@@ -78,6 +81,7 @@ class SalesInvoice extends Model
             'validated_at' => 'datetime',
             'approved_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'subtotal' => 'decimal:2',
             'discount_value' => 'decimal:2',
             'discount_total' => 'decimal:2',
@@ -145,6 +149,11 @@ class SalesInvoice extends Model
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function rejector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function items(): HasMany

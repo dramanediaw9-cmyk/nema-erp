@@ -83,6 +83,18 @@
                         </form>
                     </div>
                 </div>
+                @if ($item['reject_url'])
+                    <form method="POST" action="{{ $item['reject_url'] }}" class="form-grid" style="margin-top:16px; grid-template-columns:minmax(220px, 2fr) auto; align-items:end;">
+                        @csrf
+                        <div>
+                            <label>Motif du rejet</label>
+                            <input type="text" name="rejection_reason" maxlength="1000" required placeholder="Blocage, correction demandee, piece manquante...">
+                        </div>
+                        <div class="actions" style="margin-top:0;">
+                            <button type="submit" class="button button-secondary">Rejeter</button>
+                        </div>
+                    </form>
+                @endif
                 @if ($item['delegate_url'] && $delegateCandidates->isNotEmpty())
                     <form method="POST" action="{{ $item['delegate_url'] }}" class="form-grid" style="margin-top:16px; grid-template-columns:minmax(220px, 1.2fr) minmax(220px, 2fr) auto; align-items:end;">
                         @csrf

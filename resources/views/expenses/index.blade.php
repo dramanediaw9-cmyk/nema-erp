@@ -66,6 +66,7 @@
                     <option value="">Tous</option>
                     <option value="validated" @selected(($filters['status'] ?? null) === 'validated')>Approuvees</option>
                     <option value="pending_approval" @selected(($filters['status'] ?? null) === 'pending_approval')>En attente</option>
+                    <option value="rejected" @selected(($filters['status'] ?? null) === 'rejected')>Rejetees</option>
                 </select>
             </div>
             <div>
@@ -115,7 +116,10 @@
                     $followUpLabel = 'Recent';
                     $followUpClass = 'badge-muted';
 
-                    if ($expense->status !== 'validated') {
+                    if ($expense->status === 'rejected') {
+                        $followUpLabel = 'Rejetee';
+                        $followUpClass = 'badge-danger';
+                    } elseif ($expense->status !== 'validated') {
                         $followUpLabel = 'Workflow';
                         $followUpClass = 'badge-warning';
                     } elseif ($expense->payment_status === 'paid') {
@@ -145,9 +149,11 @@
                     <td>{{ $expense->category?->name }}</td>
                     <td>{{ $expense->supplier?->name ?? 'Non renseigne' }}</td>
                     <td>
-                        <span class="badge {{ $expense->status === 'validated' ? 'badge-success' : 'badge-warning' }}">{{ $expense->status === 'validated' ? 'Approuvee' : 'En attente' }}</span>
-                        @if ($expense->status !== 'validated' && $nextStep)
+                        <span class="badge {{ $expense->status === 'validated' ? 'badge-success' : ($expense->status === 'rejected' ? 'badge-danger' : 'badge-warning') }}">{{ $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente') }}</span>
+                        @if ($expense->status === 'pending_approval' && $nextStep)
                             <div class="muted" style="margin-top:6px; font-size:12px;">Etape : {{ $nextStep->label }}</div>
+                        @elseif ($expense->status === 'rejected')
+                            <div class="muted" style="margin-top:6px; font-size:12px;">Rejetee le {{ $expense->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
                         @endif
                     </td>
                     <td>{{ number_format((float) $expense->total, 0, ',', ' ') }} XOF</td>

@@ -142,6 +142,47 @@ class PurchaseBillService
         });
     }
 
+    public function reject(PurchaseBill $bill, User $user, ?string $reason = null): PurchaseBill
+    {
+        return DB::transaction(function () use ($bill, $user, $reason) {
+            $bill = PurchaseBill::query()
+                ->with(['supplier', 'branch', 'warehouse', 'goodsReceipt', 'purchaseOrder', 'items.product'])
+                ->whereKey($bill->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($bill->status !== 'pending_approval') {
+                throw ValidationException::withMessages([
+                    'purchase' => 'Cette facture fournisseur n est pas en attente d approbation.',
+                ]);
+            }
+
+            $rejectedAt = now();
+
+            $bill->update([
+                'status' => 'rejected',
+                'validated_at' => null,
+                'approved_at' => null,
+                'approved_by' => null,
+                'rejected_at' => $rejectedAt,
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
+            ]);
+
+            $bill = $bill->fresh(['supplier', 'branch', 'warehouse', 'goodsReceipt', 'purchaseOrder', 'items.product', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy']);
+
+            $this->integrationOutboxService->record($bill, 'purchases.bill.rejected', [
+                'bill_number' => $bill->bill_number,
+                'status' => $bill->status,
+                'rejected_at' => $rejectedAt->toIso8601String(),
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
+            ]);
+
+            return $bill;
+        });
+    }
+
     public function normalizeItems(int $companyId, array $items, ?Partner $supplier = null): Collection
     {
         $filteredItems = collect($items)

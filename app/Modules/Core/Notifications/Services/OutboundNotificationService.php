@@ -80,9 +80,11 @@ class OutboundNotificationService
             'queued' => (clone $query)->where('status', 'queued')->count(),
             'sent' => (clone $query)->where('status', 'sent')->count(),
             'failed' => (clone $query)->where('status', 'failed')->count(),
+            'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
             'oldest_queued_at' => (clone $query)->where('status', 'queued')->min('queued_at'),
             'last_sent_at' => (clone $query)->where('status', 'sent')->max('sent_at'),
             'last_failed_at' => (clone $query)->where('status', 'failed')->max('failed_at'),
+            'last_cancelled_at' => (clone $query)->where('status', 'cancelled')->max('failed_at'),
         ];
     }
 
@@ -148,23 +150,23 @@ class OutboundNotificationService
 
     public function cancelQueuedForResource(Model $document, string $reason = 'Document annule avant traitement.'): int
     {
-        $failedAt = now();
+        $cancelledAt = now();
 
         return OutboundNotification::query()
             ->where('resource_type', $document::class)
             ->where('resource_id', $document->getKey())
             ->where('status', 'queued')
             ->update([
-                'status' => 'failed',
-                'failed_at' => $failedAt,
+                'status' => 'cancelled',
+                'failed_at' => $cancelledAt,
                 'failure_reason' => Str::limit(trim($reason) ?: 'Document annule avant traitement.', 1000),
-                'updated_at' => $failedAt,
+                'updated_at' => $cancelledAt,
             ]);
     }
 
     public function cancelQueuedForApprovalStep(Model $document, int $stepOrder, string $reason = 'Etape d approbation reaffectee.'): int
     {
-        $failedAt = now();
+        $cancelledAt = now();
 
         return OutboundNotification::query()
             ->where('resource_type', $document::class)
@@ -172,10 +174,10 @@ class OutboundNotificationService
             ->where('step_order', $stepOrder)
             ->where('status', 'queued')
             ->update([
-                'status' => 'failed',
-                'failed_at' => $failedAt,
+                'status' => 'cancelled',
+                'failed_at' => $cancelledAt,
                 'failure_reason' => Str::limit(trim($reason) ?: 'Etape d approbation reaffectee.', 1000),
-                'updated_at' => $failedAt,
+                'updated_at' => $cancelledAt,
             ]);
     }
 

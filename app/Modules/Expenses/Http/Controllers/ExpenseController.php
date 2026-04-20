@@ -84,7 +84,7 @@ class ExpenseController extends Controller
                 $expense->category?->name,
                 $expense->supplier?->name,
                 $expense->branch?->name,
-                $expense->status === 'validated' ? 'Approuvee' : 'En attente',
+                $expense->status === 'validated' ? 'Approuvee' : ($expense->status === 'rejected' ? 'Rejetee' : 'En attente'),
                 number_format((float) $expense->total, 2, '.', ''),
                 $expense->payment_status,
                 $this->followUpLabel($expense, $today),
@@ -168,6 +168,9 @@ class ExpenseController extends Controller
 
         /** @var Expense $expense */
         $expense = $result['document'];
+        foreach ($result['approved_steps'] as $approvedStep) {
+            $this->outboundNotificationService->cancelQueuedForApprovalStep($expense, (int) $approvedStep->step_order, 'Etape deja approuvee, notification obsolete.');
+        }
         $this->outboundNotificationService->dispatchApprovalRequest($expense, 'expenses', $result['next_step']);
 
         $this->activityLogger->log('expenses.approve', 'Approbation depense', $expense, [
@@ -184,12 +187,42 @@ class ExpenseController extends Controller
         return redirect()->route('expenses.show', $expense)->with('success', $message);
     }
 
+    public function reject(Expense $expense, CurrentWorkspace $workspace, Request $request): RedirectResponse
+    {
+        abort_if($workspace->companyId() !== $expense->company_id, 403);
+
+        $data = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $result = $this->approvalFlowService->reject(
+            $expense,
+            'expenses',
+            $request->user(),
+            fn (Expense $pendingExpense, $user, ?string $reason) => $this->expenseService->reject($pendingExpense, $user, $reason),
+            $data['rejection_reason'],
+        );
+
+        /** @var Expense $expense */
+        $expense = $result['document'];
+        $this->outboundNotificationService->cancelQueuedForResource($expense, 'Workflow rejete avant validation finale.');
+
+        $this->activityLogger->log('expenses.reject', 'Rejet depense', $expense, [
+            'expense_number' => $expense->expense_number,
+            'rejected_by' => $request->user()->id,
+            'rejected_step_order' => $result['rejected_step']->step_order,
+            'rejection_reason' => $data['rejection_reason'],
+        ]);
+
+        return redirect()->route('expenses.show', $expense)->with('success', 'Depense rejetee avec motif.');
+    }
+
     public function show(Expense $expense, CurrentWorkspace $workspace): View
     {
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
         return view('expenses.show', [
-            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
+            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
             'journalEntries' => JournalEntry::query()
                 ->with(['creator'])
                 ->where('company_id', $expense->company_id)
@@ -205,7 +238,7 @@ class ExpenseController extends Controller
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
         return $this->pdfDocumentService->inline('expenses.print', [
-            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'approvalSteps.approver', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
+            'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
         ], 'depense-'.$expense->expense_number.'.pdf');
     }
 
@@ -251,7 +284,7 @@ class ExpenseController extends Controller
     private function filters(Request $request): array
     {
         $status = $request->string('status')->trim()->value() ?: null;
-        if (! in_array($status, ['validated', 'pending_approval'], true)) {
+        if (! in_array($status, ['validated', 'pending_approval', 'rejected'], true)) {
             $status = null;
         }
 
@@ -315,6 +348,10 @@ class ExpenseController extends Controller
 
     private function followUpLabel(Expense $expense, $today): string
     {
+        if ($expense->status === 'rejected') {
+            return 'Rejetee';
+        }
+
         if ($expense->status !== 'validated') {
             return 'Workflow';
         }

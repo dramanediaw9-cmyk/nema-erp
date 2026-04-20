@@ -129,6 +129,12 @@ class SalesInvoiceService
                 ]);
             }
 
+            if ($invoice->status === 'rejected') {
+                throw ValidationException::withMessages([
+                    'sale' => 'Cette facture client a deja ete rejetee dans le workflow et ne peut plus etre annulee.',
+                ]);
+            }
+
             if ((float) $invoice->amount_paid > 0 || $invoice->paymentAllocations->isNotEmpty()) {
                 throw ValidationException::withMessages([
                     'sale' => 'Cette facture en attente a deja des encaissements et ne peut pas etre annulee directement.',
@@ -146,6 +152,9 @@ class SalesInvoiceService
                 'approved_by' => null,
                 'cancelled_at' => $cancelledAt,
                 'cancelled_by' => $user->id,
+                'rejected_at' => null,
+                'rejected_by' => null,
+                'rejection_reason' => null,
                 'notes' => $reason ? trim(trim((string) $invoice->notes).' '.trim($reason)) : $invoice->notes,
             ]);
 
@@ -156,6 +165,55 @@ class SalesInvoiceService
                 'status' => $invoice->status,
                 'cancelled_at' => $cancelledAt->toIso8601String(),
                 'cancelled_by' => $user->id,
+            ]);
+
+            return $invoice;
+        });
+    }
+
+    public function reject(SalesInvoice $invoice, User $user, ?string $reason = null): SalesInvoice
+    {
+        return DB::transaction(function () use ($invoice, $user, $reason) {
+            $invoice = SalesInvoice::query()
+                ->with(['customer', 'branch', 'warehouse', 'items.product', 'paymentAllocations', 'approvalSteps'])
+                ->whereKey($invoice->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($invoice->status !== 'pending_approval') {
+                throw ValidationException::withMessages([
+                    'sale' => 'Cette facture client n est pas en attente d approbation.',
+                ]);
+            }
+
+            if ((float) $invoice->amount_paid > 0 || $invoice->paymentAllocations->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'sale' => 'Cette facture en attente a deja des encaissements et ne peut pas etre rejetee directement.',
+                ]);
+            }
+
+            $rejectedAt = now();
+
+            $invoice->update([
+                'status' => 'rejected',
+                'validated_at' => null,
+                'approved_at' => null,
+                'approved_by' => null,
+                'cancelled_at' => null,
+                'cancelled_by' => null,
+                'rejected_at' => $rejectedAt,
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
+            ]);
+
+            $invoice = $invoice->fresh(['customer', 'branch', 'warehouse', 'items.product', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy']);
+
+            $this->integrationOutboxService->record($invoice, 'sales.invoice.rejected', [
+                'invoice_number' => $invoice->invoice_number,
+                'status' => $invoice->status,
+                'rejected_at' => $rejectedAt->toIso8601String(),
+                'rejected_by' => $user->id,
+                'rejection_reason' => $reason,
             ]);
 
             return $invoice;
