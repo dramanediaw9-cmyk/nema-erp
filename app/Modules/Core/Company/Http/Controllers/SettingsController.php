@@ -3,7 +3,9 @@
 namespace App\Modules\Core\Company\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\Core\Approvals\Services\ApprovalSettingsService;
+use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\DocumentSequence;
 use App\Modules\Core\Company\Models\PaymentTerm;
 use App\Modules\Core\Company\Models\PriceList;
@@ -46,6 +48,18 @@ class SettingsController extends Controller
         }
 
         $this->ensureDefaultSequences($company->id);
+        $branches = Branch::query()
+            ->where('company_id', $company->id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+        $approvalUsers = User::query()
+            ->with(['branch:id,name', 'roles.permissions'])
+            ->where('company_id', $company->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
 
         return view('settings.index', [
             'company' => $company,
@@ -55,6 +69,21 @@ class SettingsController extends Controller
             ),
             'sequences' => DocumentSequence::query()->where('company_id', $company->id)->orderBy('document_type')->get(),
             'approvalWorkflows' => $this->approvalSettingsService->workflowForCompany($company->id),
+            'approvalAssignees' => [
+                'sales' => [
+                    'step1' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'sales', 1))->values(),
+                    'step2' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'sales', 2))->values(),
+                ],
+                'purchases' => [
+                    'step1' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'purchases', 1))->values(),
+                    'step2' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'purchases', 2))->values(),
+                ],
+                'expenses' => [
+                    'step1' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'expenses', 1))->values(),
+                    'step2' => $approvalUsers->filter(fn (User $user) => $this->approvalSettingsService->canUserBeAssigned($user, 'expenses', 2))->values(),
+                ],
+            ],
+            'branches' => $branches,
             'approvalNotificationChannels' => $this->approvalSettingsService->notificationChannelsForCompany($company->id),
             'paymentTerms' => PaymentTerm::query()->where('company_id', $company->id)->orderByDesc('is_default')->orderBy('days')->get(),
             'priceLists' => PriceList::query()->with(['items.product'])->where('company_id', $company->id)->orderByDesc('is_default')->orderBy('name')->get(),
@@ -174,17 +203,44 @@ class SettingsController extends Controller
             'workflows.sales.critical_threshold' => ['required', 'integer', 'min:0'],
             'workflows.sales.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
             'workflows.sales.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.sales.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.sales.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.sales.branch_assignments' => ['nullable', 'array'],
+            'workflows.sales.branch_assignments.*.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.sales.branch_assignments.*.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
             'workflows.purchases.step2_threshold' => ['required', 'integer', 'min:0'],
             'workflows.purchases.critical_threshold' => ['required', 'integer', 'min:0'],
             'workflows.purchases.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
             'workflows.purchases.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.purchases.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.purchases.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.purchases.branch_assignments' => ['nullable', 'array'],
+            'workflows.purchases.branch_assignments.*.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.purchases.branch_assignments.*.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
             'workflows.expenses.step2_threshold' => ['required', 'integer', 'min:0'],
             'workflows.expenses.critical_threshold' => ['required', 'integer', 'min:0'],
             'workflows.expenses.step1_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
             'workflows.expenses.step2_sla_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'workflows.expenses.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.expenses.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.expenses.branch_assignments' => ['nullable', 'array'],
+            'workflows.expenses.branch_assignments.*.step1_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
+            'workflows.expenses.branch_assignments.*.step2_assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('company_id', $company->id)->where('is_active', true))],
         ]);
 
-        $validator->after(function ($validator) use ($request): void {
+        $validator->after(function ($validator) use ($company, $request): void {
+            $availableUsers = User::query()
+                ->with(['roles.permissions'])
+                ->where('company_id', $company->id)
+                ->where('is_active', true)
+                ->get()
+                ->keyBy('id');
+            $branchIds = Branch::query()
+                ->where('company_id', $company->id)
+                ->pluck('id')
+                ->map(fn (int $branchId) => (string) $branchId)
+                ->all();
+
             foreach (['sales', 'purchases', 'expenses'] as $module) {
                 $step2Threshold = (int) data_get($request->all(), 'workflows.'.$module.'.step2_threshold', 0);
                 $criticalThreshold = (int) data_get($request->all(), 'workflows.'.$module.'.critical_threshold', 0);
@@ -198,6 +254,47 @@ class SettingsController extends Controller
                 if ($step2Sla > $step1Sla) {
                     $validator->errors()->add('workflows.'.$module.'.step2_sla_hours', 'Le SLA de la deuxieme etape doit etre inferieur ou egal au SLA de la premiere etape.');
                 }
+
+                $this->validateWorkflowAssignee(
+                    $validator,
+                    $availableUsers,
+                    $module,
+                    1,
+                    data_get($request->all(), 'workflows.'.$module.'.step1_assignee_id'),
+                    'workflows.'.$module.'.step1_assignee_id'
+                );
+                $this->validateWorkflowAssignee(
+                    $validator,
+                    $availableUsers,
+                    $module,
+                    2,
+                    data_get($request->all(), 'workflows.'.$module.'.step2_assignee_id'),
+                    'workflows.'.$module.'.step2_assignee_id'
+                );
+
+                foreach ((array) data_get($request->all(), 'workflows.'.$module.'.branch_assignments', []) as $branchId => $assignment) {
+                    if (! in_array((string) $branchId, $branchIds, true)) {
+                        $validator->errors()->add('workflows.'.$module.'.branch_assignments.'.$branchId, 'Agence invalide pour le routage d approbation.');
+                        continue;
+                    }
+
+                    $this->validateWorkflowAssignee(
+                        $validator,
+                        $availableUsers,
+                        $module,
+                        1,
+                        $assignment['step1_assignee_id'] ?? null,
+                        'workflows.'.$module.'.branch_assignments.'.$branchId.'.step1_assignee_id'
+                    );
+                    $this->validateWorkflowAssignee(
+                        $validator,
+                        $availableUsers,
+                        $module,
+                        2,
+                        $assignment['step2_assignee_id'] ?? null,
+                        'workflows.'.$module.'.branch_assignments.'.$branchId.'.step2_assignee_id'
+                    );
+                }
             }
         });
 
@@ -209,6 +306,15 @@ class SettingsController extends Controller
                 'critical_threshold' => (int) $module['critical_threshold'],
                 'step1_sla_hours' => (int) $module['step1_sla_hours'],
                 'step2_sla_hours' => (int) $module['step2_sla_hours'],
+                'step1_assignee_id' => $this->nullableInteger($module['step1_assignee_id'] ?? null),
+                'step2_assignee_id' => $this->nullableInteger($module['step2_assignee_id'] ?? null),
+                'branch_assignments' => collect($module['branch_assignments'] ?? [])
+                    ->map(fn (array $assignment) => [
+                        'step1_assignee_id' => $this->nullableInteger($assignment['step1_assignee_id'] ?? null),
+                        'step2_assignee_id' => $this->nullableInteger($assignment['step2_assignee_id'] ?? null),
+                    ])
+                    ->filter(fn (array $assignment) => $assignment['step1_assignee_id'] || $assignment['step2_assignee_id'])
+                    ->all(),
             ])
             ->all();
 
@@ -550,6 +656,30 @@ class SettingsController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function validateWorkflowAssignee($validator, $availableUsers, string $module, int $stepOrder, mixed $assigneeId, string $field): void
+    {
+        $assigneeId = $this->nullableInteger($assigneeId);
+        if (! $assigneeId) {
+            return;
+        }
+
+        $assignee = $availableUsers->get($assigneeId);
+        if (! $assignee || ! $this->approvalSettingsService->canUserBeAssigned($assignee, $module, $stepOrder)) {
+            $validator->errors()->add($field, $stepOrder > 1
+                ? 'Le valideur choisi doit pouvoir porter une validation direction.'
+                : 'Le valideur choisi doit pouvoir approuver ce module.');
+        }
+    }
+
+    private function nullableInteger(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return max((int) $value, 0) ?: null;
     }
 }
 

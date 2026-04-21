@@ -23,7 +23,7 @@ class ApprovalFlowService
             return $document->approvalSteps()->orderBy('step_order')->get();
         }
 
-        foreach ($this->definitions($document->company_id, $module, $amount) as $definition) {
+        foreach ($this->definitions($document, $module, $amount) as $definition) {
             $document->approvalSteps()->create([
                 'company_id' => $document->company_id,
                 'module' => $module,
@@ -32,7 +32,9 @@ class ApprovalFlowService
                 'label' => $definition['label'],
                 'rule' => $definition['rule'],
                 'status' => 'pending',
+                'assigned_to' => $definition['assigned_to'],
                 'due_at' => $definition['due_at'],
+                'meta' => $definition['meta'],
             ]);
         }
 
@@ -309,8 +311,10 @@ class ApprovalFlowService
         });
     }
 
-    private function definitions(int $companyId, string $module, float $amount): array
+    private function definitions(Model $document, string $module, float $amount): array
     {
+        $companyId = (int) $document->getAttribute('company_id');
+        $branchId = $document->getAttribute('branch_id') ? (int) $document->getAttribute('branch_id') : null;
         $config = $this->approvalSettingsService->workflowForCompany($companyId)[$module] ?? [
             'step2_threshold' => 100000,
             'critical_threshold' => 500000,
@@ -318,6 +322,7 @@ class ApprovalFlowService
 
         $step2Threshold = (float) ($config['step2_threshold'] ?? 100000);
         $criticalThreshold = (float) ($config['critical_threshold'] ?? 500000);
+        $step1Assignment = $this->approvalSettingsService->resolveAssignment($companyId, $module, 1, $branchId);
 
         $definitions = [
             [
@@ -325,17 +330,22 @@ class ApprovalFlowService
                 'code' => 'operational_review',
                 'label' => 'Validation operationnelle',
                 'rule' => 'module_approver',
+                'assigned_to' => $step1Assignment['assignee_id'],
                 'due_at' => $this->dueAtForHours((int) ($config['step1_sla_hours'] ?? 24)),
+                'meta' => $this->assignmentMeta($step1Assignment),
             ],
         ];
 
         if ($amount > $step2Threshold) {
+            $step2Assignment = $this->approvalSettingsService->resolveAssignment($companyId, $module, 2, $branchId);
             $definitions[] = [
                 'step_order' => 2,
                 'code' => 'director_review',
                 'label' => $amount > $criticalThreshold ? 'Validation direction obligatoire' : 'Validation direction',
                 'rule' => 'director_only',
+                'assigned_to' => $step2Assignment['assignee_id'],
                 'due_at' => $this->dueAtForHours((int) ($config['step2_sla_hours'] ?? 12)),
+                'meta' => $this->assignmentMeta($step2Assignment),
             ];
         }
 
@@ -450,6 +460,23 @@ class ApprovalFlowService
     private function dueAtForHours(int $hours): ?Carbon
     {
         return $hours > 0 ? now()->addHours($hours) : null;
+    }
+
+    private function assignmentMeta(array $assignment): ?array
+    {
+        if (! ($assignment['assignee_id'] ?? null) || ! ($assignment['source'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'assignment' => array_filter([
+                'source' => $assignment['source'],
+                'assigned_to' => $assignment['assignee_id'],
+                'branch_id' => $assignment['branch_id'] ?? null,
+                'step_order' => $assignment['step_order'] ?? null,
+                'assigned_at' => now()->toIso8601String(),
+            ], fn (mixed $value) => $value !== null && $value !== ''),
+        ];
     }
 
     private function ensurePendingApprovalDocument(Model $document): void

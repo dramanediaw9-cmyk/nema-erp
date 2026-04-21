@@ -198,32 +198,99 @@
     <div class="split" style="margin-top:18px;">
         <section class="card">
             <h2 style="margin-top:0;">Workflow d approbation</h2>
-            <div class="help" style="margin-bottom:16px;">Les roles restent fixes dans cette version : validation operationnelle puis direction. Tu ajustes ici les seuils, le SLA de chaque etape et donc le point de bascule de l escalade automatique.</div>
+            <div class="help" style="margin-bottom:16px;">Les roles restent fixes : validation operationnelle puis direction. Tu ajustes ici les seuils, les SLA et le routage permanent des etapes par module ou par agence.</div>
             <form method="POST" action="{{ route('settings.approvals.update') }}">
                 @csrf
                 @method('PUT')
                 <div class="grid">
                     @foreach (['sales' => 'Ventes', 'purchases' => 'Achats', 'expenses' => 'Depenses'] as $key => $label)
+                        @php
+                            $workflow = $approvalWorkflows[$key];
+                            $branchAssignments = $workflow['branch_assignments'] ?? [];
+                        @endphp
                         <div class="card" style="padding:16px;">
                             <div style="font-weight:700; margin-bottom:12px;">{{ $label }}</div>
                             <div class="form-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
                                 <div>
                                     <label>Seuil double validation</label>
-                                    <input type="number" min="0" step="1" name="workflows[{{ $key }}][step2_threshold]" value="{{ old('workflows.'.$key.'.step2_threshold', $approvalWorkflows[$key]['step2_threshold']) }}" required>
+                                    <input type="number" min="0" step="1" name="workflows[{{ $key }}][step2_threshold]" value="{{ old('workflows.'.$key.'.step2_threshold', $workflow['step2_threshold']) }}" required>
                                 </div>
                                 <div>
                                     <label>Seuil direction obligatoire</label>
-                                    <input type="number" min="0" step="1" name="workflows[{{ $key }}][critical_threshold]" value="{{ old('workflows.'.$key.'.critical_threshold', $approvalWorkflows[$key]['critical_threshold']) }}" required>
+                                    <input type="number" min="0" step="1" name="workflows[{{ $key }}][critical_threshold]" value="{{ old('workflows.'.$key.'.critical_threshold', $workflow['critical_threshold']) }}" required>
                                 </div>
                                 <div>
                                     <label>SLA etape 1 (heures)</label>
-                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step1_sla_hours]" value="{{ old('workflows.'.$key.'.step1_sla_hours', $approvalWorkflows[$key]['step1_sla_hours']) }}" required>
+                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step1_sla_hours]" value="{{ old('workflows.'.$key.'.step1_sla_hours', $workflow['step1_sla_hours']) }}" required>
                                 </div>
                                 <div>
                                     <label>SLA etape 2 (heures)</label>
-                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step2_sla_hours]" value="{{ old('workflows.'.$key.'.step2_sla_hours', $approvalWorkflows[$key]['step2_sla_hours']) }}" required>
+                                    <input type="number" min="1" max="168" step="1" name="workflows[{{ $key }}][step2_sla_hours]" value="{{ old('workflows.'.$key.'.step2_sla_hours', $workflow['step2_sla_hours']) }}" required>
+                                </div>
+                                <div>
+                                    <label>Valideur par defaut etape 1</label>
+                                    <select name="workflows[{{ $key }}][step1_assignee_id]">
+                                        <option value="">Affectation automatique</option>
+                                        @foreach ($approvalAssignees[$key]['step1'] as $approver)
+                                            <option value="{{ $approver->id }}" @selected((string) old('workflows.'.$key.'.step1_assignee_id', $workflow['step1_assignee_id'] ?? '') === (string) $approver->id)>
+                                                {{ $approver->name }}{{ $approver->branch?->name ? ' · '.$approver->branch->name : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Valideur par defaut etape 2</label>
+                                    <select name="workflows[{{ $key }}][step2_assignee_id]">
+                                        <option value="">Direction automatique</option>
+                                        @foreach ($approvalAssignees[$key]['step2'] as $approver)
+                                            <option value="{{ $approver->id }}" @selected((string) old('workflows.'.$key.'.step2_assignee_id', $workflow['step2_assignee_id'] ?? '') === (string) $approver->id)>
+                                                {{ $approver->name }}{{ $approver->branch?->name ? ' · '.$approver->branch->name : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
                                 </div>
                             </div>
+                            @if ($branches->isNotEmpty())
+                                <div class="help" style="margin:14px 0 10px;">Surcharges par agence : utile quand une agence a son propre responsable de validation.</div>
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Agence</th>
+                                                <th>Etape 1</th>
+                                                <th>Etape 2</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($branches as $branch)
+                                                <tr>
+                                                    <td>{{ $branch->name }}</td>
+                                                    <td>
+                                                        <select name="workflows[{{ $key }}][branch_assignments][{{ $branch->id }}][step1_assignee_id]">
+                                                            <option value="">Heriter du module</option>
+                                                            @foreach ($approvalAssignees[$key]['step1'] as $approver)
+                                                                <option value="{{ $approver->id }}" @selected((string) old('workflows.'.$key.'.branch_assignments.'.$branch->id.'.step1_assignee_id', data_get($branchAssignments, $branch->id.'.step1_assignee_id')) === (string) $approver->id)>
+                                                                    {{ $approver->name }}{{ $approver->branch?->name ? ' · '.$approver->branch->name : '' }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <select name="workflows[{{ $key }}][branch_assignments][{{ $branch->id }}][step2_assignee_id]">
+                                                            <option value="">Heriter du module</option>
+                                                            @foreach ($approvalAssignees[$key]['step2'] as $approver)
+                                                                <option value="{{ $approver->id }}" @selected((string) old('workflows.'.$key.'.branch_assignments.'.$branch->id.'.step2_assignee_id', data_get($branchAssignments, $branch->id.'.step2_assignee_id')) === (string) $approver->id)>
+                                                                    {{ $approver->name }}{{ $approver->branch?->name ? ' · '.$approver->branch->name : '' }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
