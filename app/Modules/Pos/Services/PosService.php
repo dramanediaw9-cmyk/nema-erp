@@ -1070,7 +1070,8 @@ class PosService
             ->when($filters['warehouse_id'] ?? null, fn (Builder $query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->when($filters['cash_account_id'] ?? null, fn (Builder $query, $cashAccountId) => $query->where('cash_account_id', $cashAccountId));
 
-        $sessionIds = (clone $sessionsQuery)->pluck('id');
+        $sessions = $sessionsQuery->latest('opened_at')->get();
+        $sessionIds = $sessions->pluck('id');
 
         $salesQuery = SalesInvoice::query()
             ->where('company_id', $companyId)
@@ -1137,11 +1138,14 @@ class PosService
             ->map(fn ($product) => tap($product, function ($product): void {
                 $product->image_url = $product->image_path ? url(route('products.media.show', ['path' => $product->image_path], false)) : null;
             }));
+        $payments = $paymentsQuery
+            ->with(['reconciliationItem'])
+            ->get();
 
         return [
             'date' => $date,
             'filters' => $filters,
-            'sessions' => $sessionsQuery->latest('opened_at')->get(),
+            'sessions' => $sessions,
             'sales_count' => (int) (clone $salesQuery)->count(),
             'gross_sales' => $grossSales,
             'discounts_total' => $discountsTotal,
@@ -1156,6 +1160,7 @@ class PosService
             'method_breakdown' => $methodBreakdown,
             'top_products' => $topProducts,
             'top_returns' => $topReturns,
+            'settlement_watch' => $this->settlementWatch($sessions, $payments),
         ];
     }
 
@@ -1221,6 +1226,104 @@ class PosService
         }
 
         return $difference;
+    }
+
+    private function settlementWatch(EloquentCollection|Collection $sessions, EloquentCollection|Collection $payments): array
+    {
+        $focusMethods = ['cash', 'wave', 'orange_money', 'moov_money', 'mobile_money'];
+        $closedSessions = collect($sessions)->where('status', 'closed')->values();
+        $mobileMethods = collect($focusMethods)->reject(fn (string $method) => $method === 'cash')->values();
+
+        $methods = collect($focusMethods)
+            ->map(function (string $method) use ($closedSessions, $payments, $mobileMethods): array {
+                $methodPayments = collect($payments)->where('method', $method)->values();
+                $unreconciledPayments = $methodPayments
+                    ->filter(fn (Payment $payment) => ! $payment->reconciliationItem)
+                    ->values();
+                $expectedTotal = 0.0;
+                $countedTotal = 0.0;
+                $varianceTotal = 0.0;
+                $sessionsWithVariance = 0;
+
+                foreach ($closedSessions as $session) {
+                    if (! $session instanceof PosSession) {
+                        continue;
+                    }
+
+                    $expected = $this->normalizeMethodBreakdown(is_array($session->expected_breakdown) ? $session->expected_breakdown : []);
+                    $counted = $this->normalizeMethodBreakdown(is_array($session->counted_breakdown) ? $session->counted_breakdown : []);
+                    $variance = $this->normalizeMethodBreakdown(is_array($session->variance_breakdown) ? $session->variance_breakdown : []);
+                    $expectedTotal += (float) ($expected[$method] ?? 0);
+                    $countedTotal += (float) ($counted[$method] ?? 0);
+                    $varianceTotal += (float) ($variance[$method] ?? 0);
+
+                    if (abs((float) ($variance[$method] ?? 0)) > 0.009) {
+                        $sessionsWithVariance++;
+                    }
+                }
+
+                $varianceTotal = round($varianceTotal, 2);
+                $unreconciledAmount = round((float) $unreconciledPayments->sum(function (Payment $payment): float {
+                    return $payment->direction === 'out'
+                        ? -1 * (float) $payment->amount
+                        : (float) $payment->amount;
+                }), 2);
+                $missingReferenceCount = (int) $unreconciledPayments
+                    ->filter(fn (Payment $payment) => blank(trim((string) $payment->reference)))
+                    ->count();
+                $hasMobileExposure = $mobileMethods->contains($method);
+
+                $status = 'ok';
+                if (abs($varianceTotal) > 0.009 || abs($unreconciledAmount) > 0.009 || $missingReferenceCount > 0) {
+                    $status = (abs($varianceTotal) >= 1000 || abs($unreconciledAmount) >= 1000 || $missingReferenceCount >= 2)
+                        ? 'attention'
+                        : 'warning';
+                }
+
+                return [
+                    'method' => $method,
+                    'label' => $this->methodOptions()[$method] ?? $method,
+                    'expected_total' => round($expectedTotal, 2),
+                    'counted_total' => round($countedTotal, 2),
+                    'variance' => $varianceTotal,
+                    'sessions_with_variance' => $sessionsWithVariance,
+                    'payment_count' => (int) $methodPayments->count(),
+                    'unreconciled_amount' => $unreconciledAmount,
+                    'unreconciled_count' => (int) $unreconciledPayments->count(),
+                    'missing_reference_count' => $missingReferenceCount,
+                    'status' => $status,
+                    'is_mobile' => $hasMobileExposure,
+                    'has_activity' => $sessionsWithVariance > 0
+                        || abs((float) $expectedTotal) > 0.009
+                        || (int) $methodPayments->count() > 0
+                        || abs($unreconciledAmount) > 0.009
+                        || $missingReferenceCount > 0
+                        || $method === 'cash',
+                ];
+            })
+            ->filter(fn (array $row) => $row['has_activity'])
+            ->values();
+        $cashRow = $methods->firstWhere('method', 'cash');
+        $sessionsWithVarianceCount = $closedSessions
+            ->filter(function ($session): bool {
+                if (! $session instanceof PosSession) {
+                    return false;
+                }
+
+                $variance = $this->normalizeMethodBreakdown(is_array($session->variance_breakdown) ? $session->variance_breakdown : []);
+
+                return collect($variance)->contains(fn (float $amount) => abs($amount) > 0.009);
+            })
+            ->count();
+
+        return [
+            'closed_sessions_count' => (int) $closedSessions->count(),
+            'sessions_with_variance_count' => (int) $sessionsWithVarianceCount,
+            'cash_variance_total' => round((float) ($cashRow['variance'] ?? 0), 2),
+            'mobile_unreconciled_amount' => round((float) $methods->where('is_mobile', true)->sum('unreconciled_amount'), 2),
+            'missing_reference_count' => (int) $methods->where('is_mobile', true)->sum('missing_reference_count'),
+            'methods' => $methods->all(),
+        ];
     }
 
     private function allocateGlobalDiscounts(SalesInvoice $invoice): array

@@ -470,5 +470,74 @@
                 </div>
             </aside>
         </div>
+
+        <section class="card">
+            <div class="routine-section-head">
+                <div>
+                    <h3>Cloture cash / mobile money</h3>
+                    <p class="muted">Les ecarts constates sur les clotures du jour et les flux mobile money encore a rapprocher.</p>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    @allowed('pos.view')
+                        <a href="{{ route('pos.report', $reportFilters) }}" class="button button-secondary">Voir le rapport POS</a>
+                    @endallowed
+                    @allowed('payments.view')
+                        <a href="{{ route('payments.index', ['reconciliation_status' => 'unreconciled']) }}" class="button button-secondary">Voir les paiements a rapprocher</a>
+                    @endallowed
+                </div>
+            </div>
+            <div class="routine-balance-list">
+                @forelse ($settlementWatch['methods'] as $row)
+                    <div class="routine-balance-item">
+                        <div>
+                            <strong>{{ $row['label'] }}</strong>
+                            <div class="muted" style="margin-top:6px;">
+                                @if ($row['method'] === 'cash')
+                                    @if (abs((float) $row['variance']) > 0.009)
+                                        {{ number_format(abs((float) $row['variance']), 0, ',', ' ') }} XOF d ecart sur {{ $row['sessions_with_variance'] }} cloture(s).
+                                    @elseif (($settlementWatch['closed_sessions_count'] ?? 0) > 0)
+                                        Clotures cash sans ecart bloqueur aujourd hui.
+                                    @else
+                                        Aucune cloture caisse finalisee aujourd hui.
+                                    @endif
+                                @else
+                                    @if (abs((float) $row['unreconciled_amount']) > 0.009 || $row['missing_reference_count'] > 0)
+                                        {{ number_format(abs((float) $row['unreconciled_amount']), 0, ',', ' ') }} XOF a rapprocher
+                                        @if ($row['missing_reference_count'] > 0)
+                                            · {{ $row['missing_reference_count'] }} reference manquante
+                                        @endif
+                                    @elseif ($row['payment_count'] > 0)
+                                        {{ $row['payment_count'] }} flux enregistres sans alerte bloquante.
+                                    @else
+                                        Aucun flux sur ce canal aujourd hui.
+                                    @endif
+                                @endif
+                            </div>
+                            @if ($row['method'] === 'cash' && $row['expected_total'] > 0)
+                                <div class="help" style="margin-top:6px;">Attendu cloture : {{ number_format((float) $row['expected_total'], 0, ',', ' ') }} XOF</div>
+                            @elseif ($row['is_mobile'] && $row['unreconciled_count'] > 0)
+                                <div class="help" style="margin-top:6px;">{{ $row['unreconciled_count'] }} operation(s) non rapprochee(s).</div>
+                            @endif
+                        </div>
+                        <div style="display:grid; gap:8px; justify-items:end;">
+                            <span class="badge {{ $row['status'] === 'ok' ? 'badge-success' : ($row['status'] === 'attention' ? 'badge-danger' : 'badge-warning') }}">
+                                {{ $row['status'] === 'ok' ? 'Sous controle' : ($row['status'] === 'attention' ? 'Priorite' : 'A verifier') }}
+                            </span>
+                            @if ($row['is_mobile'] && ($row['unreconciled_count'] > 0 || $row['missing_reference_count'] > 0))
+                                @allowed('payments.view')
+                                    <a href="{{ route('payments.index', ['method' => $row['method'], 'reconciliation_status' => 'unreconciled']) }}" class="button button-secondary">Ouvrir</a>
+                                @endallowed
+                            @elseif ($row['method'] === 'cash' && abs((float) $row['variance']) > 0.009)
+                                @allowed('pos.view')
+                                    <a href="{{ route('pos.report', $reportFilters) }}" class="button button-secondary">Verifier</a>
+                                @endallowed
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <div class="routine-empty">Aucun flux cash ou mobile money a surveiller pour l instant.</div>
+                @endforelse
+            </div>
+        </section>
     </div>
 @endsection

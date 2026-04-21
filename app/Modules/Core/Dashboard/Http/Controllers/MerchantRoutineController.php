@@ -150,6 +150,7 @@ class MerchantRoutineController extends Controller
             'currentSession' => $currentSession,
             'sessionSummary' => $sessionSummary,
             'dailyReport' => $dailyReport,
+            'settlementWatch' => $dailyReport['settlement_watch'],
             'reportFilters' => $reportFilters,
             'recentTickets' => $recentTickets,
             'stockAlerts' => $stockAlerts,

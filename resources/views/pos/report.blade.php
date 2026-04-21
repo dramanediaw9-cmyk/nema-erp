@@ -115,7 +115,89 @@
                 </table>
             </div>
         </section>
+    </div>
 
+    <section class="card" style="margin-bottom:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Controle fin de journee</h2>
+                <div class="muted">Ecarts de cloture et flux mobile money encore a rapprocher pour la date selectionnee.</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                @allowed('payments.view')
+                    <a href="{{ route('payments.index', ['reconciliation_status' => 'unreconciled']) }}" class="button button-secondary">Paiements a rapprocher</a>
+                @endallowed
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Canal</th>
+                    <th>Attendu cloture</th>
+                    <th>Ecart cloture</th>
+                    <th>Non rapproche</th>
+                    <th>References</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse ($report['settlement_watch']['methods'] as $row)
+                    <tr>
+                        <td>
+                            <div style="font-weight:800; color:#16293f;">{{ $row['label'] }}</div>
+                            <div class="muted" style="font-size:13px; margin-top:6px;">
+                                @if ($row['method'] === 'cash')
+                                    {{ $row['sessions_with_variance'] }} cloture(s) avec ecart.
+                                @else
+                                    {{ $row['payment_count'] }} flux enregistres.
+                                @endif
+                            </div>
+                        </td>
+                        <td>{{ number_format((float) $row['expected_total'], 0, ',', ' ') }} XOF</td>
+                        <td>
+                            {{ number_format((float) $row['variance'], 0, ',', ' ') }} XOF
+                            @if (abs((float) $row['variance']) > 0.009)
+                                <div class="help" style="margin-top:6px; color:#b42318;">Verifier la cloture</div>
+                            @endif
+                        </td>
+                        <td>
+                            {{ number_format(abs((float) $row['unreconciled_amount']), 0, ',', ' ') }} XOF
+                            @if ($row['unreconciled_count'] > 0)
+                                <div class="help" style="margin-top:6px;">{{ $row['unreconciled_count'] }} operation(s)</div>
+                            @endif
+                        </td>
+                        <td>
+                            {{ $row['missing_reference_count'] }}
+                            @if ($row['missing_reference_count'] > 0)
+                                <div class="help" style="margin-top:6px; color:#9a5b00;">Reference manquante</div>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($row['is_mobile'] && ($row['unreconciled_count'] > 0 || $row['missing_reference_count'] > 0))
+                                @allowed('payments.view')
+                                    <a href="{{ route('payments.index', ['method' => $row['method'], 'reconciliation_status' => 'unreconciled']) }}" class="button button-secondary">Rapprocher</a>
+                                @else
+                                    <span class="badge badge-warning">A suivre</span>
+                                @endallowed
+                            @elseif ($row['method'] === 'cash' && abs((float) $row['variance']) > 0.009)
+                                <span class="badge badge-warning">Controle caisse</span>
+                            @else
+                                <span class="badge badge-success">OK</span>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="6" class="muted">Aucun canal cash ou mobile money a suivre pour cette date.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="split" style="margin-bottom:20px; align-items:start;">
         <section class="card">
             <h2 style="margin-top:0;">Sessions de la journee</h2>
             <div class="table-wrap">
