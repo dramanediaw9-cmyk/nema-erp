@@ -13,6 +13,8 @@ use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
 use App\Modules\Treasury\Models\Payment;
+use App\Modules\Treasury\Models\TreasuryReconciliation;
+use App\Modules\Treasury\Models\TreasuryReconciliationPayment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -41,6 +43,83 @@ class OperationalFiltersTest extends TestCase
             ->assertSee($supplierPayment->payment_number)
             ->assertSee('Banque BDM')
             ->assertDontSee($customerPayment->payment_number);
+    }
+
+    public function test_payments_page_can_highlight_unreconciled_mobile_money_without_reference(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $waveAccount = CashAccount::query()->where('company_id', $user->company_id)->where('name', 'Wave')->firstOrFail();
+        $orangeAccount = CashAccount::query()->where('company_id', $user->company_id)->where('name', 'Orange Money')->firstOrFail();
+
+        $wavePayment = Payment::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'cash_account_id' => $waveAccount->id,
+            'partner_id' => null,
+            'payment_number' => 'ENC-MM-TEST-001',
+            'direction' => 'in',
+            'payment_type' => 'customer_receipt',
+            'payment_date' => now()->toDateString(),
+            'amount' => 25000,
+            'method' => 'wave',
+            'reference' => null,
+            'notes' => 'Encaissement Wave sans reference',
+            'created_by' => $user->id,
+        ]);
+
+        $orangePayment = Payment::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'cash_account_id' => $orangeAccount->id,
+            'partner_id' => null,
+            'payment_number' => 'ENC-MM-TEST-002',
+            'direction' => 'in',
+            'payment_type' => 'customer_receipt',
+            'payment_date' => now()->toDateString(),
+            'amount' => 18000,
+            'method' => 'orange_money',
+            'reference' => 'OM-REF-TEST-002',
+            'notes' => 'Encaissement Orange rapproche',
+            'created_by' => $user->id,
+        ]);
+
+        $reconciliation = TreasuryReconciliation::query()->create([
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'cash_account_id' => $orangeAccount->id,
+            'reconciliation_number' => 'RAP-BKO-TEST-001',
+            'statement_date' => now()->toDateString(),
+            'statement_reference' => 'WALLET-STATEMENT-001',
+            'statement_balance' => 18000,
+            'matched_total' => 18000,
+            'book_balance' => 18000,
+            'difference' => 0,
+            'payments_count' => 1,
+            'status' => 'balanced',
+            'notes' => 'Rapprochement test mobile money',
+            'created_by' => $user->id,
+        ]);
+
+        TreasuryReconciliationPayment::query()->create([
+            'treasury_reconciliation_id' => $reconciliation->id,
+            'payment_id' => $orangePayment->id,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('payments.index', [
+                'method' => 'wave',
+                'reconciliation_status' => 'unreconciled',
+                'missing_reference' => 1,
+            ]))
+            ->assertOk()
+            ->assertSee('Pilotage mobile money')
+            ->assertSee('ENC-MM-TEST-001')
+            ->assertSee('Reference manquante')
+            ->assertSee('A rapprocher')
+            ->assertDontSee('ENC-MM-TEST-002');
     }
 
     public function test_stock_page_filters_by_category_search_and_stock_state(): void

@@ -19,6 +19,7 @@ use App\Support\PaymentMethodCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -41,13 +42,19 @@ class PaymentController extends Controller
 
         $filters = $this->filters($request);
         $branchScopeId = $this->paymentControlService->listingBranchScope($user, $workspace->branchId());
+        $filteredQuery = $this->filteredQuery($companyId, $filters, $branchScopeId);
+        $payments = $filteredQuery
+            ->latest('payment_date')
+            ->latest('id')
+            ->paginate(15)
+            ->withQueryString();
+        $mobileInsights = $this->mobileMoneyInsights(
+            (clone $filteredQuery)
+                ->get()
+        );
 
         return view('payments.index', [
-            'payments' => $this->filteredQuery($companyId, $filters, $branchScopeId)
-                ->latest('payment_date')
-                ->latest('id')
-                ->paginate(15)
-                ->withQueryString(),
+            'payments' => $payments,
             'filters' => $filters,
             'cashAccounts' => CashAccount::query()
                 ->where('company_id', $companyId)
@@ -61,6 +68,7 @@ class PaymentController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'methodOptions' => $this->methodOptions(),
+            'mobileInsights' => $mobileInsights,
             'scopeBranch' => $branchScopeId ? Branch::query()->where('company_id', $companyId)->find($branchScopeId) : null,
         ]);
     }
@@ -295,7 +303,7 @@ class PaymentController extends Controller
     private function filteredQuery(int $companyId, array $filters, ?int $branchScopeId = null): Builder
     {
         return Payment::query()
-            ->with(['cashAccount', 'partner', 'creator', 'allocations.allocatable'])
+            ->with(['cashAccount.branch', 'partner', 'creator', 'allocations.allocatable', 'reconciliationItem.reconciliation'])
             ->where('company_id', $companyId)
             ->when($branchScopeId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
             ->when($filters['date_from'], fn (Builder $query, string $dateFrom) => $query->whereDate('payment_date', '>=', $dateFrom))
@@ -303,6 +311,16 @@ class PaymentController extends Controller
             ->when($filters['payment_type'], fn (Builder $query, string $paymentType) => $query->where('payment_type', $paymentType))
             ->when($filters['method'], fn (Builder $query, string $method) => $query->where('method', $method))
             ->when($filters['cash_account_id'], fn (Builder $query, int $cashAccountId) => $query->where('cash_account_id', $cashAccountId))
+            ->when($filters['reconciliation_status'] === 'reconciled', fn (Builder $query) => $query->whereHas('reconciliationItem'))
+            ->when($filters['reconciliation_status'] === 'unreconciled', fn (Builder $query) => $query->whereDoesntHave('reconciliationItem'))
+            ->when($filters['missing_reference'], function (Builder $query) {
+                $query
+                    ->whereIn('method', $this->mobileMethodKeys())
+                    ->where(function (Builder $nested) {
+                        $nested->whereNull('reference')
+                            ->orWhere('reference', '');
+                    });
+            })
             ->when($filters['search'], function (Builder $query, string $search) {
                 $like = '%'.$search.'%';
 
@@ -330,6 +348,11 @@ class PaymentController extends Controller
             $method = null;
         }
 
+        $reconciliationStatus = $request->string('reconciliation_status')->trim()->value() ?: null;
+        if (! in_array($reconciliationStatus, ['reconciled', 'unreconciled'], true)) {
+            $reconciliationStatus = null;
+        }
+
         return [
             'search' => $request->string('search')->trim()->value() ?: null,
             'date_from' => $request->string('date_from')->value() ?: null,
@@ -337,12 +360,94 @@ class PaymentController extends Controller
             'payment_type' => $paymentType,
             'method' => $method,
             'cash_account_id' => $request->integer('cash_account_id') ?: null,
+            'reconciliation_status' => $reconciliationStatus,
+            'missing_reference' => $request->boolean('missing_reference'),
         ];
     }
 
     private function methodOptions(): array
     {
         return PaymentMethodCatalog::options();
+    }
+
+    private function mobileMethodKeys(): array
+    {
+        return ['wave', 'orange_money', 'moov_money', 'mobile_money'];
+    }
+
+    private function mobileMoneyInsights(Collection $payments): array
+    {
+        $mobileMethods = $this->mobileMethodKeys();
+        $mobilePayments = $payments
+            ->filter(fn (Payment $payment) => in_array($payment->method, $mobileMethods, true))
+            ->values();
+
+        $providerTotals = collect($mobileMethods)->mapWithKeys(function (string $method): array {
+            return [$method => [
+                'label' => $this->methodOptions()[$method] ?? $method,
+                'amount' => 0.0,
+                'count' => 0,
+            ]];
+        });
+
+        foreach ($providerTotals as $method => $entry) {
+            $providerTotals[$method] = [
+                'label' => $entry['label'],
+                'amount' => round((float) $mobilePayments->where('method', $method)->sum('amount'), 2),
+                'count' => (int) $mobilePayments->where('method', $method)->count(),
+            ];
+        }
+
+        $accountInsights = $mobilePayments
+            ->groupBy(fn (Payment $payment) => (string) ($payment->cash_account_id ?: 'none'))
+            ->map(function (Collection $items): array {
+                /** @var Payment|null $first */
+                $first = $items->first();
+                $unreconciled = $items->filter(fn (Payment $payment) => ! $payment->reconciliationItem);
+
+                return [
+                    'cash_account_id' => $first?->cash_account_id,
+                    'cash_account_name' => $first?->cashAccount?->name ?? 'Compte non rattache',
+                    'account_number' => $first?->cashAccount?->account_number,
+                    'branch_name' => $first?->cashAccount?->branch?->name ?? $first?->branch?->name,
+                    'payments_count' => (int) $items->count(),
+                    'total_amount' => round((float) $items->sum('amount'), 2),
+                    'unreconciled_count' => (int) $unreconciled->count(),
+                    'unreconciled_amount' => round((float) $unreconciled->sum(function (Payment $payment): float {
+                        return $payment->direction === 'out'
+                            ? -1 * (float) $payment->amount
+                            : (float) $payment->amount;
+                    }), 2),
+                    'missing_reference_count' => (int) $items->filter(fn (Payment $payment) => $this->paymentNeedsReferenceAttention($payment))->count(),
+                    'latest_payment_date' => $items
+                        ->sortByDesc(fn (Payment $payment) => $payment->payment_date?->timestamp ?? 0)
+                        ->first()?->payment_date,
+                ];
+            })
+            ->sortByDesc(fn (array $account) => abs((float) $account['unreconciled_amount']) * 1000 + $account['unreconciled_count'])
+            ->values();
+
+        return [
+            'count' => (int) $mobilePayments->count(),
+            'amount' => round((float) $mobilePayments->sum('amount'), 2),
+            'incoming_amount' => round((float) $mobilePayments->where('direction', 'in')->sum('amount'), 2),
+            'outgoing_amount' => round((float) $mobilePayments->where('direction', 'out')->sum('amount'), 2),
+            'unreconciled_count' => (int) $mobilePayments->filter(fn (Payment $payment) => ! $payment->reconciliationItem)->count(),
+            'unreconciled_amount' => round((float) $mobilePayments->filter(fn (Payment $payment) => ! $payment->reconciliationItem)->sum(function (Payment $payment): float {
+                return $payment->direction === 'out'
+                    ? -1 * (float) $payment->amount
+                    : (float) $payment->amount;
+            }), 2),
+            'missing_reference_count' => (int) $mobilePayments->filter(fn (Payment $payment) => $this->paymentNeedsReferenceAttention($payment))->count(),
+            'provider_totals' => $providerTotals,
+            'accounts' => $accountInsights,
+        ];
+    }
+
+    private function paymentNeedsReferenceAttention(Payment $payment): bool
+    {
+        return in_array($payment->method, $this->mobileMethodKeys(), true)
+            && blank(trim((string) $payment->reference));
     }
 
     private function paymentTypeLabel(string $paymentType): string
