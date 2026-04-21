@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Collections\Models\CollectionFollowUp;
+use App\Modules\Core\Company\Models\Setting;
 use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -70,6 +71,69 @@ class CollectionFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Promesse de paiement test')
             ->assertSee('M. Traore');
+    }
+
+    public function test_collections_views_show_whatsapp_reminder_with_mobile_money_channels(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $invoice = SalesInvoice::query()->where('company_id', $user->company_id)->where('notes', 'Facture de demonstration initiale')->firstOrFail();
+        $invoice->customer()->update(['phone' => '+22370003344']);
+        $invoice->update([
+            'due_date' => now()->subDays(4)->toDateString(),
+            'payment_status' => 'partial',
+        ]);
+
+        Setting::query()->updateOrCreate(
+            ['company_id' => $user->company_id, 'key' => 'payment_gateways'],
+            ['value' => [
+                'wave' => [
+                    'label' => 'Wave Recouvrement',
+                    'enabled' => true,
+                    'account_name' => 'Nema Wave',
+                    'collection_number' => '+22370001111',
+                    'instructions' => 'Utilise la reference facture.',
+                ],
+                'orange_money' => [
+                    'label' => 'Orange Money Pro',
+                    'enabled' => true,
+                    'account_name' => 'Nema Orange',
+                    'collection_number' => '+22370002222',
+                    'instructions' => 'Transmets la reference de transaction.',
+                ],
+                'moov_money' => [
+                    'label' => 'Moov Money',
+                    'enabled' => false,
+                    'account_name' => '',
+                    'collection_number' => '',
+                    'instructions' => '',
+                ],
+                'bank_transfer' => [
+                    'label' => 'Virement BDM',
+                    'enabled' => false,
+                    'account_name' => '',
+                    'collection_number' => '',
+                    'instructions' => '',
+                ],
+            ]]
+        );
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('collections.index', ['state' => 'overdue']))
+            ->assertOk()
+            ->assertSee('Wave Recouvrement')
+            ->assertSee('Orange Money Pro')
+            ->assertSee('WhatsApp');
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('collections.show', $invoice))
+            ->assertOk()
+            ->assertSee('Relance WhatsApp client')
+            ->assertSee('Wave Recouvrement')
+            ->assertSee('+22370001111')
+            ->assertSee('wa.me/22370003344')
+            ->assertSee($invoice->invoice_number);
     }
 
     private function workspaceSession(User $user): array

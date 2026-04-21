@@ -4,6 +4,7 @@ namespace App\Modules\Collections\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Collections\Models\CollectionFollowUp;
+use App\Modules\Collections\Services\CollectionReminderService;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Sales\Models\SalesInvoice;
@@ -17,8 +18,10 @@ use Illuminate\View\View;
 
 class CollectionController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly CollectionReminderService $collectionReminderService,
+    ) {
     }
 
     public function index(Request $request, CurrentWorkspace $workspace): View
@@ -27,14 +30,16 @@ class CollectionController extends Controller
         abort_if(! $companyId, 403);
 
         $filters = $this->filters($request);
+        $items = $this->filteredQuery($companyId, $filters)
+            ->paginate(15)
+            ->withQueryString();
         $currentCustomer = ($filters['customer_id'] ?? null)
             ? Partner::query()->customers()->where('company_id', $companyId)->find($filters['customer_id'])
             : null;
 
         return view('collections.index', [
-            'items' => $this->filteredQuery($companyId, $filters)
-                ->paginate(15)
-                ->withQueryString(),
+            'items' => $items,
+            'reminders' => $this->collectionReminderService->forPortfolio($items->getCollection()),
             'filters' => $filters,
             'summary' => $this->summary($companyId, $filters),
             'branches' => Branch::query()
@@ -67,6 +72,7 @@ class CollectionController extends Controller
 
         return view('collections.show', [
             'invoice' => $invoice,
+            'reminder' => $this->collectionReminderService->forInvoice($invoice),
             'followUps' => $invoice->followUps->sortByDesc(fn (CollectionFollowUp $followUp) => sprintf('%s-%010d', $followUp->action_date?->format('Ymd') ?? '00000000', $followUp->id))->values(),
             'customerOpenInvoices' => SalesInvoice::query()
                 ->where('company_id', $invoice->company_id)

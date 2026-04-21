@@ -94,6 +94,7 @@
             <tbody>
             @forelse ($items as $invoice)
                 @php
+                    $reminder = $reminders[$invoice->id] ?? null;
                     $isOverdue = $invoice->due_date && $invoice->due_date->isBefore($today);
                     $daysOverdue = $isOverdue ? $invoice->due_date->diffInDays($today) : 0;
                     $promiseBroken = $invoice->last_promised_date && \Illuminate\Support\Carbon::parse($invoice->last_promised_date)->isBefore($today);
@@ -107,6 +108,9 @@
                     <td>
                         <div style="font-weight:600;">{{ $invoice->customer_name }}</div>
                         <div class="muted" style="font-size:14px; margin-top:6px;">{{ $invoice->customer_phone ?: 'Telephone non renseigne' }}</div>
+                        @if (! empty($reminder['payment_channels']))
+                            <div class="help" style="margin-top:6px;">{{ collect($reminder['payment_channels'])->pluck('label')->implode(' · ') }}</div>
+                        @endif
                     </td>
                     <td>{{ $invoice->branch_name ?: 'Agence non renseignee' }}</td>
                     <td>
@@ -162,6 +166,9 @@
                     <td>
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <a href="{{ route('collections.show', $invoice) }}" class="button button-secondary">Suivre</a>
+                            @if (! empty($reminder['whatsapp_url']))
+                                <a href="{{ $reminder['whatsapp_url'] }}" class="button button-primary" target="_blank" rel="noopener">WhatsApp</a>
+                            @endif
                             @allowed('payments.manage')
                                 <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-secondary">Encaisser</a>
                             @endallowed

@@ -43,77 +43,114 @@
                 <div class="muted" style="margin-top:14px;">{{ $invoice->notes }}</div>
             @endif
         </section>
-
         <section class="card">
-            <h2 style="margin-top:0;">Nouvelle relance</h2>
-            @allowed('collections.manage')
-                <form method="POST" action="{{ route('collections.follow-ups.store', $invoice) }}" class="form-grid">
-                    @csrf
-                    <div>
-                        <label for="action_date">Date de relance</label>
-                        <input id="action_date" name="action_date" type="date" value="{{ old('action_date', now()->toDateString()) }}" required>
-                        @error('action_date')<div class="field-error">{{ $message }}</div>@enderror
+            <h2 style="margin-top:0;">Relance WhatsApp client</h2>
+            <div class="muted" style="margin-bottom:14px;">
+                Message terrain deja prepare avec le montant restant et les canaux de reglement actifs.
+            </div>
+            <div class="grid" style="gap:12px;">
+                <div>
+                    <strong>Numero client</strong>
+                    <div class="muted" style="margin-top:6px;">{{ $reminder['customer_phone'] ?: 'Telephone non renseigne' }}</div>
+                </div>
+                <div>
+                    <strong>Reference de paiement</strong>
+                    <div class="muted" style="margin-top:6px;">{{ $reminder['payment_reference_hint'] ?: 'Aucune reference disponible' }}</div>
+                </div>
+                <div>
+                    <strong>Canaux de reglement</strong>
+                    <div class="chip-row" style="margin-top:8px;">
+                        @forelse ($reminder['payment_channels'] as $channel)
+                            <span class="chip">{{ $channel['summary'] }}</span>
+                        @empty
+                            <span class="muted">Aucun canal mobile money ou virement configure pour cette entreprise.</span>
+                        @endforelse
                     </div>
-                    <div>
-                        <label for="action_type">Canal</label>
-                        <select id="action_type" name="action_type" required>
-                            <option value="">Choisir</option>
-                            @foreach ($actionOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(old('action_type') === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        @error('action_type')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="outcome">Issue</label>
-                        <select id="outcome" name="outcome">
-                            <option value="">Non renseignee</option>
-                            @foreach ($outcomeOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(old('outcome') === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        @error('outcome')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="next_action_date">Prochaine action</label>
-                        <input id="next_action_date" name="next_action_date" type="date" value="{{ old('next_action_date') }}">
-                        @error('next_action_date')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="contact_name">Contact</label>
-                        <input id="contact_name" name="contact_name" value="{{ old('contact_name') }}" placeholder="Nom de l interlocuteur">
-                        @error('contact_name')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="contact_phone">Telephone contacte</label>
-                        <input id="contact_phone" name="contact_phone" value="{{ old('contact_phone', $invoice->customer?->phone) }}">
-                        @error('contact_phone')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="promised_amount">Montant promis</label>
-                        <input id="promised_amount" name="promised_amount" type="number" min="0" step="0.01" value="{{ old('promised_amount') }}">
-                        <div class="help">Maximum conseille : {{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF</div>
-                        @error('promised_amount')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div>
-                        <label for="promised_date">Date promise</label>
-                        <input id="promised_date" name="promised_date" type="date" value="{{ old('promised_date') }}">
-                        @error('promised_date')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="full">
-                        <label for="notes">Notes</label>
-                        <textarea id="notes" name="notes" placeholder="Resume de l echange, blocage, commentaire utile pour la prochaine relance">{{ old('notes') }}</textarea>
-                        @error('notes')<div class="field-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="full actions">
-                        <button type="submit" class="button button-primary">Enregistrer la relance</button>
-                    </div>
-                </form>
-            @else
-                <p class="muted">Tu as uniquement l acces en lecture sur ce dossier de recouvrement.</p>
-            @endallowed
+                </div>
+                <div>
+                    <strong>Message pre-rempli</strong>
+                    <textarea readonly style="margin-top:8px; min-height:140px;">{{ $reminder['message'] }}</textarea>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    @if ($reminder['whatsapp_url'])
+                        <a href="{{ $reminder['whatsapp_url'] }}" class="button button-primary" target="_blank" rel="noopener">Relancer via WhatsApp</a>
+                    @else
+                        <span class="badge badge-warning">Telephone client manquant</span>
+                    @endif
+                </div>
+            </div>
         </section>
     </div>
+
+    <section class="card" style="margin-bottom:20px;">
+        <h2 style="margin-top:0;">Nouvelle relance</h2>
+        @allowed('collections.manage')
+            <form method="POST" action="{{ route('collections.follow-ups.store', $invoice) }}" class="form-grid">
+                @csrf
+                <div>
+                    <label for="action_date">Date de relance</label>
+                    <input id="action_date" name="action_date" type="date" value="{{ old('action_date', now()->toDateString()) }}" required>
+                    @error('action_date')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="action_type">Canal</label>
+                    <select id="action_type" name="action_type" required>
+                        <option value="">Choisir</option>
+                        @foreach ($actionOptions as $value => $label)
+                            <option value="{{ $value }}" @selected(old('action_type') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('action_type')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="outcome">Issue</label>
+                    <select id="outcome" name="outcome">
+                        <option value="">Non renseignee</option>
+                        @foreach ($outcomeOptions as $value => $label)
+                            <option value="{{ $value }}" @selected(old('outcome') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('outcome')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="next_action_date">Prochaine action</label>
+                    <input id="next_action_date" name="next_action_date" type="date" value="{{ old('next_action_date') }}">
+                    @error('next_action_date')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="contact_name">Contact</label>
+                    <input id="contact_name" name="contact_name" value="{{ old('contact_name') }}" placeholder="Nom de l interlocuteur">
+                    @error('contact_name')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="contact_phone">Telephone contacte</label>
+                    <input id="contact_phone" name="contact_phone" value="{{ old('contact_phone', $invoice->customer?->phone) }}">
+                    @error('contact_phone')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="promised_amount">Montant promis</label>
+                    <input id="promised_amount" name="promised_amount" type="number" min="0" step="0.01" value="{{ old('promised_amount') }}">
+                    <div class="help">Maximum conseille : {{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF</div>
+                    @error('promised_amount')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div>
+                    <label for="promised_date">Date promise</label>
+                    <input id="promised_date" name="promised_date" type="date" value="{{ old('promised_date') }}">
+                    @error('promised_date')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="full">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" placeholder="Resume de l echange, blocage, commentaire utile pour la prochaine relance">{{ old('notes') }}</textarea>
+                    @error('notes')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="full actions">
+                    <button type="submit" class="button button-primary">Enregistrer la relance</button>
+                </div>
+            </form>
+        @else
+            <p class="muted">Tu as uniquement l acces en lecture sur ce dossier de recouvrement.</p>
+        @endallowed
+    </section>
 
     <div class="split">
         <section class="card">
