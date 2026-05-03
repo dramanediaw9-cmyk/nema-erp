@@ -65,7 +65,7 @@
                     <td><a href="{{ route('payments.show', $payment) }}">{{ $payment->payment_number }}</a></td>
                     <td>{{ $payment->payment_date?->format('d/m/Y') }}</td>
                     <td>{{ $payment->partner?->name ?: 'Sans tiers' }}</td>
-                    <td>{{ $payment->payment_type === 'supplier_payment' ? 'Reglement fournisseur' : ($payment->payment_type === 'pos_refund' ? 'Remboursement POS' : 'Encaissement client') }}</td>
+                    <td>{{ $payment->payment_type === 'supplier_payment' ? 'Reglement fournisseur' : ($payment->payment_type === 'pos_refund' ? 'Remboursement POS' : ($payment->payment_type === 'internal_transfer' ? ($payment->direction === 'in' ? 'Reception de versement' : 'Versement interne') : 'Encaissement client')) }}</td>
                     <td>{{ $payment->direction === 'out' ? '-' : '+' }}{{ number_format((float) $payment->amount, 0, ',', ' ') }} XOF</td>
                     <td>
                         @if ($document instanceof \App\Modules\Sales\Models\SalesInvoice)

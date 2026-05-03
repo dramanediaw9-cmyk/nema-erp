@@ -4,6 +4,7 @@ namespace App\Modules\Treasury\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Treasury\Models\CashAccount;
+use App\Modules\Treasury\Models\Payment;
 use App\Modules\Treasury\Models\TreasuryReconciliation;
 use App\Modules\Treasury\Services\TreasuryReconciliationService;
 use App\Support\ActivityLogger;
@@ -18,8 +19,7 @@ class TreasuryReconciliationController extends Controller
     public function __construct(
         private readonly TreasuryReconciliationService $reconciliationService,
         private readonly ActivityLogger $activityLogger,
-    ) {
-    }
+    ) {}
 
     public function index(CurrentWorkspace $workspace): View
     {
@@ -62,6 +62,14 @@ class TreasuryReconciliationController extends Controller
         $candidates = collect();
         $bookBalance = null;
         $candidateSignedTotal = null;
+        $candidateInsights = [
+            'documented_count' => 0,
+            'documented_amount' => 0.0,
+            'documented_stale_count' => 0,
+            'missing_proof_count' => 0,
+            'missing_proof_amount' => 0.0,
+        ];
+        $candidateIndicators = [];
         $statementDate = $request->string('statement_date')->value() ?: now()->toDateString();
 
         if ($request->filled('cash_account_id')) {
@@ -72,12 +80,22 @@ class TreasuryReconciliationController extends Controller
 
             $candidates = $this->reconciliationService
                 ->candidatePaymentsQuery($companyId, $selectedCashAccount, $statementDate)
-                ->orderBy('payment_date')
-                ->orderBy('payment_number')
                 ->get();
+            $candidates = $this->reconciliationService->sortCandidatePayments($candidates);
 
             $bookBalance = $this->reconciliationService->bookBalance($companyId, $selectedCashAccount, $statementDate);
             $candidateSignedTotal = $this->reconciliationService->signedAmount($candidates);
+            $candidateInsights = $this->reconciliationService->candidateInsights($candidates);
+            $candidateIndicators = $candidates
+                ->mapWithKeys(fn (Payment $payment): array => [
+                    $payment->id => [
+                        'is_documented_deposit' => $this->reconciliationService->paymentReadyForExternalReconciliation($payment),
+                        'needs_proof_attention' => $this->reconciliationService->paymentNeedsDepositProofAttention($payment),
+                        'has_reference' => filled(trim((string) $payment->reference)),
+                        'has_attachment' => ((int) ($payment->attachments_count ?? 0) > 0),
+                    ],
+                ])
+                ->all();
         }
 
         return view('treasury-reconciliations.create', [
@@ -87,6 +105,8 @@ class TreasuryReconciliationController extends Controller
             'candidates' => $candidates,
             'bookBalance' => $bookBalance,
             'candidateSignedTotal' => $candidateSignedTotal,
+            'candidateInsights' => $candidateInsights,
+            'candidateIndicators' => $candidateIndicators,
         ]);
     }
 

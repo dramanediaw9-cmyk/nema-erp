@@ -26,8 +26,7 @@ class AccountingService
         private readonly DocumentNumberService $documentNumberService,
         private readonly ChartOfAccountsService $chartOfAccountsService,
         private readonly PeriodLockService $periodLockService,
-    ) {
-    }
+    ) {}
 
     public function recordSalesInvoice(SalesInvoice $invoice, User $user): JournalEntry
     {
@@ -241,6 +240,45 @@ class AccountingService
                     'label' => 'Remboursement '.$payment->payment_number,
                     'debit' => 0,
                     'credit' => (float) $payment->amount,
+                ],
+            ],
+        );
+    }
+
+    public function recordInternalTransfer(
+        Payment $outgoingPayment,
+        Payment $incomingPayment,
+        CashAccount $sourceCashAccount,
+        CashAccount $destinationCashAccount,
+        User $user,
+    ): JournalEntry {
+        $sourceTreasuryCode = $this->treasuryAccountCode($sourceCashAccount);
+        $destinationTreasuryCode = $this->treasuryAccountCode($destinationCashAccount);
+
+        return $this->postEntry(
+            companyId: $outgoingPayment->company_id,
+            tenantId: $outgoingPayment->tenant_id,
+            branchId: $outgoingPayment->branch_id,
+            journalCode: 'TRE',
+            entryDate: $outgoingPayment->payment_date?->format('Y-m-d') ?? now()->toDateString(),
+            source: $outgoingPayment,
+            reference: $outgoingPayment->payment_number,
+            description: 'Versement interne '.$outgoingPayment->payment_number,
+            createdBy: $user->id,
+            lines: [
+                [
+                    'account_code' => $destinationTreasuryCode,
+                    'partner_id' => null,
+                    'label' => 'Reception '.$incomingPayment->payment_number,
+                    'debit' => (float) $outgoingPayment->amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_code' => $sourceTreasuryCode,
+                    'partner_id' => null,
+                    'label' => 'Versement '.$outgoingPayment->payment_number,
+                    'debit' => 0,
+                    'credit' => (float) $outgoingPayment->amount,
                 ],
             ],
         );
@@ -471,6 +509,7 @@ class AccountingService
         }
 
         $tax = (float) ($document->getAttribute('tax_total') ?? 0);
+
         return round((float) $document->total - $tax, 2);
     }
 

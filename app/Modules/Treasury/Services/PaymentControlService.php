@@ -87,6 +87,46 @@ class PaymentControlService
         return $effectiveBranchId;
     }
 
+    public function authorizeInternalTransfer(
+        User $user,
+        CashAccount $sourceCashAccount,
+        CashAccount $destinationCashAccount,
+        float $amount,
+        ?int $workspaceBranchId = null,
+        ?int $requestedBranchId = null,
+    ): array {
+        if ($sourceCashAccount->is($destinationCashAccount)) {
+            throw ValidationException::withMessages([
+                'destination_cash_account_id' => 'Le compte source et le compte destination doivent etre differents.',
+            ]);
+        }
+
+        $sourceBranchId = (int) ($sourceCashAccount->branch_id ?: 0);
+        $destinationBranchId = (int) ($destinationCashAccount->branch_id ?: 0);
+        $fallbackBranchId = (int) ($workspaceBranchId ?: $user->branch_id ?: 0);
+
+        $effectiveSourceBranchId = $this->resolveEffectiveBranchId(
+            $requestedBranchId,
+            null,
+            $sourceBranchId ?: null,
+            $fallbackBranchId ?: null,
+        );
+
+        $this->assertBranchAccessible($user, $effectiveSourceBranchId, $workspaceBranchId, 'branch_id');
+        $this->assertWithinLimit($user, $amount, 'internal_transfer');
+
+        if ($destinationBranchId > 0 && $destinationBranchId !== $effectiveSourceBranchId && ! $user->canAccessAllBranches()) {
+            throw ValidationException::withMessages([
+                'destination_cash_account_id' => 'Le compte destination appartient a une autre agence que votre perimetre autorise.',
+            ]);
+        }
+
+        return [
+            'source_branch_id' => $effectiveSourceBranchId,
+            'destination_branch_id' => $destinationBranchId > 0 ? $destinationBranchId : $effectiveSourceBranchId,
+        ];
+    }
+
     public function validationLimit(User $user, string $paymentType = 'customer_receipt'): ?float
     {
         $user->loadMissing('roles');
@@ -193,4 +233,3 @@ class PaymentControlService
         ]);
     }
 }
-

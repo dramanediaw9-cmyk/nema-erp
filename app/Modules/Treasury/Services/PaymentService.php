@@ -23,8 +23,7 @@ class PaymentService
         private readonly AccountingService $accountingService,
         private readonly PeriodLockService $periodLockService,
         private readonly IntegrationOutboxService $integrationOutboxService,
-    ) {
-    }
+    ) {}
 
     public function recordCustomerReceipt(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, array $payload, User $user): Payment
     {
@@ -157,6 +156,112 @@ class PaymentService
         });
     }
 
+    public function recordInternalTransfer(
+        int $companyId,
+        int $sourceBranchId,
+        int $destinationBranchId,
+        CashAccount $sourceCashAccount,
+        CashAccount $destinationCashAccount,
+        array $payload,
+        User $user,
+    ): Payment {
+        return DB::transaction(function () use ($companyId, $sourceBranchId, $destinationBranchId, $sourceCashAccount, $destinationCashAccount, $payload, $user) {
+            if ($sourceCashAccount->is($destinationCashAccount)) {
+                throw ValidationException::withMessages([
+                    'destination_cash_account_id' => 'Le compte source et le compte destination doivent etre differents.',
+                ]);
+            }
+
+            $this->periodLockService->assertDateOpen($companyId, $payload['payment_date'], 'payment_date');
+
+            $amount = round((float) $payload['amount'], 2);
+            if ($amount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Le montant du versement doit etre strictement positif.',
+                ]);
+            }
+
+            $reference = $payload['reference'] ?? null;
+            $notes = trim((string) ($payload['notes'] ?? ''));
+
+            $outgoingPayment = Payment::query()->create([
+                'tenant_id' => $sourceCashAccount->tenant_id,
+                'company_id' => $companyId,
+                'branch_id' => $sourceBranchId,
+                'cash_account_id' => $sourceCashAccount->id,
+                'pos_session_id' => null,
+                'partner_id' => null,
+                'payment_number' => $this->documentNumberService->nextNumber(
+                    companyId: $companyId,
+                    documentType: 'payment',
+                    branchId: $sourceBranchId,
+                    date: $payload['payment_date'],
+                ),
+                'direction' => 'out',
+                'payment_type' => 'internal_transfer',
+                'payment_date' => $payload['payment_date'],
+                'amount' => $amount,
+                'method' => $payload['method'],
+                'reference' => $reference,
+                'notes' => $this->internalTransferNotes('out', $sourceCashAccount, $destinationCashAccount, $notes),
+                'created_by' => $user->id,
+            ]);
+
+            $incomingPayment = Payment::query()->create([
+                'tenant_id' => $destinationCashAccount->tenant_id,
+                'company_id' => $companyId,
+                'branch_id' => $destinationBranchId,
+                'cash_account_id' => $destinationCashAccount->id,
+                'pos_session_id' => null,
+                'partner_id' => null,
+                'payment_number' => $this->documentNumberService->nextNumber(
+                    companyId: $companyId,
+                    documentType: 'payment',
+                    branchId: $destinationBranchId,
+                    date: $payload['payment_date'],
+                ),
+                'direction' => 'in',
+                'payment_type' => 'internal_transfer',
+                'payment_date' => $payload['payment_date'],
+                'amount' => $amount,
+                'method' => $payload['method'],
+                'reference' => $reference,
+                'notes' => $this->internalTransferNotes('in', $sourceCashAccount, $destinationCashAccount, $notes),
+                'created_by' => $user->id,
+            ]);
+
+            $outgoingPayment->allocations()->create([
+                'allocatable_type' => Payment::class,
+                'allocatable_id' => $incomingPayment->id,
+                'allocated_amount' => $amount,
+            ]);
+
+            $incomingPayment->allocations()->create([
+                'allocatable_type' => Payment::class,
+                'allocatable_id' => $outgoingPayment->id,
+                'allocated_amount' => $amount,
+            ]);
+
+            $this->accountingService->recordInternalTransfer(
+                $outgoingPayment,
+                $incomingPayment,
+                $sourceCashAccount,
+                $destinationCashAccount,
+                $user,
+            );
+
+            $this->integrationOutboxService->record($outgoingPayment, 'treasury.internal_transfer.recorded', [
+                'payment_number' => $outgoingPayment->payment_number,
+                'counterpart_payment_number' => $incomingPayment->payment_number,
+                'source_cash_account_id' => $sourceCashAccount->id,
+                'destination_cash_account_id' => $destinationCashAccount->id,
+                'amount' => (float) $outgoingPayment->amount,
+            ]);
+
+            return $outgoingPayment->load(['cashAccount', 'allocations.allocatable']);
+        });
+    }
+
     private function recordPaymentAgainstDocument(
         int $companyId,
         int $branchId,
@@ -237,5 +342,18 @@ class PaymentService
         }
 
         return round((float) $document->total, 2);
+    }
+
+    private function internalTransferNotes(
+        string $direction,
+        CashAccount $sourceCashAccount,
+        CashAccount $destinationCashAccount,
+        string $notes,
+    ): string {
+        $default = $direction === 'out'
+            ? 'Versement interne vers '.$destinationCashAccount->name
+            : 'Reception de versement depuis '.$sourceCashAccount->name;
+
+        return $notes !== '' ? $default.' · '.$notes : $default;
     }
 }

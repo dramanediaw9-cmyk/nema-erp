@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
+use App\Modules\Treasury\Models\Payment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -81,6 +82,44 @@ class ApiV1PaymentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.reference', 'API-PAY-FILTER')
             ->assertJsonPath('data.0.method', 'wave');
+    }
+
+    public function test_api_token_can_record_internal_transfer(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $plainToken = $this->createApiToken($manager);
+        $sourceAccount = CashAccount::query()->where('company_id', $manager->company_id)->where('name', 'Caisse principale')->firstOrFail();
+        $destinationAccount = CashAccount::query()->where('company_id', $manager->company_id)->where('name', 'Banque BDM')->firstOrFail();
+
+        $response = $this->withToken($plainToken)
+            ->postJson('/api/v1/payments', [
+                'payment_type' => 'internal_transfer',
+                'cash_account_id' => $sourceAccount->id,
+                'destination_cash_account_id' => $destinationAccount->id,
+                'payment_date' => now()->toDateString(),
+                'amount' => 1200,
+                'method' => 'bank_transfer',
+                'reference' => 'API-TRANSFER-001',
+                'notes' => 'Versement API agence vers banque',
+            ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('payment_type', 'internal_transfer')
+            ->assertJsonPath('direction', 'out')
+            ->assertJsonPath('cash_account.id', $sourceAccount->id)
+            ->assertJsonPath('allocations.0.allocatable_type', Payment::class);
+
+        $outgoingPaymentId = (int) $response->json('id');
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/payments?payment_type=internal_transfer&search=API-TRANSFER-001')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment([
+                'id' => $outgoingPaymentId,
+                'reference' => 'API-TRANSFER-001',
+            ]);
     }
 
     private function createApiToken(User $user): string

@@ -39,12 +39,36 @@
             <div class="card"><div class="muted">Solde comptable</div><div class="stat-value">{{ number_format((float) $bookBalance, 0, ',', ' ') }}</div></div>
             <div class="card"><div class="muted">Mouvements candidats</div><div class="stat-value">{{ $candidates->count() }}</div></div>
             <div class="card"><div class="muted">Total non rapproche</div><div class="stat-value">{{ number_format((float) $candidateSignedTotal, 0, ',', ' ') }}</div></div>
+            <div class="card">
+                <div class="muted">Depots documentes</div>
+                <div class="stat-value">{{ number_format((float) ($candidateInsights['documented_amount'] ?? 0), 0, ',', ' ') }}</div>
+                <div class="muted">{{ $candidateInsights['documented_count'] ?? 0 }} candidat(s) prets a rapprocher</div>
+            </div>
+            <div class="card">
+                <div class="muted">Depots a verifier</div>
+                <div class="stat-value">{{ $candidateInsights['missing_proof_count'] ?? 0 }}</div>
+                <div class="muted">{{ number_format((float) ($candidateInsights['missing_proof_amount'] ?? 0), 0, ',', ' ') }} XOF sans preuve exploitable</div>
+            </div>
         </div>
 
         <form method="POST" action="{{ route('treasury-reconciliations.store') }}" class="card">
             @csrf
             <input type="hidden" name="cash_account_id" value="{{ $selectedCashAccount->id }}">
             <input type="hidden" name="statement_date" value="{{ $statementDate }}">
+
+            @if (($candidateInsights['documented_count'] ?? 0) > 0 || ($candidateInsights['missing_proof_count'] ?? 0) > 0)
+                <div class="card" style="margin-bottom:18px; background:#fff8e6; border:1px solid rgba(166, 118, 12, 0.22); box-shadow:none;">
+                    <div style="font-weight:700; margin-bottom:6px;">Lecture terrain du rapprochement</div>
+                    <div class="muted">
+                        @if (($candidateInsights['documented_count'] ?? 0) > 0)
+                            {{ $candidateInsights['documented_count'] }} versement(s) agence disposent deja d une reference ou d un justificatif et sont affiches en tete de liste.
+                        @endif
+                        @if (($candidateInsights['missing_proof_count'] ?? 0) > 0)
+                            {{ ($candidateInsights['documented_count'] ?? 0) > 0 ? ' ' : '' }}{{ $candidateInsights['missing_proof_count'] }} depot(s) restent a verifier avant rapprochement.
+                        @endif
+                    </div>
+                </div>
+            @endif
 
             <div class="form-grid" style="margin-bottom:18px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));">
                 <div>
@@ -74,11 +98,14 @@
                         <th>Tiers</th>
                         <th>Type</th>
                         <th>Montant</th>
+                        <th>Priorite</th>
                         <th>Reference</th>
+                        <th>Preuve</th>
                     </tr>
                     </thead>
                     <tbody>
                     @forelse ($candidates as $payment)
+                        @php $indicator = $candidateIndicators[$payment->id] ?? ['is_documented_deposit' => false, 'needs_proof_attention' => false, 'has_reference' => false, 'has_attachment' => false]; @endphp
                         <tr>
                             <td>
                                 <input type="checkbox" name="payment_ids[]" value="{{ $payment->id }}" @checked(in_array($payment->id, old('payment_ids', [])))>
@@ -86,13 +113,33 @@
                             <td>{{ $payment->payment_number }}</td>
                             <td>{{ $payment->payment_date?->format('d/m/Y') }}</td>
                             <td>{{ $payment->partner?->name ?: 'Sans tiers' }}</td>
-                            <td>{{ $payment->payment_type === 'supplier_payment' ? 'Reglement fournisseur' : ($payment->payment_type === 'pos_refund' ? 'Remboursement POS' : 'Encaissement client') }}</td>
+                            <td>{{ $payment->payment_type === 'supplier_payment' ? 'Reglement fournisseur' : ($payment->payment_type === 'pos_refund' ? 'Remboursement POS' : ($payment->payment_type === 'internal_transfer' ? ($payment->direction === 'in' ? 'Reception de versement' : 'Versement interne') : 'Encaissement client')) }}</td>
                             <td>{{ $payment->direction === 'out' ? '-' : '+' }}{{ number_format((float) $payment->amount, 0, ',', ' ') }} XOF</td>
+                            <td>
+                                @if ($indicator['is_documented_deposit'])
+                                    <span class="badge badge-success">Pret a rapprocher</span>
+                                @elseif ($indicator['needs_proof_attention'])
+                                    <span class="badge badge-warning">A verifier</span>
+                                @else
+                                    <span class="muted">Standard</span>
+                                @endif
+                            </td>
                             <td>{{ $payment->reference ?: 'Sans reference' }}</td>
+                            <td>
+                                @if ($indicator['has_reference'])
+                                    <span class="badge badge-info">Reference depot</span>
+                                @endif
+                                @if ($indicator['has_attachment'])
+                                    <span class="badge badge-success">Bordereau joint</span>
+                                @endif
+                                @if (! $indicator['has_reference'] && ! $indicator['has_attachment'])
+                                    <span class="muted">Aucune preuve jointe</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="muted">Aucun mouvement non rapproche sur ce compte et cette date.</td>
+                            <td colspan="9" class="muted">Aucun mouvement non rapproche sur ce compte et cette date.</td>
                         </tr>
                     @endforelse
                     </tbody>

@@ -8,6 +8,7 @@ use App\Modules\Core\Collaboration\Models\InternalComment;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Treasury\Models\Payment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -40,6 +41,13 @@ class DocumentCollaborationService
                 'view_permission' => 'expenses.view',
                 'manage_permission' => 'expenses.manage',
                 'route' => 'expenses.show',
+            ],
+            'payment' => [
+                'model' => Payment::class,
+                'label' => 'Paiement',
+                'view_permission' => 'payments.view',
+                'manage_permission' => 'payments.validate',
+                'route' => 'payments.show',
             ],
         ];
     }

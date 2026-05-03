@@ -6,7 +6,7 @@
 @section('content')
     <div class="page-head">
         <div>
-            <h2 style="margin:0;">{{ $payment->partner?->name ?? 'Tiers non renseigne' }}</h2>
+            <h2 style="margin:0;">{{ $payment->partner?->name ?? ($payment->payment_type === 'internal_transfer' ? 'Transfert de tresorerie' : 'Tiers non renseigne') }}</h2>
             <div class="muted">{{ $payment->payment_date?->format('d/m/Y') }} · {{ $payment->branch?->name }} · {{ $paymentTypeLabel }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -31,6 +31,10 @@
                 <strong>Compte de tresorerie</strong>
                 <div class="muted" style="margin-top:8px;">Revenir au parametrage du compte utilise.</div>
             </a>
+            <a href="#attachments" class="card" style="padding:16px; display:block;">
+                <strong>Justificatifs terrain</strong>
+                <div class="muted" style="margin-top:8px;">Deposer le bordereau banque, la capture wallet ou une note interne d exploitation.</div>
+            </a>
         </div>
     </section>
 
@@ -53,6 +57,8 @@
                 <div><strong>Reference externe</strong><div class="muted">{{ $payment->reference ?: 'Aucune' }}</div></div>
                 <div><strong>Agence</strong><div class="muted">{{ $payment->branch?->name ?? 'N/A' }}</div></div>
                 <div><strong>Session POS</strong><div class="muted">{{ $payment->posSession?->session_number ?? 'Aucune' }}</div></div>
+                <div><strong>Pieces jointes</strong><div class="muted">{{ $payment->attachments->count() }} fichier(s)</div></div>
+                <div><strong>Commentaires internes</strong><div class="muted">{{ $payment->internalComments->count() }} note(s)</div></div>
                 <div><strong>Notes</strong><div class="muted">{{ $payment->notes ?: 'Aucune note' }}</div></div>
             </div>
         </section>
@@ -77,6 +83,9 @@
                         <div>
                             <div style="font-weight:600;">{{ $document['label'] }} {{ $document['number'] }}</div>
                             <div class="muted" style="margin-top:6px;">{{ $document['date']?->format('d/m/Y') ?? 'Date non renseignee' }}</div>
+                            @if (! empty($document['context']))
+                                <div class="muted" style="margin-top:6px;">{{ $document['context'] }}</div>
+                            @endif
                             <div style="margin-top:6px;">Affectation : {{ number_format((float) $document['allocated_amount'], 0, ',', ' ') }} XOF</div>
                             <div class="muted" style="margin-top:6px;">Montant document : {{ number_format((float) $document['amount'], 0, ',', ' ') }} XOF</div>
                         </div>
@@ -108,4 +117,13 @@
             @endforelse
         </section>
     </div>
+
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Retrouve les creations, rapprochements et autres actions recentes liees a ce paiement.',
+        'sectionId' => 'activity-history',
+    ])
+
+    @include('partials.document-collaboration', ['document' => $payment, 'documentType' => 'payment', 'managePermission' => 'payments.validate'])
 @endsection

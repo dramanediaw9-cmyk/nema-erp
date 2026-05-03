@@ -8,6 +8,7 @@
         $paymentMethodOptions = $methodOptions ?? \App\Support\PaymentMethodCatalog::options();
         $prefill = $prefill ?? [];
         $scopeBranch = $scopeBranch ?? $branch ?? null;
+        $scopeBranchLabel = $scopeBranchLabel ?? ($scopeBranch?->name ?? 'Agence non determinee');
     @endphp
 
     <form method="POST" action="{{ route('payments.store') }}">
@@ -16,7 +17,7 @@
             <div class="form-grid">
                 <div class="full">
                     <div class="help">Agence active : <strong>{{ $branch?->name }}</strong></div>
-                    <div class="help" style="margin-top:8px;">Perimetre de validation : <strong>{{ $scopeBranch?->name ?? 'Agence non determinee' }}</strong> · Plafond profil : <strong>{{ $validationLimitLabel ?? 'Illimite' }}</strong></div>
+                    <div class="help" style="margin-top:8px;">Perimetre de validation : <strong>{{ $scopeBranchLabel }}</strong> · Plafond profil : <strong>{{ $validationLimitLabel ?? 'Illimite' }}</strong></div>
                     @if ($scopeBranch && $branch && $scopeBranch->id !== $branch->id)
                         <div class="notice" style="margin-top:12px;">
                             <strong>Perimetre adapte au document</strong>
@@ -40,6 +41,7 @@
                     <select id="payment_type" name="payment_type" required>
                         <option value="customer_receipt" @selected(old('payment_type', $paymentType) === 'customer_receipt')>Encaissement client</option>
                         <option value="supplier_payment" @selected(old('payment_type', $paymentType) === 'supplier_payment')>Reglement fournisseur</option>
+                        <option value="internal_transfer" @selected(old('payment_type', $paymentType) === 'internal_transfer')>Versement interne</option>
                     </select>
                 </div>
                 <div id="invoice-field">
@@ -65,13 +67,23 @@
                     </select>
                 </div>
                 <div>
-                    <label for="cash_account_id">Compte de tresorerie</label>
+                    <label for="cash_account_id" id="cash-account-label">Compte de tresorerie</label>
                     <select id="cash_account_id" name="cash_account_id" required>
                         <option value="">Choisir un compte</option>
                         @foreach ($cashAccounts as $account)
-                            <option value="{{ $account->id }}" @selected((string) old('cash_account_id') === (string) $account->id)>{{ $account->name }}</option>
+                            <option value="{{ $account->id }}" @selected((string) old('cash_account_id', $prefill['cash_account_id'] ?? null) === (string) $account->id)>{{ $account->name }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div id="destination-account-field">
+                    <label for="destination_cash_account_id">Compte destination</label>
+                    <select id="destination_cash_account_id" name="destination_cash_account_id">
+                        <option value="">Choisir un compte</option>
+                        @foreach ($cashAccounts as $account)
+                            <option value="{{ $account->id }}" @selected((string) old('destination_cash_account_id', $prefill['destination_cash_account_id'] ?? null) === (string) $account->id)>{{ $account->name }}</option>
+                        @endforeach
+                    </select>
+                    <div class="help">Utilise ce flux pour tracer un versement agence vers banque, caisse centrale ou autre compte interne.</div>
                 </div>
                 <div class="full">
                     <div id="document-balance-help" class="help"></div>
@@ -116,13 +128,31 @@
             const purchaseBillField = document.getElementById('purchase-bill-field');
             const invoiceSelect = document.getElementById('invoice_id');
             const purchaseBillSelect = document.getElementById('purchase_bill_id');
+            const destinationAccountField = document.getElementById('destination-account-field');
+            const destinationAccountSelect = document.getElementById('destination_cash_account_id');
+            const cashAccountLabel = document.getElementById('cash-account-label');
             const help = document.getElementById('document-balance-help');
             const amountInput = document.getElementById('amount');
 
-            const currentSelect = () => paymentTypeSelect.value === 'supplier_payment' ? purchaseBillSelect : invoiceSelect;
+            const currentSelect = () => {
+                if (paymentTypeSelect.value === 'supplier_payment') {
+                    return purchaseBillSelect;
+                }
+
+                if (paymentTypeSelect.value === 'customer_receipt') {
+                    return invoiceSelect;
+                }
+
+                return null;
+            };
 
             const updateHelp = () => {
                 const select = currentSelect();
+                if (!select) {
+                    help.textContent = 'Le versement interne cree un mouvement sortant et un mouvement entrant relies entre eux.';
+                    return;
+                }
+
                 const option = select.options[select.selectedIndex];
 
                 if (!option || !option.value) {
@@ -141,11 +171,15 @@
 
             const syncFields = () => {
                 const isSupplierPayment = paymentTypeSelect.value === 'supplier_payment';
+                const isInternalTransfer = paymentTypeSelect.value === 'internal_transfer';
 
-                invoiceField.style.display = isSupplierPayment ? 'none' : '';
-                purchaseBillField.style.display = isSupplierPayment ? '' : 'none';
-                invoiceSelect.required = !isSupplierPayment;
-                purchaseBillSelect.required = isSupplierPayment;
+                invoiceField.style.display = isSupplierPayment || isInternalTransfer ? 'none' : '';
+                purchaseBillField.style.display = isSupplierPayment && !isInternalTransfer ? '' : 'none';
+                destinationAccountField.style.display = isInternalTransfer ? '' : 'none';
+                invoiceSelect.required = !isSupplierPayment && !isInternalTransfer;
+                purchaseBillSelect.required = isSupplierPayment && !isInternalTransfer;
+                destinationAccountSelect.required = isInternalTransfer;
+                cashAccountLabel.textContent = isInternalTransfer ? 'Compte source' : 'Compte de tresorerie';
 
                 updateHelp();
             };

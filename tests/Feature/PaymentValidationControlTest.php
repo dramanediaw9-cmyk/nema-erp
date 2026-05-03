@@ -147,6 +147,43 @@ class PaymentValidationControlTest extends TestCase
         ]);
     }
 
+    public function test_branch_limited_payment_validator_can_record_internal_transfer_to_company_bank_account(): void
+    {
+        $operator = User::query()->where('email', 'ops@nema-erp.test')->firstOrFail();
+        $this->grantPaymentValidation($operator);
+        $sourceCashAccount = CashAccount::query()->where('company_id', $operator->company_id)->where('name', 'Caisse principale')->firstOrFail();
+        $destinationCashAccount = CashAccount::query()->where('company_id', $operator->company_id)->where('name', 'Banque BDM')->firstOrFail();
+
+        $this->actingAs($operator)
+            ->withSession($this->workspaceSession($operator))
+            ->post(route('payments.store'), [
+                'payment_type' => 'internal_transfer',
+                'cash_account_id' => $sourceCashAccount->id,
+                'destination_cash_account_id' => $destinationCashAccount->id,
+                'payment_date' => now()->format('Y-m-d'),
+                'amount' => 95000,
+                'method' => 'bank_transfer',
+                'reference' => 'PAY-WEB-TRANSFER-001',
+                'notes' => 'Versement agence vers banque centrale',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payments', [
+            'company_id' => $operator->company_id,
+            'cash_account_id' => $sourceCashAccount->id,
+            'payment_type' => 'internal_transfer',
+            'direction' => 'out',
+            'reference' => 'PAY-WEB-TRANSFER-001',
+        ]);
+        $this->assertDatabaseHas('payments', [
+            'company_id' => $operator->company_id,
+            'cash_account_id' => $destinationCashAccount->id,
+            'payment_type' => 'internal_transfer',
+            'direction' => 'in',
+            'reference' => 'PAY-WEB-TRANSFER-001',
+        ]);
+    }
+
     public function test_api_token_without_payment_validation_permission_cannot_create_payment(): void
     {
         $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();

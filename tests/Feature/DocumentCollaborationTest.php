@@ -9,6 +9,8 @@ use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Treasury\Models\CashAccount;
+use App\Modules\Treasury\Models\Payment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -69,6 +71,58 @@ class DocumentCollaborationTest extends TestCase
         ]);
 
         Storage::disk('public')->assertExists($attachment->path);
+
+        $this->get(route('documents.attachments.show', $attachment))
+            ->assertOk();
+    }
+
+    public function test_manager_can_upload_attachment_to_internal_transfer_payment_and_view_it_on_payment_detail(): void
+    {
+        Storage::fake('public');
+
+        $user = $this->actingAsManager();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('name', 'Banque BDM')->firstOrFail();
+        $payment = Payment::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'cash_account_id' => $cashAccount->id,
+            'partner_id' => null,
+            'payment_number' => 'PAY-COLLAB-001',
+            'direction' => 'in',
+            'payment_type' => 'internal_transfer',
+            'payment_date' => now()->toDateString(),
+            'amount' => 96000,
+            'method' => 'bank_transfer',
+            'reference' => null,
+            'notes' => 'Depot terrain sans bordereau au depart',
+            'created_by' => $user->id,
+        ]);
+
+        $this->from(route('payments.show', $payment))
+            ->post(route('documents.attachments.store'), [
+                'document_type' => 'payment',
+                'document_id' => $payment->id,
+                'attachment_file' => UploadedFile::fake()->create('bordereau-banque.pdf', 160, 'application/pdf'),
+            ])
+            ->assertRedirect(route('payments.show', $payment));
+
+        $attachment = Attachment::query()->latest('id')->firstOrFail();
+
+        $this->assertDatabaseHas('attachments', [
+            'company_id' => $payment->company_id,
+            'attachable_type' => Payment::class,
+            'attachable_id' => $payment->id,
+            'original_name' => 'bordereau-banque.pdf',
+        ]);
+
+        Storage::disk('public')->assertExists($attachment->path);
+
+        $this->get(route('payments.show', $payment))
+            ->assertOk()
+            ->assertSee('Justificatifs terrain')
+            ->assertSee('Pieces jointes')
+            ->assertSee('bordereau-banque.pdf');
 
         $this->get(route('documents.attachments.show', $attachment))
             ->assertOk();

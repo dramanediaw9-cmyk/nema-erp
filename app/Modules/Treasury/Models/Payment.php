@@ -3,6 +3,7 @@
 namespace App\Modules\Treasury\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasDocumentCollaboration;
 use App\Models\User;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
@@ -16,8 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Payment extends Model
 {
-    use HasFactory;
     use BelongsToTenant;
+    use HasDocumentCollaboration;
+    use HasFactory;
 
     protected $fillable = [
         'tenant_id',

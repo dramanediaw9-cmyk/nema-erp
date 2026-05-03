@@ -15,14 +15,13 @@ use Illuminate\Validation\ValidationException;
 
 class TreasuryReconciliationService
 {
-    public function __construct(private readonly DocumentNumberService $documentNumberService)
-    {
-    }
+    public function __construct(private readonly DocumentNumberService $documentNumberService) {}
 
     public function candidatePaymentsQuery(int $companyId, CashAccount $cashAccount, string $statementDate): Builder
     {
         return Payment::query()
             ->with(['partner', 'allocations.allocatable'])
+            ->withCount('attachments')
             ->where('company_id', $companyId)
             ->where('cash_account_id', $cashAccount->id)
             ->whereDate('payment_date', '<=', $statementDate)
@@ -112,5 +111,69 @@ class TreasuryReconciliationService
                 ? (float) $payment->amount
                 : -1 * (float) $payment->amount;
         }), 2);
+    }
+
+    public function sortCandidatePayments(Collection $payments): Collection
+    {
+        return $payments
+            ->sortBy(fn (Payment $payment): string => sprintf(
+                '%d-%s-%s',
+                $this->candidatePriority($payment),
+                $payment->payment_date?->format('Ymd') ?? '99991231',
+                $payment->payment_number ?? ''
+            ))
+            ->values();
+    }
+
+    public function candidateInsights(Collection $payments): array
+    {
+        $thresholdDate = now()->subDays(2)->startOfDay();
+        $documentedDeposits = $payments
+            ->filter(fn (Payment $payment) => $this->paymentReadyForExternalReconciliation($payment))
+            ->values();
+        $depositsMissingProof = $payments
+            ->filter(fn (Payment $payment) => $this->paymentNeedsDepositProofAttention($payment))
+            ->values();
+
+        return [
+            'documented_count' => (int) $documentedDeposits->count(),
+            'documented_amount' => round((float) $documentedDeposits->sum('amount'), 2),
+            'documented_stale_count' => (int) $documentedDeposits
+                ->filter(fn (Payment $payment) => $payment->payment_date && $payment->payment_date->startOfDay()->lte($thresholdDate))
+                ->count(),
+            'missing_proof_count' => (int) $depositsMissingProof->count(),
+            'missing_proof_amount' => round((float) $depositsMissingProof->sum('amount'), 2),
+        ];
+    }
+
+    public function paymentReadyForExternalReconciliation(Payment $payment): bool
+    {
+        return $this->isInternalTransferDeposit($payment)
+            && (
+                filled(trim((string) $payment->reference))
+                || ((int) ($payment->attachments_count ?? 0) > 0)
+            );
+    }
+
+    public function paymentNeedsDepositProofAttention(Payment $payment): bool
+    {
+        return $this->isInternalTransferDeposit($payment)
+            && blank(trim((string) $payment->reference))
+            && ((int) ($payment->attachments_count ?? 0) === 0);
+    }
+
+    private function candidatePriority(Payment $payment): int
+    {
+        return match (true) {
+            $this->paymentReadyForExternalReconciliation($payment) => 0,
+            $this->paymentNeedsDepositProofAttention($payment) => 1,
+            default => 2,
+        };
+    }
+
+    private function isInternalTransferDeposit(Payment $payment): bool
+    {
+        return $payment->payment_type === 'internal_transfer'
+            && $payment->direction === 'in';
     }
 }
