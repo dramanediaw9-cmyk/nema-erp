@@ -41,6 +41,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo Account Login
+    |--------------------------------------------------------------------------
+    |
+    | Les comptes de demonstration ne doivent pas pouvoir se connecter sur
+    | une instance publique, sauf activation explicite pour une demo guidee.
+    |
+    */
+
+    'allow_demo_login' => (bool) env(
+        'NEMA_ALLOW_DEMO_LOGIN',
+        in_array(mb_strtolower((string) env('APP_ENV', 'production')), ['local', 'testing'], true)
+    ),
+
+    'demo_email_domains' => array_values(array_filter(array_map(
+        static fn (string $domain): string => mb_strtolower(trim($domain)),
+        explode(',', (string) env('NEMA_DEMO_EMAIL_DOMAINS', 'nema-erp.test'))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Security Headers
     |--------------------------------------------------------------------------
     |

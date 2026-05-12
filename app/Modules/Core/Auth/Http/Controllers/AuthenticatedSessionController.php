@@ -40,6 +40,14 @@ class AuthenticatedSessionController extends Controller
             ])->onlyInput('email');
         }
 
+        if (! config('nema.allow_demo_login') && $this->usesDemoEmailDomain($credentials['email'])) {
+            RateLimiter::hit($key, 60);
+
+            return back()->withErrors([
+                'email' => 'Les identifiants fournis sont invalides.',
+            ])->onlyInput('email');
+        }
+
         if (! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password'], 'is_active' => true], (bool) $request->boolean('remember'))) {
             RateLimiter::hit($key, 60);
 
@@ -76,5 +84,16 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    private function usesDemoEmailDomain(string $email): bool
+    {
+        $domain = mb_strtolower((string) str($email)->after('@'));
+
+        if ($domain === '') {
+            return false;
+        }
+
+        return in_array($domain, config('nema.demo_email_domains', []), true);
     }
 }

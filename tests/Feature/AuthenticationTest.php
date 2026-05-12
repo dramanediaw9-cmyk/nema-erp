@@ -56,6 +56,31 @@ class AuthenticationTest extends TestCase
         $this->assertSame($user->branch_id, session('current_branch_id'));
     }
 
+    public function test_demo_accounts_are_blocked_when_demo_login_is_disabled(): void
+    {
+        config()->set('nema.allow_demo_login', false);
+
+        $this->post('/login', [
+            'email' => 'admin@nema-erp.test',
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
+
+    public function test_demo_accounts_can_log_in_when_demo_login_is_explicitly_enabled(): void
+    {
+        config()->set('nema.allow_demo_login', true);
+
+        $response = $this->post('/login', [
+            'email' => 'admin@nema-erp.test',
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('dashboard'));
+        $this->assertAuthenticated();
+    }
+
     public function test_inactive_user_cannot_log_in(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
