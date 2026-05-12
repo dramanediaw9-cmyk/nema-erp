@@ -93,7 +93,9 @@
             <button type="submit">Se connecter</button>
         </form>
 
-        <div class="hint">Compte démo administrateur : <strong>admin@nema-erp.test</strong> / <strong>password</strong></div>
+        @if (config('nema.expose_demo_credentials'))
+            <div class="hint">Compte démo administrateur : <strong>admin@nema-erp.test</strong> / <strong>password</strong></div>
+        @endif
     </div>
 </body>
 </html>

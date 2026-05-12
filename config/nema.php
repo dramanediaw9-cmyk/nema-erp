@@ -26,4 +26,31 @@ return [
     */
 
     'document_attachment_disk' => env('DOCUMENT_ATTACHMENT_DISK', 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Demo Credential Hint
+    |--------------------------------------------------------------------------
+    |
+    | Par defaut, l ecran de connexion ne doit pas exposer de compte demo.
+    | On peut le reactiver explicitement pour un environnement de demo guidee.
+    |
+    */
+
+    'expose_demo_credentials' => (bool) env('NEMA_EXPOSE_DEMO_CREDENTIALS', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Security Headers
+    |--------------------------------------------------------------------------
+    |
+    | Ces options pilotent les en-tetes HTTP de durcissement ajoutes en
+    | middleware global.
+    |
+    */
+
+    'security_headers' => [
+        'enabled' => (bool) env('SECURITY_HEADERS_ENABLED', true),
+        'hsts_max_age' => (int) env('SECURITY_HEADERS_HSTS_MAX_AGE', 31536000),
+    ],
 ];

@@ -14,7 +14,31 @@ class AuthenticationTest extends TestCase
 
     public function test_login_screen_is_available(): void
     {
-        $this->get('/login')->assertOk();
+        $this->withServerVariables(['HTTPS' => 'on'])
+            ->get('/login')
+            ->assertOk()
+            ->assertDontSee('Compte démo administrateur')
+            ->assertHeader('content-security-policy')
+            ->assertHeader('cross-origin-opener-policy', 'same-origin')
+            ->assertHeader('cross-origin-resource-policy', 'same-origin')
+            ->assertHeader('origin-agent-cluster', '?1')
+            ->assertHeader('permissions-policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()')
+            ->assertHeader('referrer-policy', 'strict-origin-when-cross-origin')
+            ->assertHeader('strict-transport-security', 'max-age=31536000; includeSubDomains')
+            ->assertHeader('x-content-type-options', 'nosniff')
+            ->assertHeader('x-frame-options', 'DENY')
+            ->assertHeader('x-permitted-cross-domain-policies', 'none');
+    }
+
+    public function test_login_screen_can_show_demo_hint_when_explicitly_enabled(): void
+    {
+        config()->set('nema.expose_demo_credentials', true);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('Compte démo administrateur')
+            ->assertSee('admin@nema-erp.test')
+            ->assertSee('password');
     }
 
     public function test_manager_can_log_in_and_reach_dashboard(): void

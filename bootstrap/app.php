@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureApiTokenIsValid;
 use App\Http\Middleware\EnsureUserHasPermission;
+use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\ResolveWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -17,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(ApplySecurityHeaders::class);
+
         $middleware->alias([
             'active' => EnsureActiveUser::class,
             'permission' => EnsureUserHasPermission::class,
