@@ -821,6 +821,118 @@
         .dashboard-launcher__focus-card .stat-value {
             color: #fff;
         }
+        .dashboard-launcher ~ section.card,
+        .dashboard-launcher ~ .dashboard-split section.card {
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(255, 253, 249, 0.84) 0%, rgba(255, 250, 245, 0.78) 100%);
+            border-color: rgba(102, 82, 56, 0.1);
+            box-shadow: 0 12px 28px rgba(42, 28, 18, 0.05);
+            backdrop-filter: blur(12px);
+        }
+        .dashboard-launcher ~ section.card .dashboard-display {
+            font-size: clamp(22px, 3.2vw, 30px);
+        }
+        .dashboard-launcher ~ section.card .dashboard-copy,
+        .dashboard-launcher ~ .dashboard-split section.card .muted,
+        .dashboard-launcher ~ section.card .muted,
+        .dashboard-launcher ~ section.card .help {
+            color: rgba(74, 62, 50, 0.78);
+        }
+        .dashboard-launcher ~ section.card .dashboard-section-head,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head {
+            margin-bottom: 12px;
+        }
+        .dashboard-launcher ~ section.card .dashboard-section-head h2,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head h2 {
+            font-size: 20px;
+        }
+        .dashboard-launcher ~ section.card .dashboard-panel,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-panel {
+            padding: 14px 15px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.62);
+            box-shadow: none;
+            border-color: rgba(102, 82, 56, 0.08);
+        }
+        .dashboard-launcher ~ section.card .dashboard-chip {
+            padding: 7px 10px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.65);
+            box-shadow: none;
+        }
+        .dashboard-launcher ~ section.card .dashboard-link-card,
+        .dashboard-launcher ~ section.card .dashboard-watch-card,
+        .dashboard-launcher ~ section.card .dashboard-analysis-card,
+        .dashboard-launcher ~ section.card .dashboard-checklist-card,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-analysis-card,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-watch-card,
+        .dashboard-launcher ~ .dashboard-kpi-grid .dashboard-kpi-card {
+            border-radius: 18px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.66);
+            box-shadow: none;
+            border-color: rgba(102, 82, 56, 0.08);
+        }
+        .dashboard-launcher ~ section.card .dashboard-link-card:hover,
+        .dashboard-launcher ~ section.card .dashboard-watch-card:hover,
+        .dashboard-launcher ~ section.card .dashboard-analysis-card:hover,
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-analysis-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(42, 28, 18, 0.06);
+        }
+        .dashboard-launcher ~ section.card .stat-value,
+        .dashboard-launcher ~ .dashboard-split section.card .stat-value,
+        .dashboard-launcher ~ .dashboard-kpi-grid .stat-value {
+            font-size: 24px;
+            margin-top: 12px;
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--hero,
+        .dashboard-launcher ~ section.card.dashboard-banner--sector,
+        .dashboard-launcher ~ section.card.dashboard-banner--period-open,
+        .dashboard-launcher ~ section.card.dashboard-banner--period-closed {
+            background: linear-gradient(180deg, rgba(255, 253, 249, 0.84) 0%, rgba(245, 241, 234, 0.78) 100%);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium {
+            color: var(--text);
+            background: linear-gradient(180deg, rgba(247, 251, 252, 0.9) 0%, rgba(240, 246, 247, 0.82) 100%);
+            border-color: rgba(15, 118, 110, 0.1);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-copy,
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .muted,
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .help,
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-card-caption {
+            color: rgba(50, 68, 71, 0.78);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-chip {
+            background: rgba(15, 118, 110, 0.08);
+            color: #0b4f56;
+            border-color: rgba(15, 118, 110, 0.1);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-panel {
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--text);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card {
+            color: var(--text);
+            border-color: rgba(102, 82, 56, 0.08);
+            box-shadow: none;
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card .stat-value,
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card strong {
+            color: var(--text);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card::after {
+            color: rgba(15, 118, 110, 0.58);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card--high {
+            background: linear-gradient(180deg, rgba(180, 35, 24, 0.08) 0%, rgba(255, 255, 255, 0.68) 100%);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card--medium {
+            background: linear-gradient(180deg, rgba(197, 106, 24, 0.08) 0%, rgba(255, 255, 255, 0.68) 100%);
+        }
+        .dashboard-launcher ~ section.card.dashboard-banner--premium .dashboard-premium-card--low {
+            background: linear-gradient(180deg, rgba(15, 118, 110, 0.08) 0%, rgba(255, 255, 255, 0.68) 100%);
+        }
         @media (max-width: 1080px) {
             .dashboard-banner__layout,
             .dashboard-split,
@@ -852,6 +964,10 @@
             .dashboard-app-grid {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
                 gap: 10px;
+            }
+            .dashboard-launcher ~ section.card,
+            .dashboard-launcher ~ .dashboard-split section.card {
+                padding: 16px;
             }
             .dashboard-app-card {
                 min-height: 128px;
