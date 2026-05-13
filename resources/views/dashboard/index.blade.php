@@ -327,13 +327,562 @@
         .dashboard-premium-card--low {
             background: linear-gradient(180deg, rgba(15, 118, 110, 0.18) 0%, rgba(255, 255, 255, 0.08) 100%);
         }
+        .dashboard-app-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+        }
+        .dashboard-app-card {
+            --app-accent: #0f766e;
+            --app-surface: #effaf8;
+            --app-soft: #d7f3ee;
+            --app-border: #b6e7de;
+            --app-ink: #0b4f56;
+            --app-muted: #4b6d70;
+            --app-shadow: rgba(15, 118, 110, 0.16);
+            --app-badge-start: #ffffff;
+            --app-badge-end: #bfece5;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            min-height: 168px;
+            border: 1px solid var(--app-border);
+            border-radius: 22px;
+            padding: 18px 14px 16px;
+            background: linear-gradient(180deg, var(--app-surface) 0%, var(--app-soft) 100%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94), 0 10px 24px var(--app-shadow);
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+            text-align: center;
+        }
+        .dashboard-app-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--app-accent) 0%, var(--app-badge-end) 100%);
+        }
+        .dashboard-app-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 34px var(--app-shadow);
+            border-color: var(--app-accent);
+        }
+        .dashboard-app-card__top,
+        .dashboard-card-lead {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .dashboard-app-card__family {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid var(--app-border);
+            background: rgba(255, 255, 255, 0.56);
+            color: var(--app-ink);
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+        .dashboard-app-card__label {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.2;
+            max-width: 100%;
+            color: var(--app-ink);
+        }
+        .dashboard-app-card__hint {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.35;
+            color: var(--app-muted);
+            display: -webkit-box;
+            overflow: hidden;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+        }
+        .dashboard-icon-badge {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid transparent;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+        }
+        .dashboard-icon-badge svg {
+            display: block;
+        }
+        .dashboard-icon-badge--action,
+        .dashboard-icon-badge--quick {
+            color: #0b4f56;
+            background: linear-gradient(180deg, rgba(15, 118, 110, 0.18) 0%, rgba(239, 250, 248, 0.94) 100%);
+            border-color: rgba(15, 118, 110, 0.12);
+        }
+        .dashboard-icon-badge--app {
+            width: 62px;
+            height: 62px;
+            border-radius: 20px;
+            color: var(--app-accent);
+            background: linear-gradient(180deg, var(--app-badge-start) 0%, var(--app-badge-end) 100%);
+            border-color: var(--app-border);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 18px var(--app-shadow);
+        }
+        .dashboard-icon-badge--sector,
+        .dashboard-icon-badge--signal {
+            color: #176b4d;
+            background: linear-gradient(180deg, rgba(23, 107, 77, 0.16) 0%, rgba(239, 247, 242, 0.94) 100%);
+            border-color: rgba(23, 107, 77, 0.12);
+        }
+        .dashboard-icon-badge--premium {
+            color: #fff4de;
+            background: linear-gradient(180deg, rgba(197, 106, 24, 0.42) 0%, rgba(163, 48, 43, 0.28) 100%);
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+        .dashboard-icon-badge--watch {
+            color: #9a5b00;
+            background: linear-gradient(180deg, rgba(197, 106, 24, 0.18) 0%, rgba(255, 247, 232, 0.94) 100%);
+            border-color: rgba(197, 106, 24, 0.14);
+        }
+        .dashboard-icon-badge--spotlight,
+        .dashboard-icon-badge--kpi,
+        .dashboard-icon-badge--generic {
+            color: #6e6154;
+            background: linear-gradient(180deg, rgba(110, 97, 84, 0.14) 0%, rgba(255, 252, 246, 0.94) 100%);
+            border-color: rgba(110, 97, 84, 0.12);
+        }
+        .dashboard-card-lead + .stat-value {
+            margin-top: 14px;
+        }
+        .dashboard-card-label {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+        .dashboard-card-caption {
+            margin-top: 4px;
+            font-size: 12px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: rgba(110, 97, 84, 0.72);
+        }
+        .dashboard-launcher {
+            position: relative;
+            overflow: hidden;
+            padding: 24px;
+            color: #edf4fb;
+            background:
+                radial-gradient(circle at 12% 0%, rgba(54, 214, 205, 0.18) 0, rgba(54, 214, 205, 0) 28%),
+                radial-gradient(circle at 88% 8%, rgba(255, 166, 104, 0.22) 0, rgba(255, 166, 104, 0) 24%),
+                linear-gradient(180deg, #0f1b2b 0%, #0a1320 56%, #08101a 100%);
+            border-color: rgba(117, 148, 181, 0.24);
+            box-shadow: 0 28px 60px rgba(8, 14, 26, 0.34);
+        }
+        .dashboard-launcher::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 34%);
+        }
+        .dashboard-launcher__top,
+        .dashboard-launcher__hero {
+            position: relative;
+            z-index: 1;
+        }
+        .dashboard-launcher__top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        .dashboard-launcher__search {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            min-width: min(100%, 520px);
+            padding: 12px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(237, 244, 251, 0.88);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            transition: transform .18s ease, border-color .18s ease, background .18s ease;
+        }
+        .dashboard-launcher__search:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.09);
+        }
+        .dashboard-launcher__search-icon,
+        .dashboard-launcher__counter,
+        .dashboard-launcher__avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dashboard-launcher__search-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #7ce7d6;
+        }
+        .dashboard-launcher__actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dashboard-launcher__counter,
+        .dashboard-launcher__avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.07);
+            color: #edf4fb;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+        .dashboard-launcher__counter {
+            position: relative;
+        }
+        .dashboard-launcher__counter strong {
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #ff8a65 0%, #ff4d78 100%);
+            color: #fff;
+            font-size: 10px;
+            line-height: 18px;
+            text-align: center;
+        }
+        .dashboard-launcher__avatar {
+            background: linear-gradient(135deg, rgba(80, 205, 195, 0.82) 0%, rgba(46, 120, 207, 0.72) 100%);
+            color: #03101b;
+            font-weight: 900;
+        }
+        .dashboard-launcher__hero {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.24fr) minmax(300px, .76fr);
+            gap: 20px;
+            align-items: start;
+        }
+        .dashboard-launcher__copy .badge {
+            background: rgba(255, 255, 255, 0.09);
+            color: #d7e7ff;
+        }
+        .dashboard-launcher__title {
+            margin: 12px 0 0;
+            font-family: "Aptos Display", "Aptos", "Trebuchet MS", sans-serif;
+            font-size: clamp(30px, 5vw, 42px);
+            line-height: .98;
+            letter-spacing: -.05em;
+            color: #f8fbff;
+        }
+        .dashboard-launcher__body {
+            margin: 12px 0 0;
+            max-width: 720px;
+            color: rgba(237, 244, 251, 0.76);
+            font-size: 15px;
+        }
+        .dashboard-launcher__family-strip {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        .dashboard-launcher__family {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(237, 244, 251, 0.84);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+        .dashboard-launcher__family strong {
+            color: var(--launcher-accent, #7ce7d6);
+            font-size: 12px;
+        }
+        .dashboard-launcher__status-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .dashboard-launcher__status-card,
+        .dashboard-launcher__focus-card {
+            display: block;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.06);
+            color: #edf4fb;
+            padding: 16px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: transform .18s ease, border-color .18s ease, background .18s ease;
+        }
+        .dashboard-launcher__status-card:hover,
+        .dashboard-launcher__focus-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.09);
+        }
+        .dashboard-launcher__status-card span,
+        .dashboard-launcher__status-card small {
+            display: block;
+        }
+        .dashboard-launcher__status-card span {
+            color: rgba(237, 244, 251, 0.68);
+            font-size: 12px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .dashboard-launcher__status-card strong {
+            display: block;
+            margin-top: 10px;
+            font-size: 28px;
+            line-height: 1;
+            letter-spacing: -.04em;
+            color: #fff;
+        }
+        .dashboard-launcher__status-card small {
+            margin-top: 8px;
+            color: rgba(237, 244, 251, 0.72);
+            font-size: 13px;
+            line-height: 1.35;
+        }
+        .dashboard-app-grid {
+            position: relative;
+            z-index: 1;
+            margin-top: 24px;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+        }
+        .dashboard-app-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            min-height: 162px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 14px 10px 12px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 34%),
+                linear-gradient(180deg, rgba(19, 28, 42, 0.98) 0%, rgba(10, 16, 26, 0.98) 100%);
+            box-shadow: 0 18px 28px rgba(4, 8, 16, 0.26);
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+            text-align: center;
+            overflow: hidden;
+        }
+        .dashboard-app-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--app-accent) 0%, var(--app-badge-end) 100%);
+            opacity: .94;
+        }
+        .dashboard-app-card::after {
+            content: "";
+            position: absolute;
+            inset: auto 16px 12px 16px;
+            height: 3px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, var(--app-accent) 46%, rgba(255, 255, 255, 0) 100%);
+            opacity: .72;
+        }
+        .dashboard-app-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 0 24px 36px rgba(4, 8, 16, 0.34);
+        }
+        .dashboard-app-card__badge {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            min-width: 24px;
+            height: 24px;
+            padding: 0 7px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #ff8a65 0%, #ff4d78 100%);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 900;
+            z-index: 2;
+            box-shadow: 0 8px 14px rgba(255, 88, 122, 0.28);
+        }
+        .dashboard-app-card__label {
+            position: relative;
+            z-index: 1;
+            margin: 0;
+            min-height: 2.5em;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            color: #f8fbff;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.26;
+        }
+        .dashboard-app-card__family {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(237, 244, 251, 0.72);
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .dashboard-icon-badge--app {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            border-radius: 24px;
+            color: #fff;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.04) 100%);
+            border-color: rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            overflow: hidden;
+        }
+        .dashboard-icon-badge--app::before {
+            content: "";
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            left: 10px;
+            top: 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--app-accent) 0%, var(--app-badge-end) 100%);
+            transform: rotate(-16deg);
+            opacity: .96;
+        }
+        .dashboard-icon-badge--app::after {
+            content: "";
+            position: absolute;
+            width: 18px;
+            height: 46px;
+            right: 14px;
+            top: 10px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.24);
+            transform: rotate(26deg);
+        }
+        .dashboard-icon-badge--app svg {
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.22));
+        }
+        .dashboard-launcher__focus-grid {
+            position: relative;
+            z-index: 1;
+            margin-top: 22px;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .dashboard-launcher__focus-card .dashboard-card-caption,
+        .dashboard-launcher__focus-card .muted {
+            color: rgba(237, 244, 251, 0.72);
+        }
+        .dashboard-launcher__focus-card .dashboard-card-label,
+        .dashboard-launcher__focus-card .stat-value {
+            color: #fff;
+        }
         @media (max-width: 1080px) {
             .dashboard-banner__layout,
-            .dashboard-split {
+            .dashboard-split,
+            .dashboard-launcher__hero {
                 grid-template-columns: 1fr;
             }
             .dashboard-micro-grid {
                 grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .dashboard-launcher {
+                padding: 18px;
+            }
+            .dashboard-launcher__top {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .dashboard-launcher__search {
+                min-width: 0;
+                width: 100%;
+            }
+            .dashboard-launcher__actions {
+                justify-content: space-between;
+            }
+            .dashboard-launcher__status-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .dashboard-app-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 10px;
+            }
+            .dashboard-app-card {
+                min-height: 128px;
+                padding: 12px 8px 10px;
+                border-radius: 20px;
+            }
+            .dashboard-icon-badge--app {
+                width: 56px;
+                height: 56px;
+                border-radius: 18px;
+            }
+            .dashboard-icon-badge--app::before {
+                width: 30px;
+                height: 30px;
+                left: 8px;
+                top: 13px;
+                border-radius: 12px;
+            }
+            .dashboard-icon-badge--app::after {
+                width: 14px;
+                height: 34px;
+                right: 10px;
+                top: 9px;
+            }
+            .dashboard-app-card__label {
+                min-height: 2.8em;
+                font-size: 11px;
+            }
+            .dashboard-app-card__family {
+                padding: 4px 7px;
+                font-size: 9px;
             }
         }
         @media (max-width: 640px) {
@@ -346,10 +895,31 @@
                 grid-template-columns: 1fr;
             }
         }
+        @media (max-width: 420px) {
+            .dashboard-launcher__status-grid,
+            .dashboard-launcher__focus-grid {
+                grid-template-columns: 1fr;
+            }
+            .dashboard-app-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
     </style>
 @endpush
 
 @section('content')
+    @php
+        $iconTone = static fn (array $item): string => match ($item['group'] ?? 'generic') {
+            'app' => 'app',
+            'quick', 'action' => 'action',
+            'sector', 'signal' => 'sector',
+            'premium' => 'premium',
+            'watch' => 'watch',
+            'spotlight' => 'spotlight',
+            'kpi' => 'kpi',
+            default => 'generic',
+        };
+    @endphp
     <div class="dashboard-shell">
         @if ($showOnboardingBanner && $onboarding)
             <section class="card dashboard-banner dashboard-banner--warm">
@@ -377,6 +947,8 @@
             </section>
         @endif
 
+        @include('dashboard.partials.app-launcher')
+
         <section class="card dashboard-banner dashboard-banner--hero">
             <div class="dashboard-banner__layout">
                 <div class="dashboard-banner__copy">
@@ -392,7 +964,7 @@
                 <div class="dashboard-banner__aside">
                     <div class="dashboard-panel">
                         <strong>Recherche globale</strong>
-                        <p class="muted">La barre de recherche en haut retrouve rapidement clients, produits, ventes, achats, paiements et documents utiles.</p>
+                        <p class="muted">Tape un nom, un numero ou un code pour retrouver vite le bon document.</p>
                         <div class="help" style="margin-top:8px;">Exemples : {{ implode(' | ', $dashboardProfile['search_examples']) }}</div>
                     </div>
                     @if ($currentPeriodSummary)
@@ -447,6 +1019,34 @@
                 </div>
             </div>
 
+            @if (! empty($sectorSignals))
+                <div style="margin-top:18px;">
+                    <div class="dashboard-section-head" style="margin-bottom:14px;">
+                        <div>
+                            <h2 style="font-size:22px;">Signaux terrain du secteur</h2>
+                            <p class="muted">Indicateurs metier remontes specifiquement pour le profil actif.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-watch-grid">
+                        @foreach ($sectorSignals as $item)
+                            <a href="{{ $item['url'] }}" class="dashboard-watch-card">
+                                <div class="dashboard-card-lead">
+                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                        @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'grid', 'size' => 20])
+                                    </span>
+                                    <div>
+                                        <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                        <div class="dashboard-card-caption">Signal metier</div>
+                                    </div>
+                                </div>
+                                <div class="stat-value">{{ $item['value'] }}</div>
+                                <p class="muted">{{ $item['description'] }}</p>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             @if (! empty($sectorActionPlan))
                 <div style="margin-top:18px;">
                     <div class="dashboard-section-head" style="margin-bottom:14px;">
@@ -458,7 +1058,15 @@
                     <div class="dashboard-link-grid">
                         @foreach ($sectorActionPlan as $action)
                             <a href="{{ $action['url'] }}" class="dashboard-link-card">
-                                <strong>{{ $action['label'] }}</strong>
+                                <div class="dashboard-card-lead">
+                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($action) }}">
+                                        @include('dashboard.partials.icon', ['name' => $action['icon'] ?? 'grid', 'size' => 20])
+                                    </span>
+                                    <div>
+                                        <p class="dashboard-card-label">{{ $action['label'] }}</p>
+                                        <div class="dashboard-card-caption">Module</div>
+                                    </div>
+                                </div>
                                 <p class="muted">{{ $action['description'] }}</p>
                             </a>
                         @endforeach
@@ -485,12 +1093,8 @@
                     </div>
                     <div class="dashboard-banner__aside">
                         <div class="dashboard-panel">
-                            <strong>Pourquoi c est premium</strong>
-                            <p class="muted">Nema ERP remonte ici les actions qui changent vraiment le pilotage : cash, execution, cloture, approvisionnement et sante technique.</p>
-                        </div>
-                        <div class="dashboard-panel">
-                            <strong>Lecture express</strong>
-                            <p class="muted">Chaque carte pointe un levier concret a lancer, pas juste un chiffre a contempler.</p>
+                            <strong>Commence par les cartes orange</strong>
+                            <p class="muted">Chaque carte ouvre directement l ecran a traiter. Orange = urgent, vert = stable.</p>
                         </div>
                     </div>
                 </div>
@@ -498,11 +1102,14 @@
                     @foreach ($premiumActionCenter as $item)
                         <a href="{{ $item['url'] }}" class="dashboard-premium-card dashboard-premium-card--{{ $item['priority'] }}">
                             <div class="dashboard-premium-meta">
-                                <span class="badge {{ $item['priority'] === 'high' ? 'badge-warning' : ($item['priority'] === 'medium' ? 'badge-muted' : 'badge-success') }}">
-                                    {{ $item['priority'] === 'high' ? 'Priorite immediate' : ($item['priority'] === 'medium' ? 'Levier rapide' : 'Sous controle') }}
+                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'flash', 'size' => 20])
                                 </span>
-                                <span class="muted">{{ $item['eyebrow'] }}</span>
+                                <span class="badge {{ $item['priority'] === 'high' ? 'badge-warning' : ($item['priority'] === 'medium' ? 'badge-muted' : 'badge-success') }}">
+                                    {{ $item['priority'] === 'high' ? 'Urgent' : ($item['priority'] === 'medium' ? 'A faire' : 'Stable') }}
+                                </span>
                             </div>
+                            <div class="dashboard-card-caption" style="color:rgba(238, 248, 248, 0.74); margin-top:12px;">{{ $item['eyebrow'] }}</div>
                             <strong>{{ $item['label'] }}</strong>
                             <div class="stat-value" style="font-size:32px;">{{ $item['metric'] }}</div>
                             <p class="muted">{{ $item['description'] }}</p>
@@ -541,49 +1148,19 @@
                 </div>
             </section>
         @endif
-        @if (! empty($roleActionPlan))
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>{{ $dashboardProfile['focus_title'] }}</h2>
-                        <p class="muted">{{ $dashboardProfile['focus_description'] }}</p>
-                    </div>
-                </div>
-                <div class="dashboard-link-grid">
-                    @foreach ($roleActionPlan as $action)
-                        <a href="{{ $action['url'] }}" class="dashboard-link-card">
-                            <strong>{{ $action['label'] }}</strong>
-                            <p class="muted">{{ $action['description'] }}</p>
-                        </a>
-                    @endforeach
-                </div>
-            </section>
-        @endif
-
-        @if (! empty($quickLinks))
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>Actions rapides</h2>
-                        <p class="muted">Raccourcis vers les operations les plus frequentes du noyau.</p>
-                    </div>
-                </div>
-                <div class="dashboard-link-grid">
-                    @foreach ($quickLinks as $link)
-                        <a href="{{ $link['url'] }}" class="dashboard-link-card">
-                            <strong>{{ $link['label'] }}</strong>
-                            <p class="muted">{{ $link['description'] }}</p>
-                        </a>
-                    @endforeach
-                </div>
-            </section>
-        @endif
-
         @if (! empty($dashboardKpis))
             <section class="dashboard-kpi-grid">
                 @foreach ($dashboardKpis as $kpi)
                     <article class="dashboard-kpi-card">
-                        <div class="muted">{{ $kpi['label'] }}</div>
+                        <div class="dashboard-card-lead">
+                            <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($kpi) }}">
+                                @include('dashboard.partials.icon', ['name' => $kpi['icon'] ?? 'gauge', 'size' => 20])
+                            </span>
+                            <div>
+                                <p class="dashboard-card-label">{{ $kpi['label'] }}</p>
+                                <div class="dashboard-card-caption">Indicateur</div>
+                            </div>
+                        </div>
                         <div class="stat-value">{{ $kpi['value'] }}</div>
                         <div class="help">{{ $kpi['description'] }}</div>
                     </article>
@@ -602,7 +1179,15 @@
                 <div class="dashboard-watch-grid">
                     @foreach ($operationalWatchlist as $item)
                         <a href="{{ $item['url'] }}" class="dashboard-watch-card">
-                            <div class="muted">{{ $item['label'] }}</div>
+                            <div class="dashboard-card-lead">
+                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'alert', 'size' => 20])
+                                </span>
+                                <div>
+                                    <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                    <div class="dashboard-card-caption">A suivre</div>
+                                </div>
+                            </div>
                             <div class="stat-value">{{ number_format((float) $item['count'], 0, ',', ' ') }}</div>
                             <p class="muted">{{ $item['description'] }}</p>
                         </a>
@@ -660,7 +1245,15 @@
                 <div class="dashboard-analysis-grid">
                     @foreach ($roleSpotlight as $item)
                         <a href="{{ $item['url'] }}" class="dashboard-analysis-card">
-                            <div class="muted">{{ $item['label'] }}</div>
+                            <div class="dashboard-card-lead">
+                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'pulse', 'size' => 20])
+                                </span>
+                                <div>
+                                    <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                    <div class="dashboard-card-caption">Vue rapide</div>
+                                </div>
+                            </div>
                             <div class="stat-value" style="font-size:30px;">{{ $item['value'] }}</div>
                             <p class="muted">{{ $item['description'] }}</p>
                         </a>
