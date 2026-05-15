@@ -821,8 +821,67 @@
         .dashboard-launcher__focus-card .stat-value {
             color: #fff;
         }
+        .dashboard-collapsible__toggle {
+            display: none;
+            width: 100%;
+            border: 0;
+            padding: 0;
+            text-align: left;
+            background: transparent;
+            color: inherit;
+        }
+        .dashboard-collapsible__toggle-inner {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: center;
+        }
+        .dashboard-collapsible__toggle-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+        .dashboard-collapsible__eyebrow {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+        .dashboard-collapsible__title {
+            font-size: 16px;
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -.02em;
+        }
+        .dashboard-collapsible__hint {
+            font-size: 12px;
+            line-height: 1.35;
+            color: rgba(74, 62, 50, 0.72);
+        }
+        .dashboard-collapsible__chevron {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--brand-deep);
+            transition: transform .18s ease, background .18s ease;
+        }
+        .dashboard-collapsible__chevron::before {
+            content: "⌄";
+            font-size: 18px;
+            line-height: 1;
+            transform: translateY(-1px);
+        }
+        .dashboard-collapsible__body {
+            display: block;
+        }
         .dashboard-launcher ~ section.card,
-        .dashboard-launcher ~ .dashboard-split section.card {
+        .dashboard-launcher ~ .dashboard-split section.card,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card {
             padding: 18px;
             background: linear-gradient(180deg, rgba(255, 253, 249, 0.84) 0%, rgba(255, 250, 245, 0.78) 100%);
             border-color: rgba(102, 82, 56, 0.1);
@@ -834,20 +893,24 @@
         }
         .dashboard-launcher ~ section.card .dashboard-copy,
         .dashboard-launcher ~ .dashboard-split section.card .muted,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .muted,
         .dashboard-launcher ~ section.card .muted,
         .dashboard-launcher ~ section.card .help {
             color: rgba(74, 62, 50, 0.78);
         }
         .dashboard-launcher ~ section.card .dashboard-section-head,
-        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head {
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-section-head {
             margin-bottom: 12px;
         }
         .dashboard-launcher ~ section.card .dashboard-section-head h2,
-        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head h2 {
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-section-head h2,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-section-head h2 {
             font-size: 20px;
         }
         .dashboard-launcher ~ section.card .dashboard-panel,
-        .dashboard-launcher ~ .dashboard-split section.card .dashboard-panel {
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-panel,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-panel {
             padding: 14px 15px;
             border-radius: 16px;
             background: rgba(255, 255, 255, 0.62);
@@ -866,7 +929,10 @@
         .dashboard-launcher ~ section.card .dashboard-checklist-card,
         .dashboard-launcher ~ .dashboard-split section.card .dashboard-analysis-card,
         .dashboard-launcher ~ .dashboard-split section.card .dashboard-watch-card,
-        .dashboard-launcher ~ .dashboard-kpi-grid .dashboard-kpi-card {
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-analysis-card,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-watch-card,
+        .dashboard-launcher ~ .dashboard-kpi-grid .dashboard-kpi-card,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-kpi-grid .dashboard-kpi-card {
             border-radius: 18px;
             padding: 16px;
             background: rgba(255, 255, 255, 0.66);
@@ -876,13 +942,16 @@
         .dashboard-launcher ~ section.card .dashboard-link-card:hover,
         .dashboard-launcher ~ section.card .dashboard-watch-card:hover,
         .dashboard-launcher ~ section.card .dashboard-analysis-card:hover,
-        .dashboard-launcher ~ .dashboard-split section.card .dashboard-analysis-card:hover {
+        .dashboard-launcher ~ .dashboard-split section.card .dashboard-analysis-card:hover,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .dashboard-analysis-card:hover {
             transform: translateY(-1px);
             box-shadow: 0 12px 24px rgba(42, 28, 18, 0.06);
         }
         .dashboard-launcher ~ section.card .stat-value,
         .dashboard-launcher ~ .dashboard-split section.card .stat-value,
-        .dashboard-launcher ~ .dashboard-kpi-grid .stat-value {
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card .stat-value,
+        .dashboard-launcher ~ .dashboard-kpi-grid .stat-value,
+        .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-kpi-grid .stat-value {
             font-size: 24px;
             margin-top: 12px;
         }
@@ -947,6 +1016,38 @@
             .dashboard-launcher {
                 padding: 18px;
             }
+            .dashboard-collapsible {
+                overflow: hidden;
+            }
+            .dashboard-collapsible.card {
+                padding: 0 !important;
+            }
+            .dashboard-collapsible__toggle {
+                display: block;
+                padding: 16px;
+            }
+            .dashboard-collapsible__body {
+                padding: 0 16px 16px;
+            }
+            .dashboard-collapsible[data-dashboard-collapsed="true"] .dashboard-collapsible__body {
+                display: none;
+            }
+            .dashboard-collapsible[data-dashboard-collapsed="true"] .dashboard-collapsible__chevron {
+                transform: rotate(0deg);
+            }
+            .dashboard-collapsible[data-dashboard-collapsed="false"] .dashboard-collapsible__chevron {
+                transform: rotate(180deg);
+            }
+            .dashboard-collapsible--plain {
+                border: 1px solid rgba(102, 82, 56, 0.1);
+                border-radius: 20px;
+                background: linear-gradient(180deg, rgba(255, 253, 249, 0.84) 0%, rgba(255, 250, 245, 0.78) 100%);
+                box-shadow: 0 12px 28px rgba(42, 28, 18, 0.05);
+                backdrop-filter: blur(12px);
+            }
+            .dashboard-collapsible--plain .dashboard-collapsible__body {
+                padding: 0 0 16px;
+            }
             .dashboard-launcher__top {
                 flex-direction: column;
                 align-items: stretch;
@@ -966,7 +1067,8 @@
                 gap: 10px;
             }
             .dashboard-launcher ~ section.card,
-            .dashboard-launcher ~ .dashboard-split section.card {
+            .dashboard-launcher ~ .dashboard-split section.card,
+            .dashboard-launcher ~ .dashboard-collapsible--plain .dashboard-split section.card {
                 padding: 16px;
             }
             .dashboard-app-card {
@@ -1065,339 +1167,439 @@
 
         @include('dashboard.partials.app-launcher')
 
-        <section class="card dashboard-banner dashboard-banner--hero">
-            <div class="dashboard-banner__layout">
-                <div class="dashboard-banner__copy">
-                    <div class="badge badge-muted">{{ $dashboardProfile['badge'] }}</div>
-                    <h2 class="dashboard-display">{{ $dashboardProfile['headline'] }}</h2>
-                    <p class="dashboard-copy muted">{{ $dashboardProfile['description'] }}</p>
-                    <div class="dashboard-chip-row">
-                        @foreach ($dashboardProfile['priorities'] as $priority)
-                            <span class="dashboard-chip">{{ $priority }}</span>
-                        @endforeach
-                    </div>
-                </div>
-                <div class="dashboard-banner__aside">
-                    <div class="dashboard-panel">
-                        <strong>Recherche globale</strong>
-                        <p class="muted">Tape un nom, un numero ou un code pour retrouver vite le bon document.</p>
-                        <div class="help" style="margin-top:8px;">Exemples : {{ implode(' | ', $dashboardProfile['search_examples']) }}</div>
-                    </div>
-                    @if ($currentPeriodSummary)
-                        <div class="dashboard-panel dashboard-panel--contrast">
-                            <div class="badge {{ $currentPeriodSummary['period']?->isClosed() ? 'badge-warning' : ($currentPeriodSummary['status'] === 'ready' ? 'badge-success' : 'badge-muted') }}">{{ $currentPeriodSummary['period']?->isClosed() ? 'Periode cloturee' : 'Periode en cours' }}</div>
-                            <strong style="margin-top:10px;">{{ $currentPeriodSummary['period']?->name }}</strong>
-                            <p class="muted">{{ $currentPeriodSummary['start_date']->format('d/m/Y') }} au {{ $currentPeriodSummary['end_date']->format('d/m/Y') }}</p>
-                            <div class="dashboard-micro-grid" style="margin-top:14px;">
-                                <div class="dashboard-micro-item">
-                                    <span>Checklist</span>
-                                    <strong>{{ count($currentPeriodSummary['checklist']) }}</strong>
-                                </div>
-                                <div class="dashboard-micro-item">
-                                    <span>Cloture</span>
-                                    <strong>{{ $currentPeriodSummary['can_close'] ? 'Possible' : 'Bloquee' }}</strong>
-                                </div>
-                            </div>
+        <section class="card dashboard-banner dashboard-banner--hero dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="true">
+            <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                <span class="dashboard-collapsible__toggle-inner">
+                    <span class="dashboard-collapsible__toggle-copy">
+                        <span class="dashboard-collapsible__eyebrow">{{ $dashboardProfile['badge'] }}</span>
+                        <span class="dashboard-collapsible__title">Vue de pilotage</span>
+                        <span class="dashboard-collapsible__hint">Recherche globale, priorites et cap sur la periode active.</span>
+                    </span>
+                    <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                </span>
+            </button>
+            <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                <div class="dashboard-banner__layout">
+                    <div class="dashboard-banner__copy">
+                        <div class="badge badge-muted">{{ $dashboardProfile['badge'] }}</div>
+                        <h2 class="dashboard-display">{{ $dashboardProfile['headline'] }}</h2>
+                        <p class="dashboard-copy muted">{{ $dashboardProfile['description'] }}</p>
+                        <div class="dashboard-chip-row">
+                            @foreach ($dashboardProfile['priorities'] as $priority)
+                                <span class="dashboard-chip">{{ $priority }}</span>
+                            @endforeach
                         </div>
-                    @endif
-                </div>
-            </div>
-        </section>
-
-        <section class="card dashboard-banner dashboard-banner--sector">
-            <div class="dashboard-banner__layout">
-                <div class="dashboard-banner__copy">
-                    <div class="badge badge-success">Pack metier actif</div>
-                    <h2 class="dashboard-display" style="font-size:clamp(24px, 3vw, 34px);">{{ $sectorProfile['label'] }}</h2>
-                    <p class="dashboard-copy muted">{{ $sectorProfile['description'] }}</p>
-                    <div class="dashboard-chip-row">
-                        @foreach ($sectorProfile['use_cases'] as $useCase)
-                            <span class="dashboard-chip">{{ $useCase }}</span>
-                        @endforeach
                     </div>
-                </div>
-                <div class="dashboard-banner__aside">
-                    <div class="dashboard-panel">
-                        <strong>Ce que Nema ERP privilegie</strong>
-                        <p class="muted">{{ implode(' · ', $sectorProfile['operational_focus']) }}</p>
-                        <div class="help" style="margin-top:8px;">Catalogue de depart : {{ implode(' · ', $sectorProfile['starter_catalog']) }}</div>
-                    </div>
-                    <div class="dashboard-panel">
-                        <strong>Reglages conseilles</strong>
-                        <p class="muted">Unites : {{ implode(' · ', $sectorProfile['recommended_units']) }}</p>
-                        <p class="muted" style="margin-top:8px;">Paiements terrain : {{ implode(' · ', $sectorProfile['recommended_payments']) }}</p>
-                        @if (auth()->user()?->hasPermission('settings.view'))
-                            <div class="dashboard-actions" style="margin-top:12px;">
-                                <a href="{{ route('settings.index') }}" class="button button-secondary">Ajuster le profil</a>
+                    <div class="dashboard-banner__aside">
+                        <div class="dashboard-panel">
+                            <strong>Recherche globale</strong>
+                            <p class="muted">Tape un nom, un numero ou un code pour retrouver vite le bon document.</p>
+                            <div class="help" style="margin-top:8px;">Exemples : {{ implode(' | ', $dashboardProfile['search_examples']) }}</div>
+                        </div>
+                        @if ($currentPeriodSummary)
+                            <div class="dashboard-panel dashboard-panel--contrast">
+                                <div class="badge {{ $currentPeriodSummary['period']?->isClosed() ? 'badge-warning' : ($currentPeriodSummary['status'] === 'ready' ? 'badge-success' : 'badge-muted') }}">{{ $currentPeriodSummary['period']?->isClosed() ? 'Periode cloturee' : 'Periode en cours' }}</div>
+                                <strong style="margin-top:10px;">{{ $currentPeriodSummary['period']?->name }}</strong>
+                                <p class="muted">{{ $currentPeriodSummary['start_date']->format('d/m/Y') }} au {{ $currentPeriodSummary['end_date']->format('d/m/Y') }}</p>
+                                <div class="dashboard-micro-grid" style="margin-top:14px;">
+                                    <div class="dashboard-micro-item">
+                                        <span>Checklist</span>
+                                        <strong>{{ count($currentPeriodSummary['checklist']) }}</strong>
+                                    </div>
+                                    <div class="dashboard-micro-item">
+                                        <span>Cloture</span>
+                                        <strong>{{ $currentPeriodSummary['can_close'] ? 'Possible' : 'Bloquee' }}</strong>
+                                    </div>
+                                </div>
                             </div>
                         @endif
                     </div>
                 </div>
             </div>
+        </section>
 
-            @if (! empty($sectorSignals))
-                <div style="margin-top:18px;">
-                    <div class="dashboard-section-head" style="margin-bottom:14px;">
-                        <div>
-                            <h2 style="font-size:22px;">Signaux terrain du secteur</h2>
-                            <p class="muted">Indicateurs metier remontes specifiquement pour le profil actif.</p>
+        <section class="card dashboard-banner dashboard-banner--sector dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="false">
+            <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                <span class="dashboard-collapsible__toggle-inner">
+                    <span class="dashboard-collapsible__toggle-copy">
+                        <span class="dashboard-collapsible__eyebrow">Pack metier</span>
+                        <span class="dashboard-collapsible__title">{{ $sectorProfile['label'] }}</span>
+                        <span class="dashboard-collapsible__hint">Signals terrain et modules recommandes pour le profil actif.</span>
+                    </span>
+                    <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                </span>
+            </button>
+            <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                <div class="dashboard-banner__layout">
+                    <div class="dashboard-banner__copy">
+                        <div class="badge badge-success">Pack metier actif</div>
+                        <h2 class="dashboard-display" style="font-size:clamp(24px, 3vw, 34px);">{{ $sectorProfile['label'] }}</h2>
+                        <p class="dashboard-copy muted">{{ $sectorProfile['description'] }}</p>
+                        <div class="dashboard-chip-row">
+                            @foreach ($sectorProfile['use_cases'] as $useCase)
+                                <span class="dashboard-chip">{{ $useCase }}</span>
+                            @endforeach
                         </div>
                     </div>
-                    <div class="dashboard-watch-grid">
-                        @foreach ($sectorSignals as $item)
-                            <a href="{{ $item['url'] }}" class="dashboard-watch-card">
-                                <div class="dashboard-card-lead">
-                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
-                                        @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'grid', 'size' => 20])
-                                    </span>
-                                    <div>
-                                        <p class="dashboard-card-label">{{ $item['label'] }}</p>
-                                        <div class="dashboard-card-caption">Signal metier</div>
-                                    </div>
+                    <div class="dashboard-banner__aside">
+                        <div class="dashboard-panel">
+                            <strong>Ce que Nema ERP privilegie</strong>
+                            <p class="muted">{{ implode(' · ', $sectorProfile['operational_focus']) }}</p>
+                            <div class="help" style="margin-top:8px;">Catalogue de depart : {{ implode(' · ', $sectorProfile['starter_catalog']) }}</div>
+                        </div>
+                        <div class="dashboard-panel">
+                            <strong>Reglages conseilles</strong>
+                            <p class="muted">Unites : {{ implode(' · ', $sectorProfile['recommended_units']) }}</p>
+                            <p class="muted" style="margin-top:8px;">Paiements terrain : {{ implode(' · ', $sectorProfile['recommended_payments']) }}</p>
+                            @if (auth()->user()?->hasPermission('settings.view'))
+                                <div class="dashboard-actions" style="margin-top:12px;">
+                                    <a href="{{ route('settings.index') }}" class="button button-secondary">Ajuster le profil</a>
                                 </div>
-                                <div class="stat-value">{{ $item['value'] }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if (! empty($sectorSignals))
+                    <div style="margin-top:18px;">
+                        <div class="dashboard-section-head" style="margin-bottom:14px;">
+                            <div>
+                                <h2 style="font-size:22px;">Signaux terrain du secteur</h2>
+                                <p class="muted">Indicateurs metier remontes specifiquement pour le profil actif.</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-watch-grid">
+                            @foreach ($sectorSignals as $item)
+                                <a href="{{ $item['url'] }}" class="dashboard-watch-card">
+                                    <div class="dashboard-card-lead">
+                                        <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                            @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'grid', 'size' => 20])
+                                        </span>
+                                        <div>
+                                            <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                            <div class="dashboard-card-caption">Signal metier</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value">{{ $item['value'] }}</div>
+                                    <p class="muted">{{ $item['description'] }}</p>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if (! empty($sectorActionPlan))
+                    <div style="margin-top:18px;">
+                        <div class="dashboard-section-head" style="margin-bottom:14px;">
+                            <div>
+                                <h2 style="font-size:22px;">Modules recommandes pour ce secteur</h2>
+                                <p class="muted">Raccourcis priorises selon le pack metier actif.</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-link-grid">
+                            @foreach ($sectorActionPlan as $action)
+                                <a href="{{ $action['url'] }}" class="dashboard-link-card">
+                                    <div class="dashboard-card-lead">
+                                        <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($action) }}">
+                                            @include('dashboard.partials.icon', ['name' => $action['icon'] ?? 'grid', 'size' => 20])
+                                        </span>
+                                        <div>
+                                            <p class="dashboard-card-label">{{ $action['label'] }}</p>
+                                            <div class="dashboard-card-caption">Module</div>
+                                        </div>
+                                    </div>
+                                    <p class="muted">{{ $action['description'] }}</p>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </section>
+
+
+        @if (! empty($premiumActionCenter))
+            <section class="card dashboard-banner dashboard-banner--premium dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="false">
+                <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                    <span class="dashboard-collapsible__toggle-inner">
+                        <span class="dashboard-collapsible__toggle-copy">
+                            <span class="dashboard-collapsible__eyebrow">Premium</span>
+                            <span class="dashboard-collapsible__title">Centre d actions premium</span>
+                            <span class="dashboard-collapsible__hint">Alertes prioritaires, execution et risques techniques a traiter.</span>
+                        </span>
+                        <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                    </span>
+                </button>
+                <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                    <div class="dashboard-banner__layout">
+                        <div class="dashboard-banner__copy">
+                            <div class="badge badge-success">Centre d actions premium</div>
+                            <h2 class="dashboard-display" style="font-size:clamp(24px, 3vw, 34px);">{{ $premiumBrief['headline'] }}</h2>
+                            <p class="dashboard-copy">{{ $premiumBrief['description'] }}</p>
+                            @if (! empty($premiumBrief['focus']))
+                                <div class="dashboard-chip-row">
+                                    @foreach (explode(' | ', $premiumBrief['focus']) as $focus)
+                                        <span class="dashboard-chip">{{ $focus }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                        <div class="dashboard-banner__aside">
+                            <div class="dashboard-panel">
+                                <strong>Commence par les cartes orange</strong>
+                                <p class="muted">Chaque carte ouvre directement l ecran a traiter. Orange = urgent, vert = stable.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-premium-grid">
+                        @foreach ($premiumActionCenter as $item)
+                            <a href="{{ $item['url'] }}" class="dashboard-premium-card dashboard-premium-card--{{ $item['priority'] }}">
+                                <div class="dashboard-premium-meta">
+                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                        @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'flash', 'size' => 20])
+                                    </span>
+                                    <span class="badge {{ $item['priority'] === 'high' ? 'badge-warning' : ($item['priority'] === 'medium' ? 'badge-muted' : 'badge-success') }}">
+                                        {{ $item['priority'] === 'high' ? 'Urgent' : ($item['priority'] === 'medium' ? 'A faire' : 'Stable') }}
+                                    </span>
+                                </div>
+                                <div class="dashboard-card-caption" style="color:rgba(238, 248, 248, 0.74); margin-top:12px;">{{ $item['eyebrow'] }}</div>
+                                <strong>{{ $item['label'] }}</strong>
+                                <div class="stat-value" style="font-size:32px;">{{ $item['metric'] }}</div>
                                 <p class="muted">{{ $item['description'] }}</p>
                             </a>
                         @endforeach
                     </div>
                 </div>
-            @endif
+            </section>
+        @endif
 
-            @if (! empty($sectorActionPlan))
-                <div style="margin-top:18px;">
-                    <div class="dashboard-section-head" style="margin-bottom:14px;">
+        @if (! empty($executiveBrief['items']))
+            <section class="card dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="false">
+                <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                    <span class="dashboard-collapsible__toggle-inner">
+                        <span class="dashboard-collapsible__toggle-copy">
+                            <span class="dashboard-collapsible__eyebrow">Decision</span>
+                            <span class="dashboard-collapsible__title">Briefing dirigeant</span>
+                            <span class="dashboard-collapsible__hint">{{ $executiveBrief['headline'] }}</span>
+                        </span>
+                        <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                    </span>
+                </button>
+                <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                    <div class="dashboard-section-head">
                         <div>
-                            <h2 style="font-size:22px;">Modules recommandes pour ce secteur</h2>
-                            <p class="muted">Raccourcis priorises selon le pack metier actif.</p>
+                            <h2>Briefing dirigeant</h2>
+                            <p class="muted">{{ $executiveBrief['headline'] }}</p>
                         </div>
-                    </div>
-                    <div class="dashboard-link-grid">
-                        @foreach ($sectorActionPlan as $action)
-                            <a href="{{ $action['url'] }}" class="dashboard-link-card">
-                                <div class="dashboard-card-lead">
-                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($action) }}">
-                                        @include('dashboard.partials.icon', ['name' => $action['icon'] ?? 'grid', 'size' => 20])
-                                    </span>
-                                    <div>
-                                        <p class="dashboard-card-label">{{ $action['label'] }}</p>
-                                        <div class="dashboard-card-caption">Module</div>
-                                    </div>
-                                </div>
-                                <p class="muted">{{ $action['description'] }}</p>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-        </section>
-
-
-        @if (! empty($premiumActionCenter))
-            <section class="card dashboard-banner dashboard-banner--premium">
-                <div class="dashboard-banner__layout">
-                    <div class="dashboard-banner__copy">
-                        <div class="badge badge-success">Centre d actions premium</div>
-                        <h2 class="dashboard-display" style="font-size:clamp(24px, 3vw, 34px);">{{ $premiumBrief['headline'] }}</h2>
-                        <p class="dashboard-copy">{{ $premiumBrief['description'] }}</p>
-                        @if (! empty($premiumBrief['focus']))
+                        @if (! empty($executiveBrief['summary']))
                             <div class="dashboard-chip-row">
-                                @foreach (explode(' | ', $premiumBrief['focus']) as $focus)
+                                @foreach (explode(' | ', $executiveBrief['summary']) as $focus)
                                     <span class="dashboard-chip">{{ $focus }}</span>
                                 @endforeach
                             </div>
                         @endif
                     </div>
-                    <div class="dashboard-banner__aside">
-                        <div class="dashboard-panel">
-                            <strong>Commence par les cartes orange</strong>
-                            <p class="muted">Chaque carte ouvre directement l ecran a traiter. Orange = urgent, vert = stable.</p>
-                        </div>
+                    <div class="dashboard-analysis-grid">
+                        @foreach ($executiveBrief['items'] as $item)
+                            <a href="{{ $item['action_url'] }}" class="dashboard-analysis-card">
+                                <div class="dashboard-chip-row" style="margin-bottom:10px;">
+                                    <span class="badge {{ $item['tone'] === 'danger' ? 'badge-warning' : ($item['tone'] === 'warning' ? 'badge-muted' : 'badge-success') }}">{{ strtoupper($item['tone']) }}</span>
+                                </div>
+                                <strong>{{ $item['title'] }}</strong>
+                                <p class="muted">{{ $item['message'] }}</p>
+                                <div class="help" style="margin-top:10px;">{{ $item['action_label'] }}</div>
+                            </a>
+                        @endforeach
                     </div>
-                </div>
-                <div class="dashboard-premium-grid">
-                    @foreach ($premiumActionCenter as $item)
-                        <a href="{{ $item['url'] }}" class="dashboard-premium-card dashboard-premium-card--{{ $item['priority'] }}">
-                            <div class="dashboard-premium-meta">
-                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
-                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'flash', 'size' => 20])
-                                </span>
-                                <span class="badge {{ $item['priority'] === 'high' ? 'badge-warning' : ($item['priority'] === 'medium' ? 'badge-muted' : 'badge-success') }}">
-                                    {{ $item['priority'] === 'high' ? 'Urgent' : ($item['priority'] === 'medium' ? 'A faire' : 'Stable') }}
-                                </span>
-                            </div>
-                            <div class="dashboard-card-caption" style="color:rgba(238, 248, 248, 0.74); margin-top:12px;">{{ $item['eyebrow'] }}</div>
-                            <strong>{{ $item['label'] }}</strong>
-                            <div class="stat-value" style="font-size:32px;">{{ $item['metric'] }}</div>
-                            <p class="muted">{{ $item['description'] }}</p>
-                        </a>
-                    @endforeach
-                </div>
-            </section>
-        @endif
-
-        @if (! empty($executiveBrief['items']))
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>Briefing dirigeant</h2>
-                        <p class="muted">{{ $executiveBrief['headline'] }}</p>
-                    </div>
-                    @if (! empty($executiveBrief['summary']))
-                        <div class="dashboard-chip-row">
-                            @foreach (explode(' | ', $executiveBrief['summary']) as $focus)
-                                <span class="dashboard-chip">{{ $focus }}</span>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-                <div class="dashboard-analysis-grid">
-                    @foreach ($executiveBrief['items'] as $item)
-                        <a href="{{ $item['action_url'] }}" class="dashboard-analysis-card">
-                            <div class="dashboard-chip-row" style="margin-bottom:10px;">
-                                <span class="badge {{ $item['tone'] === 'danger' ? 'badge-warning' : ($item['tone'] === 'warning' ? 'badge-muted' : 'badge-success') }}">{{ strtoupper($item['tone']) }}</span>
-                            </div>
-                            <strong>{{ $item['title'] }}</strong>
-                            <p class="muted">{{ $item['message'] }}</p>
-                            <div class="help" style="margin-top:10px;">{{ $item['action_label'] }}</div>
-                        </a>
-                    @endforeach
                 </div>
             </section>
         @endif
         @if (! empty($dashboardKpis))
-            <section class="dashboard-kpi-grid">
-                @foreach ($dashboardKpis as $kpi)
-                    <article class="dashboard-kpi-card">
-                        <div class="dashboard-card-lead">
-                            <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($kpi) }}">
-                                @include('dashboard.partials.icon', ['name' => $kpi['icon'] ?? 'gauge', 'size' => 20])
-                            </span>
-                            <div>
-                                <p class="dashboard-card-label">{{ $kpi['label'] }}</p>
-                                <div class="dashboard-card-caption">Indicateur</div>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ $kpi['value'] }}</div>
-                        <div class="help">{{ $kpi['description'] }}</div>
-                    </article>
-                @endforeach
+            <section class="dashboard-collapsible dashboard-collapsible--plain" data-dashboard-collapsible data-dashboard-default-open="false">
+                <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                    <span class="dashboard-collapsible__toggle-inner">
+                        <span class="dashboard-collapsible__toggle-copy">
+                            <span class="dashboard-collapsible__eyebrow">KPI</span>
+                            <span class="dashboard-collapsible__title">Indicateurs</span>
+                            <span class="dashboard-collapsible__hint">Les chiffres cles du profil actif, sans prendre tout l’ecran mobile.</span>
+                        </span>
+                        <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                    </span>
+                </button>
+                <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                    <section class="dashboard-kpi-grid">
+                        @foreach ($dashboardKpis as $kpi)
+                            <article class="dashboard-kpi-card">
+                                <div class="dashboard-card-lead">
+                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($kpi) }}">
+                                        @include('dashboard.partials.icon', ['name' => $kpi['icon'] ?? 'gauge', 'size' => 20])
+                                    </span>
+                                    <div>
+                                        <p class="dashboard-card-label">{{ $kpi['label'] }}</p>
+                                        <div class="dashboard-card-caption">Indicateur</div>
+                                    </div>
+                                </div>
+                                <div class="stat-value">{{ $kpi['value'] }}</div>
+                                <div class="help">{{ $kpi['description'] }}</div>
+                            </article>
+                        @endforeach
+                    </section>
+                </div>
             </section>
         @endif
 
         @if (! empty($operationalWatchlist))
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>Suivi operationnel</h2>
-                        <p class="muted">Les points chauds du jour, avec un clic direct vers l ecran utile.</p>
+            <section class="card dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="false">
+                <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                    <span class="dashboard-collapsible__toggle-inner">
+                        <span class="dashboard-collapsible__toggle-copy">
+                            <span class="dashboard-collapsible__eyebrow">Execution</span>
+                            <span class="dashboard-collapsible__title">Suivi operationnel</span>
+                            <span class="dashboard-collapsible__hint">Les points chauds du jour et les raccourcis utiles pour agir.</span>
+                        </span>
+                        <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                    </span>
+                </button>
+                <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                    <div class="dashboard-section-head">
+                        <div>
+                            <h2>Suivi operationnel</h2>
+                            <p class="muted">Les points chauds du jour, avec un clic direct vers l ecran utile.</p>
+                        </div>
                     </div>
-                </div>
-                <div class="dashboard-watch-grid">
-                    @foreach ($operationalWatchlist as $item)
-                        <a href="{{ $item['url'] }}" class="dashboard-watch-card">
-                            <div class="dashboard-card-lead">
-                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
-                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'alert', 'size' => 20])
-                                </span>
-                                <div>
-                                    <p class="dashboard-card-label">{{ $item['label'] }}</p>
-                                    <div class="dashboard-card-caption">A suivre</div>
+                    <div class="dashboard-watch-grid">
+                        @foreach ($operationalWatchlist as $item)
+                            <a href="{{ $item['url'] }}" class="dashboard-watch-card">
+                                <div class="dashboard-card-lead">
+                                    <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                        @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'alert', 'size' => 20])
+                                    </span>
+                                    <div>
+                                        <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                        <div class="dashboard-card-caption">A suivre</div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="stat-value">{{ number_format((float) $item['count'], 0, ',', ' ') }}</div>
-                            <p class="muted">{{ $item['description'] }}</p>
-                        </a>
-                    @endforeach
+                                <div class="stat-value">{{ number_format((float) $item['count'], 0, ',', ' ') }}</div>
+                                <p class="muted">{{ $item['description'] }}</p>
+                            </a>
+                        @endforeach
+                    </div>
                 </div>
             </section>
         @endif
 
         @if ($currentPeriodSummary)
-            <section class="card dashboard-banner {{ $currentPeriodSummary['period']?->isClosed() ? 'dashboard-banner--period-closed' : 'dashboard-banner--period-open' }}">
-                <div class="dashboard-period-summary">
-                    <div class="dashboard-banner__layout">
-                        <div class="dashboard-banner__copy">
-                            <div class="badge {{ $currentPeriodSummary['period']?->isClosed() ? 'badge-warning' : ($currentPeriodSummary['status'] === 'ready' ? 'badge-success' : 'badge-muted') }}">{{ $currentPeriodSummary['period']?->isClosed() ? 'Periode cloturee' : 'Periode en cours' }}</div>
-                            <h2 style="margin:0; font-size:30px; letter-spacing:-.03em;">{{ $currentPeriodSummary['period']?->name }} | {{ $currentPeriodSummary['start_date']->format('d/m/Y') }} au {{ $currentPeriodSummary['end_date']->format('d/m/Y') }}</h2>
-                            @if ($currentPeriodSummary['period']?->isClosed())
-                                <p class="dashboard-copy muted">Les operations datees sur cette periode sont bloquees. Utilise la reouverture seulement si une correction est vraiment necessaire.</p>
-                            @elseif (! $currentPeriodSummary['can_close'])
-                                <p class="dashboard-copy muted">Cloture bloquee : des documents en attente d approbation doivent etre traites avant fermeture.</p>
-                            @elseif ($currentPeriodSummary['status'] === 'warning')
-                                <p class="dashboard-copy muted">Cloture possible, mais des soldes ouverts restent a suivre pour une fin de mois plus propre.</p>
-                            @else
-                                <p class="dashboard-copy muted">La periode est prete pour une cloture propre.</p>
-                            @endif
-                        </div>
-                        <div class="dashboard-actions" style="justify-content:flex-end; align-items:flex-start;">
-                            <a href="{{ route('accounting.periods.index') }}" class="button button-primary">Gerer les periodes</a>
-                            <a href="{{ route('reports.index') }}" class="button button-secondary">Voir les rapports</a>
-                        </div>
-                    </div>
-                    <div class="dashboard-checklist-grid">
-                        @foreach ($currentPeriodSummary['checklist'] as $item)
-                            <div class="dashboard-checklist-card">
-                                <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
-                                    <strong style="max-width:72%;">{{ $item['title'] }}</strong>
-                                    <span class="badge {{ $item['state'] === 'blocked' ? 'badge-warning' : ($item['state'] === 'warning' ? 'badge-muted' : 'badge-success') }}">{{ $item['state'] === 'blocked' ? 'Bloquant' : ($item['state'] === 'warning' ? 'A suivre' : 'OK') }}</span>
-                                </div>
-                                <div class="stat-value" style="font-size:26px;">{{ $item['count'] }}</div>
-                                <p class="muted">{{ $item['message'] }}</p>
+            <section class="card dashboard-banner {{ $currentPeriodSummary['period']?->isClosed() ? 'dashboard-banner--period-closed' : 'dashboard-banner--period-open' }} dashboard-collapsible" data-dashboard-collapsible data-dashboard-default-open="false">
+                <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                    <span class="dashboard-collapsible__toggle-inner">
+                        <span class="dashboard-collapsible__toggle-copy">
+                            <span class="dashboard-collapsible__eyebrow">Cloture</span>
+                            <span class="dashboard-collapsible__title">{{ $currentPeriodSummary['period']?->name }}</span>
+                            <span class="dashboard-collapsible__hint">Checklist de periode, statut et actions de cloture.</span>
+                        </span>
+                        <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                    </span>
+                </button>
+                <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                    <div class="dashboard-period-summary">
+                        <div class="dashboard-banner__layout">
+                            <div class="dashboard-banner__copy">
+                                <div class="badge {{ $currentPeriodSummary['period']?->isClosed() ? 'badge-warning' : ($currentPeriodSummary['status'] === 'ready' ? 'badge-success' : 'badge-muted') }}">{{ $currentPeriodSummary['period']?->isClosed() ? 'Periode cloturee' : 'Periode en cours' }}</div>
+                                <h2 style="margin:0; font-size:30px; letter-spacing:-.03em;">{{ $currentPeriodSummary['period']?->name }} | {{ $currentPeriodSummary['start_date']->format('d/m/Y') }} au {{ $currentPeriodSummary['end_date']->format('d/m/Y') }}</h2>
+                                @if ($currentPeriodSummary['period']?->isClosed())
+                                    <p class="dashboard-copy muted">Les operations datees sur cette periode sont bloquees. Utilise la reouverture seulement si une correction est vraiment necessaire.</p>
+                                @elseif (! $currentPeriodSummary['can_close'])
+                                    <p class="dashboard-copy muted">Cloture bloquee : des documents en attente d approbation doivent etre traites avant fermeture.</p>
+                                @elseif ($currentPeriodSummary['status'] === 'warning')
+                                    <p class="dashboard-copy muted">Cloture possible, mais des soldes ouverts restent a suivre pour une fin de mois plus propre.</p>
+                                @else
+                                    <p class="dashboard-copy muted">La periode est prete pour une cloture propre.</p>
+                                @endif
                             </div>
-                        @endforeach
+                            <div class="dashboard-actions" style="justify-content:flex-end; align-items:flex-start;">
+                                <a href="{{ route('accounting.periods.index') }}" class="button button-primary">Gerer les periodes</a>
+                                <a href="{{ route('reports.index') }}" class="button button-secondary">Voir les rapports</a>
+                            </div>
+                        </div>
+                        <div class="dashboard-checklist-grid">
+                            @foreach ($currentPeriodSummary['checklist'] as $item)
+                                <div class="dashboard-checklist-card">
+                                    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                                        <strong style="max-width:72%;">{{ $item['title'] }}</strong>
+                                        <span class="badge {{ $item['state'] === 'blocked' ? 'badge-warning' : ($item['state'] === 'warning' ? 'badge-muted' : 'badge-success') }}">{{ $item['state'] === 'blocked' ? 'Bloquant' : ($item['state'] === 'warning' ? 'A suivre' : 'OK') }}</span>
+                                    </div>
+                                    <div class="stat-value" style="font-size:26px;">{{ $item['count'] }}</div>
+                                    <p class="muted">{{ $item['message'] }}</p>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
             </section>
         @endif
 
-        <div class="dashboard-split">
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>{{ $dashboardProfile['analysis_title'] }}</h2>
-                        <p class="muted">{{ $dashboardProfile['analysis_description'] }}</p>
-                    </div>
-                </div>
-                <div class="dashboard-analysis-grid">
-                    @foreach ($roleSpotlight as $item)
-                        <a href="{{ $item['url'] }}" class="dashboard-analysis-card">
-                            <div class="dashboard-card-lead">
-                                <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
-                                    @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'pulse', 'size' => 20])
-                                </span>
-                                <div>
-                                    <p class="dashboard-card-label">{{ $item['label'] }}</p>
-                                    <div class="dashboard-card-caption">Vue rapide</div>
-                                </div>
+        <section class="dashboard-collapsible dashboard-collapsible--plain" data-dashboard-collapsible data-dashboard-default-open="false">
+            <button type="button" class="dashboard-collapsible__toggle" data-dashboard-collapsible-toggle aria-expanded="true">
+                <span class="dashboard-collapsible__toggle-inner">
+                    <span class="dashboard-collapsible__toggle-copy">
+                        <span class="dashboard-collapsible__eyebrow">Lecture</span>
+                        <span class="dashboard-collapsible__title">Analyse et activite</span>
+                        <span class="dashboard-collapsible__hint">{{ $dashboardProfile['analysis_title'] }} et derniers mouvements utiles.</span>
+                    </span>
+                    <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
+                </span>
+            </button>
+            <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
+                <div class="dashboard-split">
+                    <section class="card">
+                        <div class="dashboard-section-head">
+                            <div>
+                                <h2>{{ $dashboardProfile['analysis_title'] }}</h2>
+                                <p class="muted">{{ $dashboardProfile['analysis_description'] }}</p>
                             </div>
-                            <div class="stat-value" style="font-size:30px;">{{ $item['value'] }}</div>
-                            <p class="muted">{{ $item['description'] }}</p>
-                        </a>
-                    @endforeach
-                </div>
-            </section>
+                        </div>
+                        <div class="dashboard-analysis-grid">
+                            @foreach ($roleSpotlight as $item)
+                                <a href="{{ $item['url'] }}" class="dashboard-analysis-card">
+                                    <div class="dashboard-card-lead">
+                                        <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($item) }}">
+                                            @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'pulse', 'size' => 20])
+                                        </span>
+                                        <div>
+                                            <p class="dashboard-card-label">{{ $item['label'] }}</p>
+                                            <div class="dashboard-card-caption">Vue rapide</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value" style="font-size:30px;">{{ $item['value'] }}</div>
+                                    <p class="muted">{{ $item['description'] }}</p>
+                                </a>
+                            @endforeach
+                        </div>
+                    </section>
 
-            <section class="card">
-                <div class="dashboard-section-head">
-                    <div>
-                        <h2>Activite recente</h2>
-                        <p class="muted">Les derniers mouvements qui merite ton attention.</p>
-                    </div>
-                </div>
-                @if ($recentActivities->isEmpty())
-                    <div class="dashboard-empty">Aucune activite enregistree pour le moment.</div>
-                @else
-                    <div class="dashboard-activity-list">
-                        @foreach ($recentActivities as $activity)
-                            <div class="dashboard-activity-item">
-                                <strong>{{ $activity->description }}</strong>
-                                <div class="muted">{{ $activity->user?->name ?? 'Systeme' }} | {{ $activity->created_at?->format('d/m/Y H:i') }}</div>
+                    <section class="card">
+                        <div class="dashboard-section-head">
+                            <div>
+                                <h2>Activite recente</h2>
+                                <p class="muted">Les derniers mouvements qui merite ton attention.</p>
                             </div>
-                        @endforeach
-                    </div>
-                @endif
-            </section>
-        </div>
+                        </div>
+                        @if ($recentActivities->isEmpty())
+                            <div class="dashboard-empty">Aucune activite enregistree pour le moment.</div>
+                        @else
+                            <div class="dashboard-activity-list">
+                                @foreach ($recentActivities as $activity)
+                                    <div class="dashboard-activity-item">
+                                        <strong>{{ $activity->description }}</strong>
+                                        <div class="muted">{{ $activity->user?->name ?? 'Systeme' }} | {{ $activity->created_at?->format('d/m/Y H:i') }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </section>
+                </div>
+            </div>
+        </section>
     </div>
 @endsection
 

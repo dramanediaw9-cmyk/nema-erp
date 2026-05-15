@@ -7,7 +7,7 @@ import './bootstrap';
 
     window.__nemaLayoutBooted = true;
 
-    const boot = () => {
+    const bootSidebar = () => {
         const shell = document.querySelector('[data-layout-shell]');
         const sidebar = document.getElementById('app-sidebar');
         const toggle = document.querySelector('[data-sidebar-toggle]');
@@ -71,6 +71,86 @@ import './bootstrap';
         }
 
         handleViewportChange();
+    };
+
+    const bootDashboardCollapsibles = () => {
+        const items = Array.from(document.querySelectorAll('[data-dashboard-collapsible]'));
+
+        if (items.length === 0) {
+            return;
+        }
+
+        const mobileQuery = window.matchMedia('(max-width: 760px)');
+
+        const setCollapsed = (item, collapsed) => {
+            const button = item.querySelector('[data-dashboard-collapsible-toggle]');
+            const body = item.querySelector('[data-dashboard-collapsible-body]');
+
+            if (!button || !body) {
+                return;
+            }
+
+            item.dataset.dashboardCollapsed = collapsed ? 'true' : 'false';
+            button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            body.hidden = collapsed;
+        };
+
+        items.forEach((item) => {
+            const button = item.querySelector('[data-dashboard-collapsible-toggle]');
+            const body = item.querySelector('[data-dashboard-collapsible-body]');
+
+            if (!button || !body) {
+                return;
+            }
+
+            const defaultOpen = item.dataset.dashboardDefaultOpen === 'true';
+
+            const sync = (reset = false) => {
+                if (!mobileQuery.matches) {
+                    setCollapsed(item, false);
+                    return;
+                }
+
+                if (reset || item.dataset.dashboardTouched !== 'true') {
+                    setCollapsed(item, !defaultOpen);
+                    return;
+                }
+
+                setCollapsed(item, item.dataset.dashboardCollapsed === 'true');
+            };
+
+            button.addEventListener('click', () => {
+                if (!mobileQuery.matches) {
+                    return;
+                }
+
+                item.dataset.dashboardTouched = 'true';
+                setCollapsed(item, item.dataset.dashboardCollapsed !== 'true');
+            });
+
+            sync(true);
+
+            const handleViewportChange = () => {
+                if (!mobileQuery.matches) {
+                    item.dataset.dashboardTouched = 'false';
+                    setCollapsed(item, false);
+                    return;
+                }
+
+                sync(true);
+            };
+
+            if (typeof mobileQuery.addEventListener === 'function') {
+                mobileQuery.addEventListener('change', handleViewportChange);
+            } else if (typeof mobileQuery.addListener === 'function') {
+                mobileQuery.addListener(handleViewportChange);
+            }
+        });
+    };
+
+    const boot = () => {
+        bootSidebar();
+        bootDashboardCollapsibles();
     };
 
     if (document.readyState === 'loading') {
