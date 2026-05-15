@@ -581,7 +581,7 @@
             margin-top: 20px;
             display: grid;
             grid-template-columns: minmax(0, 1.24fr) minmax(300px, .76fr);
-            gap: 20px;
+            gap: 18px;
             align-items: start;
         }
         .dashboard-launcher__copy .badge {
@@ -674,8 +674,8 @@
             z-index: 1;
             margin-top: 24px;
             display: grid;
-            gap: 14px;
-            grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+            gap: 18px 14px;
+            grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
         }
         .dashboard-app-card {
             position: relative;
@@ -683,45 +683,22 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: 10px;
-            min-height: 162px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 24px;
-            padding: 14px 10px 12px;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 34%),
-                linear-gradient(180deg, rgba(19, 28, 42, 0.98) 0%, rgba(10, 16, 26, 0.98) 100%);
-            box-shadow: 0 18px 28px rgba(4, 8, 16, 0.26);
-            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+            gap: 9px;
+            min-height: 136px;
+            padding: 2px 4px 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            transition: transform .18s ease;
             text-align: center;
-            overflow: hidden;
-        }
-        .dashboard-app-card::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--app-accent) 0%, var(--app-badge-end) 100%);
-            opacity: .94;
-        }
-        .dashboard-app-card::after {
-            content: "";
-            position: absolute;
-            inset: auto 16px 12px 16px;
-            height: 3px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, var(--app-accent) 46%, rgba(255, 255, 255, 0) 100%);
-            opacity: .72;
         }
         .dashboard-app-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(255, 255, 255, 0.16);
-            box-shadow: 0 24px 36px rgba(4, 8, 16, 0.34);
+            transform: translateY(-3px);
         }
         .dashboard-app-card__badge {
             position: absolute;
             right: 10px;
-            top: 10px;
+            top: 0;
             min-width: 24px;
             height: 24px;
             padding: 0 7px;
@@ -740,7 +717,7 @@
             position: relative;
             z-index: 1;
             margin: 0;
-            min-height: 2.5em;
+            min-height: 2.4em;
             display: flex;
             align-items: flex-start;
             justify-content: center;
@@ -748,42 +725,43 @@
             font-size: 13px;
             font-weight: 800;
             line-height: 1.26;
+            text-wrap: balance;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
         }
         .dashboard-app-card__family {
             position: relative;
             z-index: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 5px 9px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.05);
-            color: rgba(237, 244, 251, 0.72);
-            font-size: 10px;
+            display: block;
+            color: rgba(237, 244, 251, 0.46);
+            font-size: 9px;
             line-height: 1;
-            font-weight: 800;
-            letter-spacing: .08em;
+            font-weight: 700;
+            letter-spacing: .12em;
             text-transform: uppercase;
         }
         .dashboard-icon-badge--app {
             position: relative;
-            width: 72px;
-            height: 72px;
-            border-radius: 24px;
+            width: 82px;
+            height: 82px;
+            border-radius: 26px;
             color: #fff;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.04) 100%);
-            border-color: rgba(255, 255, 255, 0.08);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
+                linear-gradient(180deg, #172236 0%, #0e1523 100%);
+            border-color: rgba(255, 255, 255, 0.06);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 18px 30px rgba(4, 8, 16, 0.24);
             overflow: hidden;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
         }
         .dashboard-icon-badge--app::before {
             content: "";
             position: absolute;
-            width: 40px;
-            height: 40px;
-            left: 10px;
-            top: 16px;
+            width: 42px;
+            height: 42px;
+            left: 11px;
+            top: 19px;
             border-radius: 16px;
             background: linear-gradient(135deg, var(--app-accent) 0%, var(--app-badge-end) 100%);
             transform: rotate(-16deg);
@@ -792,10 +770,10 @@
         .dashboard-icon-badge--app::after {
             content: "";
             position: absolute;
-            width: 18px;
-            height: 46px;
-            right: 14px;
-            top: 10px;
+            width: 20px;
+            height: 50px;
+            right: 13px;
+            top: 11px;
             border-radius: 14px;
             background: rgba(255, 255, 255, 0.24);
             transform: rotate(26deg);
@@ -804,6 +782,13 @@
             position: relative;
             z-index: 1;
             filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.22));
+        }
+        .dashboard-app-card:hover .dashboard-icon-badge--app {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 24px 36px rgba(4, 8, 16, 0.3);
         }
         .dashboard-launcher__focus-grid {
             position: relative;
@@ -1016,6 +1001,34 @@
             .dashboard-launcher {
                 padding: 18px;
             }
+            .dashboard-launcher__hero {
+                margin-top: 14px;
+                gap: 14px;
+            }
+            .dashboard-launcher__title {
+                font-size: clamp(24px, 8vw, 30px);
+            }
+            .dashboard-launcher__body,
+            .dashboard-launcher__family-strip,
+            .dashboard-launcher__focus-grid {
+                display: none;
+            }
+            .dashboard-launcher__status-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+            .dashboard-launcher__status-card {
+                padding: 12px;
+                border-radius: 16px;
+            }
+            .dashboard-launcher__status-card strong {
+                margin-top: 8px;
+                font-size: 22px;
+            }
+            .dashboard-launcher__status-card small {
+                margin-top: 6px;
+                font-size: 12px;
+            }
             .dashboard-collapsible {
                 overflow: hidden;
             }
@@ -1059,12 +1072,10 @@
             .dashboard-launcher__actions {
                 justify-content: space-between;
             }
-            .dashboard-launcher__status-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
             .dashboard-app-grid {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 10px;
+                gap: 14px 8px;
+                margin-top: 18px;
             }
             .dashboard-launcher ~ section.card,
             .dashboard-launcher ~ .dashboard-split section.card,
@@ -1072,35 +1083,34 @@
                 padding: 16px;
             }
             .dashboard-app-card {
-                min-height: 128px;
-                padding: 12px 8px 10px;
-                border-radius: 20px;
+                min-height: auto;
+                gap: 8px;
+                padding: 0 2px;
             }
             .dashboard-icon-badge--app {
-                width: 56px;
-                height: 56px;
-                border-radius: 18px;
+                width: 68px;
+                height: 68px;
+                border-radius: 22px;
             }
             .dashboard-icon-badge--app::before {
-                width: 30px;
-                height: 30px;
-                left: 8px;
-                top: 13px;
+                width: 34px;
+                height: 34px;
+                left: 9px;
+                top: 16px;
                 border-radius: 12px;
             }
             .dashboard-icon-badge--app::after {
-                width: 14px;
-                height: 34px;
+                width: 16px;
+                height: 38px;
                 right: 10px;
-                top: 9px;
+                top: 10px;
             }
             .dashboard-app-card__label {
-                min-height: 2.8em;
+                min-height: 2.6em;
                 font-size: 11px;
             }
             .dashboard-app-card__family {
-                padding: 4px 7px;
-                font-size: 9px;
+                display: none;
             }
         }
         @media (max-width: 640px) {
@@ -1118,6 +1128,11 @@
             .dashboard-launcher__focus-grid {
                 grid-template-columns: 1fr;
             }
+            .dashboard-app-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 360px) {
             .dashboard-app-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
