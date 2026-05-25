@@ -178,15 +178,8 @@ class OpportunityController extends Controller
 
     private function generateCustomerCode(int $companyId): string
     {
-        $number = Partner::query()->where('company_id', $companyId)->count() + 1;
-
-        do {
-            $code = sprintf('C%04d', $number);
-            $exists = Partner::query()->where('company_id', $companyId)->where('code', $code)->exists();
-            $number++;
-        } while ($exists);
-
-        return Str::upper($code);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'partner_customer_code');
     }
 
     private function stageOptions(): array

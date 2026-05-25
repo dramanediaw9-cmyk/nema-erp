@@ -381,7 +381,8 @@ class SettingsController extends Controller
         PaymentTerm::query()->create([
             'tenant_id' => $company->tenant_id,
             'company_id' => $company->id,
-            'code' => $data['code'] ?: 'TERM-'.str_pad((string) (PaymentTerm::query()->where('company_id', $company->id)->count() + 1), 3, '0', STR_PAD_LEFT),
+            'code' => $data['code'] ?: app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+                ->nextNumber($company->id, 'payment_term_code'),
             'name' => $data['name'],
             'days' => $data['days'],
             'description' => $data['description'] ?? null,
@@ -412,7 +413,8 @@ class SettingsController extends Controller
         PriceList::query()->create([
             'tenant_id' => $company->tenant_id,
             'company_id' => $company->id,
-            'code' => $data['code'] ?: 'TARIF-'.str_pad((string) (PriceList::query()->where('company_id', $company->id)->count() + 1), 3, '0', STR_PAD_LEFT),
+            'code' => $data['code'] ?: app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+                ->nextNumber($company->id, 'price_list_code'),
             'name' => $data['name'],
             'currency_code' => strtoupper($data['currency_code']),
             'description' => $data['description'] ?? null,
@@ -479,7 +481,8 @@ class SettingsController extends Controller
         TaxRule::query()->create([
             'tenant_id' => $company->tenant_id,
             'company_id' => $company->id,
-            'code' => $data['code'] ?: 'TAX-'.str_pad((string) (TaxRule::query()->where('company_id', $company->id)->count() + 1), 3, '0', STR_PAD_LEFT),
+            'code' => $data['code'] ?: app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+                ->nextNumber($company->id, 'tax_rule_code'),
             'name' => $data['name'],
             'scope' => $data['scope'],
             'tax_kind' => $data['tax_kind'],

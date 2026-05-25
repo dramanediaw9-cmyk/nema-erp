@@ -64,6 +64,32 @@ class ApiV1IntegrationEventTest extends TestCase
             ->assertJsonPath('deliveries.0.status', 'sent');
     }
 
+    public function test_api_actor_without_platform_permission_cannot_read_integration_events(): void
+    {
+        $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $plainToken = $this->createApiToken($cashier);
+        $event = IntegrationEvent::query()->create([
+            'tenant_id' => $cashier->tenant_id,
+            'company_id' => $cashier->company_id,
+            'aggregate_type' => 'App\\Modules\\Sales\\Models\\SalesInvoice',
+            'aggregate_id' => '99',
+            'event_name' => 'sales.invoice.validated.api_forbidden',
+            'payload' => ['invoice_number' => 'FAC-BKO-2026-99999'],
+            'status' => 'published',
+            'available_at' => now()->subMinutes(5),
+            'published_at' => now()->subMinutes(4),
+            'attempts' => 1,
+        ]);
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/integration-events')
+            ->assertForbidden();
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/integration-events/'.$event->id)
+            ->assertForbidden();
+    }
+
     private function createApiToken(User $user): string
     {
         $plainToken = 'nema_test_integration_api_token_'.$user->id;

@@ -2,6 +2,7 @@
 
 use App\Modules\Purchases\Http\Controllers\GoodsReceiptController;
 use App\Modules\Purchases\Http\Controllers\PurchaseBillController;
+use App\Modules\Purchases\Http\Controllers\PurchaseCreditNoteController;
 use App\Modules\Purchases\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchases\Http\Controllers\PurchaseRequestController;
 use App\Modules\Purchases\Http\Controllers\ReplenishmentController;
@@ -25,6 +26,11 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/achats', [PurchaseBillController::class, 'store'])->middleware('permission:purchases.manage')->name('purchases.store');
     Route::post('/achats/{purchase}/approuver', [PurchaseBillController::class, 'approve'])->middleware('permission:purchases.approve')->name('purchases.approve');
     Route::post('/achats/{purchase}/rejeter', [PurchaseBillController::class, 'reject'])->middleware('permission:purchases.approve')->name('purchases.reject');
+    Route::get('/avoirs-fournisseurs', [PurchaseCreditNoteController::class, 'index'])->middleware('permission:supplier_credit_notes.view')->name('purchase-credit-notes.index');
+    Route::get('/achats/{purchase}/avoirs/creer', [PurchaseCreditNoteController::class, 'create'])->middleware('permission:supplier_credit_notes.issue')->name('purchase-credit-notes.create');
+    Route::post('/achats/{purchase}/avoirs', [PurchaseCreditNoteController::class, 'store'])->middleware('permission:supplier_credit_notes.issue')->name('purchase-credit-notes.store');
+    Route::get('/avoirs-fournisseurs/{creditNote}', [PurchaseCreditNoteController::class, 'show'])->middleware('permission:supplier_credit_notes.view')->name('purchase-credit-notes.show');
+    Route::get('/avoirs-fournisseurs/{creditNote}/imprimer', [PurchaseCreditNoteController::class, 'print'])->middleware('permission:supplier_credit_notes.view')->name('purchase-credit-notes.print');
     Route::get('/achats/{purchase}', [PurchaseBillController::class, 'show'])->middleware('permission:purchases.view')->name('purchases.show');
     Route::get('/achats/{purchase}/imprimer', [PurchaseBillController::class, 'print'])->middleware('permission:purchases.view')->name('purchases.print');
 

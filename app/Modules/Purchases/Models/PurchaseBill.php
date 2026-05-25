@@ -21,9 +21,9 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class PurchaseBill extends Model
 {
-    use HasFactory;
     use BelongsToTenant;
     use HasDocumentCollaboration;
+    use HasFactory;
 
     protected $fillable = [
         'tenant_id',
@@ -141,6 +141,11 @@ class PurchaseBill extends Model
     public function paymentAllocations(): MorphMany
     {
         return $this->morphMany(PaymentAllocation::class, 'allocatable');
+    }
+
+    public function creditNotes(): HasMany
+    {
+        return $this->hasMany(PurchaseCreditNote::class);
     }
 
     public function isPendingApproval(): bool

@@ -12,8 +12,8 @@ use App\Modules\Partners\Models\Partner;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Services\SalesInvoiceService;
-use App\Modules\Sales\Services\SalesQuoteService;
 use App\Modules\Sales\Services\SalesPortalLinkService;
+use App\Modules\Sales\Services\SalesQuoteService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
@@ -24,6 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesQuoteController extends Controller
@@ -38,8 +39,7 @@ class SalesQuoteController extends Controller
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
         private readonly PdfDocumentService $pdfDocumentService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -167,7 +167,7 @@ class SalesQuoteController extends Controller
         ]);
     }
 
-    public function print(SalesQuote $quote, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
+    public function print(SalesQuote $quote, CurrentWorkspace $workspace): Response
     {
         abort_if($workspace->companyId() !== $quote->company_id, 403);
 
@@ -297,12 +297,14 @@ class SalesQuoteController extends Controller
 
     private function filters(Request $request): array
     {
+        $view = $request->string('view')->trim()->value() === 'kanban' ? 'kanban' : 'list';
         $status = $request->string('status')->trim()->value() ?: null;
         if (! in_array($status, ['draft', 'sent', 'accepted', 'cancelled', 'converted'], true)) {
             $status = null;
         }
 
         return [
+            'view' => $view,
             'search' => $request->string('search')->trim()->value() ?: null,
             'date_from' => $request->string('date_from')->value() ?: null,
             'date_to' => $request->string('date_to')->value() ?: null,
@@ -321,18 +323,3 @@ class SalesQuoteController extends Controller
         ];
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

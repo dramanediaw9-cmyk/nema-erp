@@ -95,6 +95,84 @@ class PaymentService
         });
     }
 
+    public function recordCustomerRefund(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, array $payload, User $user): Payment
+    {
+        return DB::transaction(function () use ($companyId, $branchId, $invoice, $cashAccount, $payload, $user) {
+            $invoice = SalesInvoice::query()->with('creditNotes')->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+
+            if ($invoice->status !== 'validated') {
+                throw ValidationException::withMessages([
+                    'invoice_id' => 'Cette facture client doit etre approuvee avant remboursement.',
+                ]);
+            }
+
+            $this->periodLockService->assertDateOpen($companyId, $payload['payment_date'], 'payment_date');
+
+            $amount = round((float) $payload['amount'], 2);
+            $refundableAmount = $this->refundableCustomerAmount($invoice);
+
+            if ($refundableAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'invoice_id' => 'Cette facture client ne presente aucun trop-percu a rembourser.',
+                ]);
+            }
+
+            if ($amount <= 0 || $amount > $refundableAmount) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Le montant rembourse doit etre strictement positif et ne pas depasser le trop-percu client.',
+                ]);
+            }
+
+            $payment = Payment::query()->create([
+                'tenant_id' => $invoice->tenant_id,
+                'company_id' => $companyId,
+                'branch_id' => $branchId,
+                'cash_account_id' => $cashAccount->id,
+                'pos_session_id' => null,
+                'partner_id' => $invoice->customer_id,
+                'payment_number' => $this->documentNumberService->nextNumber(
+                    companyId: $companyId,
+                    documentType: 'payment',
+                    branchId: $branchId,
+                    date: $payload['payment_date'],
+                ),
+                'direction' => 'out',
+                'payment_type' => 'customer_refund',
+                'payment_date' => $payload['payment_date'],
+                'amount' => $amount,
+                'method' => $payload['method'],
+                'reference' => $payload['reference'] ?? null,
+                'notes' => $payload['notes'] ?? 'Remboursement client',
+                'created_by' => $user->id,
+            ]);
+
+            $payment->allocations()->create([
+                'allocatable_type' => SalesInvoice::class,
+                'allocatable_id' => $invoice->id,
+                'allocated_amount' => $amount,
+            ]);
+
+            $paid = round((float) $invoice->amount_paid - $amount, 2);
+            $documentNetTotal = $this->documentNetTotal($invoice);
+            $balance = round($documentNetTotal - $paid, 2);
+
+            $invoice->update([
+                'amount_paid' => $paid,
+                'balance_due' => $balance,
+                'payment_status' => $balance <= 0 ? 'paid' : ($paid > 0 ? 'partial' : 'unpaid'),
+            ]);
+
+            $this->accountingService->recordCustomerRefund($payment, $invoice->fresh(), $cashAccount, $user);
+            $this->integrationOutboxService->record($payment, 'treasury.customer_refund.recorded', [
+                'payment_number' => $payment->payment_number,
+                'invoice_id' => $invoice->id,
+                'amount' => (float) $payment->amount,
+            ]);
+
+            return $payment->load(['cashAccount', 'partner', 'allocations.allocatable']);
+        });
+    }
+
     public function recordPosRefund(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, PosReturn $return, array $payload, User $user): Payment
     {
         return DB::transaction(function () use ($companyId, $branchId, $invoice, $cashAccount, $return, $payload, $user) {
@@ -342,6 +420,11 @@ class PaymentService
         }
 
         return round((float) $document->total, 2);
+    }
+
+    private function refundableCustomerAmount(SalesInvoice $invoice): float
+    {
+        return max(0, round((float) $invoice->amount_paid - $this->documentNetTotal($invoice), 2));
     }
 
     private function internalTransferNotes(

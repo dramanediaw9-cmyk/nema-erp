@@ -4,7 +4,16 @@
 @section('page-title', 'Fiche produit')
 
 @section('content')
-    @php($canViewProductCosts = auth()->user()?->hasPermission('products.cost.view'))
+    @php
+        $canViewProductCosts = auth()->user()?->hasPermission('products.cost.view');
+        $isStockable = $product->type === 'stockable';
+        $stockStatusLabel = ! $isStockable
+            ? 'Service'
+            : ($currentStock <= 0 ? 'Rupture' : ($currentStock <= (float) $product->min_stock ? 'A surveiller' : 'En stock'));
+        $stockStatusTone = ! $isStockable
+            ? 'muted'
+            : ($currentStock <= 0 ? 'danger' : ($currentStock <= (float) $product->min_stock ? 'warning' : 'success'));
+    @endphp
     <style>
         .product-detail-layout {
             display: grid;
@@ -94,6 +103,32 @@
                 @elseif ($product->variants->isNotEmpty())
                     · Famille avec {{ $product->variants->count() }} variantes
                 @endif
+            </div>
+            <div class="chip-row" style="margin-top:12px;">
+                @include('partials.erp-status-badge', [
+                    'type' => 'activity',
+                    'value' => $product->is_active ? 'active' : 'inactive',
+                ])
+                @include('partials.erp-status-badge', [
+                    'label' => $stockStatusLabel,
+                    'tone' => $stockStatusTone,
+                ])
+                @include('partials.erp-status-badge', [
+                    'label' => $product->sale_ok ? 'Vendable' : 'Non vendable',
+                    'tone' => $product->sale_ok ? 'success' : 'muted',
+                ])
+                @include('partials.erp-status-badge', [
+                    'label' => $product->purchase_ok ? 'Achetable' : 'Non achetable',
+                    'tone' => $product->purchase_ok ? 'success' : 'muted',
+                ])
+                @include('partials.erp-status-badge', [
+                    'label' => match ($product->tracking_type) {
+                        'lot' => 'Suivi par lot',
+                        'serial' => 'Suivi par serie',
+                        default => 'Sans suivi',
+                    },
+                    'tone' => 'muted',
+                ])
             </div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
@@ -213,13 +248,38 @@
                     </div>
                 </div>
                 <div class="chip-row" style="margin-top:14px;">
-                    <span class="badge {{ $product->sale_ok ? 'badge-success' : 'badge-muted' }}">{{ $product->sale_ok ? 'Vendable' : 'Non vendable' }}</span>
-                    <span class="badge {{ $product->sale_blocked ? 'badge-danger' : 'badge-success' }}">{{ $product->sale_blocked ? 'Vente bloquee' : 'Vente ouverte' }}</span>
-                    <span class="badge {{ $product->purchase_ok ? 'badge-success' : 'badge-muted' }}">{{ $product->purchase_ok ? 'Achetable' : 'Non achetable' }}</span>
-                    <span class="badge {{ $product->purchase_blocked ? 'badge-danger' : 'badge-success' }}">{{ $product->purchase_blocked ? 'Achat bloque' : 'Achat ouvert' }}</span>
-                    <span class="badge badge-muted">Facturation : {{ $product->invoice_policy === 'delivered' ? 'quantites livrees' : 'quantites commandees' }}</span>
-                    <span class="badge badge-muted">Suivi : {{ match($product->tracking_type) { 'lot' => 'par lot', 'serial' => 'numero de serie', default => 'aucun' } }}</span>
-                    <span class="badge {{ $product->auto_replenish ? 'badge-success' : 'badge-muted' }}">{{ $product->auto_replenish ? 'Reappro auto active' : 'Reappro auto desactivee' }}</span>
+                    @include('partials.erp-status-badge', [
+                        'label' => $product->sale_ok ? 'Vendable' : 'Non vendable',
+                        'tone' => $product->sale_ok ? 'success' : 'muted',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => $product->sale_blocked ? 'Vente bloquee' : 'Vente ouverte',
+                        'tone' => $product->sale_blocked ? 'danger' : 'success',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => $product->purchase_ok ? 'Achetable' : 'Non achetable',
+                        'tone' => $product->purchase_ok ? 'success' : 'muted',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => $product->purchase_blocked ? 'Achat bloque' : 'Achat ouvert',
+                        'tone' => $product->purchase_blocked ? 'danger' : 'success',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => 'Facturation : '.($product->invoice_policy === 'delivered' ? 'quantites livrees' : 'quantites commandees'),
+                        'tone' => 'muted',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => 'Suivi : '.match ($product->tracking_type) {
+                            'lot' => 'par lot',
+                            'serial' => 'numero de serie',
+                            default => 'aucun',
+                        },
+                        'tone' => 'muted',
+                    ])
+                    @include('partials.erp-status-badge', [
+                        'label' => $product->auto_replenish ? 'Reappro auto active' : 'Reappro auto desactivee',
+                        'tone' => $product->auto_replenish ? 'success' : 'muted',
+                    ])
                 </div>
                 <div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top:14px;">
                     <div class="summary-box">
@@ -320,10 +380,10 @@
                 </div>
                 <div class="chip-row" style="margin-top:14px;">
                     @if ($product->saleTaxRule)
-                        <span class="badge badge-muted">Taxe vente : {{ $product->saleTaxRule->name }}</span>
+                        @include('partials.erp-status-badge', ['label' => 'Taxe vente : '.$product->saleTaxRule->name, 'tone' => 'muted'])
                     @endif
                     @if ($product->purchaseTaxRule)
-                        <span class="badge badge-muted">Taxe achat : {{ $product->purchaseTaxRule->name }}</span>
+                        @include('partials.erp-status-badge', ['label' => 'Taxe achat : '.$product->purchaseTaxRule->name, 'tone' => 'muted'])
                     @endif
                 </div>
             </div>
@@ -362,9 +422,10 @@
                                 <tr>
                                     <td>{{ $supplierInfo->supplier?->name ?? '-' }}</td>
                                     <td>
-                                        <span class="badge {{ $supplierInfo->is_preferred ? 'badge-success' : 'badge-muted' }}">
-                                            {{ $supplierInfo->is_preferred ? 'Prefere' : 'Secondaire' }}
-                                        </span>
+                                        @include('partials.erp-status-badge', [
+                                            'label' => $supplierInfo->is_preferred ? 'Prefere' : 'Secondaire',
+                                            'tone' => $supplierInfo->is_preferred ? 'success' : 'muted',
+                                        ])
                                     </td>
                                     <td>{{ $supplierInfo->supplier_product_code ?: '-' }}</td>
                                     <td>{{ $supplierInfo->supplier_product_name ?: '-' }}</td>
@@ -401,9 +462,9 @@
                 @endif
                 <div class="lifecycle-actions">
                     @if ($product->is_active)
-                        <span class="badge badge-success">Produit visible dans les nouveaux documents</span>
+                        @include('partials.erp-status-badge', ['label' => 'Produit visible dans les nouveaux documents', 'tone' => 'success'])
                     @else
-                        <span class="badge badge-warning">Produit retire des nouveaux documents</span>
+                        @include('partials.erp-status-badge', ['label' => 'Produit retire des nouveaux documents', 'tone' => 'warning'])
                     @endif
                 </div>
             </div>
@@ -440,7 +501,10 @@
                                         <td>{{ number_format((float) $lot->quantity_available, 3, ',', ' ') }}</td>
                                         <td>
                                             @if ($lot->expires_at)
-                                                <span class="badge {{ $lot->isExpired() ? 'badge-danger' : 'badge-warning' }}">{{ $lot->expires_at->format('d/m/Y') }}</span>
+                                                @include('partials.erp-status-badge', [
+                                                    'label' => $lot->expires_at->format('d/m/Y'),
+                                                    'tone' => $lot->isExpired() ? 'danger' : 'warning',
+                                                ])
                                             @else
                                                 <span class="muted">-</span>
                                             @endif
@@ -507,5 +571,12 @@
             </div>
         </section>
     </div>
+
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Retrouve les creations, mises a jour, archivages et autres actions recentes sur cette fiche produit.',
+        'sectionId' => 'activity-history',
+    ])
 @endsection
 

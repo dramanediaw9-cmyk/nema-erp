@@ -38,6 +38,20 @@ class SectorProfileSettingTest extends TestCase
         ]);
     }
 
+    public function test_settings_page_surfaces_shortcuts_and_active_profile_summary(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->get(route('settings.index'))
+            ->assertOk()
+            ->assertSee('Pilotage parametres')
+            ->assertSee('Raccourcis reglages')
+            ->assertSee('Profil secteur')
+            ->assertSee('API et integrations');
+    }
+
     public function test_dashboard_surfaces_active_sector_profile_and_recommended_modules(): void
     {
         $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();

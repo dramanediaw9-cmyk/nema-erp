@@ -22,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
@@ -33,8 +34,7 @@ class ExpenseController extends Controller
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
         private readonly PdfDocumentService $pdfDocumentService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -223,6 +223,11 @@ class ExpenseController extends Controller
 
         return view('expenses.show', [
             'expense' => $expense->load(['category', 'supplier', 'cashAccount', 'branch', 'company', 'creator', 'approver', 'rejector', 'approvalSteps.approver', 'approvalSteps.rejectedBy', 'approvalSteps.assignedApprover', 'approvalSteps.delegatedBy', 'internalComments.creator', 'attachments.creator']),
+            'workflowLabel' => match ($expense->status) {
+                'validated' => 'Approuvee',
+                'rejected' => 'Rejetee',
+                default => 'En attente',
+            },
             'journalEntries' => JournalEntry::query()
                 ->with(['creator'])
                 ->where('company_id', $expense->company_id)
@@ -233,7 +238,7 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function print(Expense $expense, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
+    public function print(Expense $expense, CurrentWorkspace $workspace): Response
     {
         abort_if($workspace->companyId() !== $expense->company_id, 403);
 
@@ -373,5 +378,3 @@ class ExpenseController extends Controller
         return 'Recent';
     }
 }
-
-

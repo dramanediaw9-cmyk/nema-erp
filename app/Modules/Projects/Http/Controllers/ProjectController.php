@@ -314,8 +314,7 @@ class ProjectController extends Controller
 
     private function generateProjectCode(int $companyId): string
     {
-        $sequence = Project::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'PRJ-'.now()->format('Y').'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'project_code');
     }
 }

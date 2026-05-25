@@ -67,6 +67,8 @@ class DemoRoleSeeder extends Seeder
             'purchase_requests.approve',
             'purchases.view',
             'purchases.approve',
+            'supplier_credit_notes.view',
+            'supplier_credit_notes.issue',
             'purchase_orders.view',
             'goods_receipts.view',
             'cash_accounts.view',
@@ -126,6 +128,9 @@ class DemoRoleSeeder extends Seeder
             'purchase_requests.manage',
             'purchases.view',
             'purchases.manage',
+            'supplier_credit_notes.view',
+            'supplier_credit_notes.manage',
+            'supplier_credit_notes.issue',
             'purchase_orders.view',
             'purchase_orders.manage',
             'goods_receipts.view',
@@ -209,6 +214,3 @@ class DemoRoleSeeder extends Seeder
         });
     }
 }
-
-
-

@@ -5,19 +5,10 @@
 
 @section('content')
     @php
-        $workflowLabel = match ($invoice->status) {
-            'validated' => 'Approuvee',
-            'cancelled' => 'Annulee',
-            'rejected' => 'Rejetee',
-            default => 'En attente',
-        };
-        $workflowTone = match ($invoice->status) {
-            'validated' => 'badge-success',
-            'cancelled' => 'badge-danger',
-            'rejected' => 'badge-danger',
-            default => 'badge-warning',
-        };
-        $canIssueCreditNote = $invoice->status === 'validated' && (float) $invoice->balance_due > 0 && $creditableLinesCount > 0;
+        $workflowStatus = \App\Support\ErpStatusPresenter::present('workflow', $invoice->status);
+        $paymentStatus = \App\Support\ErpStatusPresenter::present('payment', $invoice->payment_status);
+        $canIssueCreditNote = $invoice->status === 'validated' && $creditableLinesCount > 0;
+        $customerRefundAmount = max(0, -1 * (float) $invoice->balance_due);
     @endphp
 
     <div class="premium-detail-page">
@@ -28,10 +19,10 @@
                     <h2>{{ $invoice->invoice_number }} · {{ $invoice->customer?->name }}</h2>
                     <p class="muted">Facture du {{ $invoice->invoice_date?->format('d/m/Y') }} reliee a l agence {{ $invoice->branch?->name }} et au depot {{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}. Cet ecran met en avant les impacts business avant le detail comptable et stock.</p>
                     <div class="premium-detail-hero__meta">
-                        <span class="badge {{ $workflowTone }}">{{ $workflowLabel }}</span>
-                        <span class="badge badge-muted">Paiement : {{ str($invoice->payment_status)->replace('_', ' ')->title() }}</span>
-                        <span class="badge badge-muted">Agence : {{ $invoice->branch?->name }}</span>
-                        <span class="badge badge-muted">Depot : {{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</span>
+                        @include('partials.erp-status-badge', ['status' => $workflowStatus])
+                        @include('partials.erp-status-badge', ['status' => $paymentStatus])
+                        @include('partials.erp-status-badge', ['label' => 'Agence : '.($invoice->branch?->name ?? 'Non renseignee'), 'tone' => 'muted'])
+                        @include('partials.erp-status-badge', ['label' => 'Depot : '.($invoice->warehouse?->name ?? 'Entrepot par defaut'), 'tone' => 'muted'])
                     </div>
                 </div>
                 <div class="premium-detail-panel">
@@ -72,6 +63,8 @@
                             @allowed('payments.validate')
                                 @if ($invoice->payment_status !== 'paid')
                                     <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Enregistrer un paiement</a>
+                                @elseif ($customerRefundAmount > 0)
+                                    <a href="{{ route('payments.create', ['type' => 'customer_refund', 'invoice' => $invoice->id, 'amount' => $customerRefundAmount]) }}" class="button button-primary">Rembourser le client</a>
                                 @endif
                             @endallowed
                             @allowed('credit_notes.issue')
@@ -113,7 +106,7 @@
         </section>
 
         <section class="premium-stat-grid">
-            <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowLabel }}</div><div class="hint">Etat de la facture dans le flux metier.</div></article>
+            <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowStatus['label'] }}</div><div class="hint">Etat de la facture dans le flux metier.</div></article>
             <article class="premium-stat-card"><div class="label">Total facture</div><div class="value">{{ number_format((float) $invoice->total, 0, ',', ' ') }}</div><div class="hint">Montant total emis au client.</div></article>
             <article class="premium-stat-card"><div class="label">Montant paye</div><div class="value">{{ number_format((float) $invoice->amount_paid, 0, ',', ' ') }}</div><div class="hint">Encaissements deja relies a la facture.</div></article>
             <article class="premium-stat-card"><div class="label">Solde restant</div><div class="value">{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }}</div><div class="hint">Montant encore ouvert au recouvrement.</div></article>
@@ -147,15 +140,18 @@
                                 <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-primary">Emettre un avoir client</a>
                             @endif
                         @endallowed
+                        @allowed('payments.validate')
+                            @if ($customerRefundAmount > 0)
+                                <a href="{{ route('payments.create', ['type' => 'customer_refund', 'invoice' => $invoice->id, 'amount' => $customerRefundAmount]) }}" class="button button-secondary">Rembourser le trop-percu</a>
+                            @endif
+                        @endallowed
                     @endif
                 </div>
             </div>
 
             @if ($invoice->status === 'validated' && ! $canIssueCreditNote)
                 <div class="help" style="margin-top:12px;">
-                    @if ((float) $invoice->balance_due <= 0)
-                        Cette facture est deja soldee. Dans cette version, l avoir est reserve aux factures avec un solde encore ouvert.
-                    @elseif ($creditableLinesCount <= 0)
+                    @if ($creditableLinesCount <= 0)
                         Toutes les quantites eligibles ont deja ete avoirees sur cette facture.
                     @else
                         Aucun avoir suplementaire n est possible sur cette facture pour le moment.
@@ -244,21 +240,21 @@
                             <div class="muted" style="margin-top:8px;">Journal des retours temps reel provenant de Wave, Orange Money, Moov Money ou virement.</div>
                         </div>
                         @if ($invoice->latestPaymentGatewayCallback)
-                            <span class="badge badge-muted">Dernier retour {{ $invoice->latestPaymentGatewayCallback->received_at?->format('d/m/Y H:i') }}</span>
+                            @include('partials.erp-status-badge', ['label' => 'Dernier retour '.$invoice->latestPaymentGatewayCallback->received_at?->format('d/m/Y H:i'), 'tone' => 'muted'])
                         @endif
                     </div>
                     <div style="margin-top:16px; display:grid; gap:14px;">
                         @foreach ($gatewayCallbacks as $callback)
                             @php
-                                $gatewayTone = $callback->gateway_status === 'success' ? 'badge-success' : ($callback->gateway_status === 'failed' ? 'badge-danger' : 'badge-warning');
-                                $processingTone = in_array($callback->processing_status, ['auto_recorded'], true) ? 'badge-success' : (in_array($callback->processing_status, ['error', 'rejected'], true) ? 'badge-danger' : 'badge-warning');
+                                $gatewayTone = $callback->gateway_status === 'success' ? 'success' : ($callback->gateway_status === 'failed' ? 'danger' : 'warning');
+                                $processingStatus = \App\Support\ErpStatusPresenter::present('sync', $callback->processing_status);
                             @endphp
                             <div style="padding:14px 16px; border:1px solid #efe4d3; border-radius:16px; background:#fffaf3; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-start;">
                                 <div>
                                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                                         <strong>{{ $callback->channelLabel() }}</strong>
-                                        <span class="badge {{ $gatewayTone }}">{{ $callback->gatewayStatusLabel() }}</span>
-                                        <span class="badge {{ $processingTone }}">{{ $callback->processingStatusLabel() }}</span>
+                                        @include('partials.erp-status-badge', ['label' => $callback->gatewayStatusLabel(), 'tone' => $gatewayTone])
+                                        @include('partials.erp-status-badge', ['status' => $processingStatus])
                                     </div>
                                     <div class="muted" style="margin-top:8px;">Ref {{ $callback->reference }}</div>
                                     @if ($callback->external_reference)
@@ -339,7 +335,7 @@
         <section class="card">
             <h2 style="margin-top:0;">Validation</h2>
             <div class="grid">
-                <div><strong>Statut</strong><div class="muted">{{ $workflowLabel }}</div></div>
+                <div><strong>Statut</strong><div class="muted">{{ $workflowStatus['label'] }}</div></div>
                 <div><strong>Creee par</strong><div class="muted">{{ $invoice->creator?->name ?? 'Systeme' }}</div></div>
                 <div><strong>Approuvee par</strong><div class="muted">{{ $invoice->approver?->name ?? 'Non approuvee' }}</div></div>
                 <div><strong>Date d approbation</strong><div class="muted">{{ $invoice->approved_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
@@ -355,7 +351,7 @@
         <section class="card">
             <h2 style="margin-top:0;">Synthese d impact</h2>
             <div class="grid">
-                <div><strong>Statut paiement</strong><div class="muted">{{ $invoice->payment_status === 'paid' ? 'Payee' : ($invoice->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}</div></div>
+                <div><strong>Statut paiement</strong><div class="muted">{{ $paymentStatus['label'] }}</div></div>
                 <div><strong>Entrepot</strong><div class="muted">{{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</div></div>
                 <div><strong>Effet stock</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Stock mis a jour' : (in_array($invoice->status, ['cancelled', 'rejected'], true) ? 'Aucun effet stock final' : 'En attente d approbation finale') }}</div></div>
                 <div><strong>Effet comptable</strong><div class="muted">{{ $invoice->status === 'validated' ? 'Ecriture generee' : (in_array($invoice->status, ['cancelled', 'rejected'], true) ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
@@ -365,7 +361,14 @@
         </section>
     </div>
 
-    <div class="split" style="margin-bottom:20px;">
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Validation, rejets, paiements et autres actions recentes liees a cette facture client.',
+        'sectionId' => 'activity-history',
+    ])
+
+    <div class="split" style="margin:20px 0;">
         <section class="card">
             <h2 style="margin-top:0;">Articles</h2>
             <div class="table-wrap">
@@ -395,7 +398,7 @@
         </section>
 
         <section class="card" id="payments">
-            <h2 style="margin-top:0;">Encaissements</h2>
+            <h2 style="margin-top:0;">Paiements et remboursements</h2>
             @if ($invoice->status === 'cancelled')
                 <p class="muted">Aucun paiement possible: cette facture a ete annulee avant validation finale.</p>
             @elseif ($invoice->status === 'rejected')
@@ -409,7 +412,10 @@
                             <div>
                                 <div style="font-weight:600;"><a href="{{ route('payments.show', $allocation->payment) }}">{{ $allocation->payment?->payment_number }}</a></div>
                                 <div class="muted" style="margin-top:6px;">{{ $allocation->payment?->payment_date?->format('d/m/Y') }} · {{ $allocation->payment?->cashAccount?->name }}</div>
-                                <div class="muted" style="margin-top:6px;">{{ str($allocation->payment?->method)->replace('_', ' ')->title() }}</div>
+                                <div class="muted" style="margin-top:6px;">
+                                    {{ $allocation->payment?->payment_type === 'customer_refund' ? 'Remboursement client' : 'Encaissement client' }}
+                                    · {{ str($allocation->payment?->method)->replace('_', ' ')->title() }}
+                                </div>
                                 <div style="margin-top:6px;">{{ number_format((float) $allocation->allocated_amount, 0, ',', ' ') }} XOF</div>
                             </div>
                             <div style="display:flex; gap:10px; flex-wrap:wrap;">

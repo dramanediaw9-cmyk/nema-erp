@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 4
+    paths:
+        - app/Http/Controllers/Api/V1/Concerns/ResolvesApiActor.php
+        - app/Http/Controllers/Api/V1/IntegrationEventController.php
+        - app/Http/Controllers/Api/V1/PartnerController.php
+        - app/Http/Controllers/Api/V1/PlatformCapabilityController.php
+        - app/Http/Controllers/Api/V1/ProductController.php
+        - app/Http/Controllers/Api/V1/SalesInvoiceController.php
+        - app/Http/Middleware/EnsureApiTokenIsValid.php
+        - app/Modules/Core/Company/Http/Controllers/CompanyController.php
+        - app/Providers/AppServiceProvider.php
+    tmpDir: storage/phpstan
+    reportUnmatchedIgnoredErrors: false

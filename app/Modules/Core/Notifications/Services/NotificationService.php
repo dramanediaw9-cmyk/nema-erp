@@ -7,6 +7,7 @@ use App\Modules\Accounting\Services\PeriodChecklistService;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Approvals\Models\ApprovalStep;
 use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Notifications\Models\InternalNotification;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Expenses\Models\Expense;
@@ -16,6 +17,8 @@ use App\Modules\Inventory\Models\StockCountItem;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Sales\Services\OrderCoverageService;
+use App\Modules\Treasury\Models\Payment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -25,11 +28,14 @@ class NotificationService
     public function __construct(
         private readonly PeriodChecklistService $periodChecklistService,
         private readonly ApplicationMonitoringService $applicationMonitoringService,
+        private readonly SectorProfileService $sectorProfileService,
+        private readonly OrderCoverageService $orderCoverageService,
     ) {}
 
     public function syncCompanyAlerts(int $companyId, ?int $branchId = null): void
     {
         $summary = $this->periodChecklistService->currentPeriodSummary($companyId);
+        $sectorProfile = $this->sectorProfileService->profileForCompany($companyId);
 
         $pendingSalesCount = SalesInvoice::query()->where('company_id', $companyId)->where('status', 'pending_approval')->count();
         $pendingPurchasesCount = PurchaseBill::query()->where('company_id', $companyId)->where('status', 'pending_approval')->count();
@@ -111,6 +117,14 @@ class NotificationService
         $this->syncExpenseSpikeAlert($companyId);
         $this->syncStockCountVarianceAlert($companyId);
         $this->syncLotExpiryAlerts($companyId, $branchId);
+        $this->syncMobileMoneyReconciliationAlert($companyId, $branchId);
+        $this->syncInternalTransferDepositAlert($companyId, $branchId);
+        $this->syncDocumentedInternalTransferDepositAlert($companyId, $branchId);
+        $this->syncTrackedSaleableStockAlert($companyId, $branchId);
+        $this->syncFoodStoreShortDatedLotsAlert($companyId, $branchId, $sectorProfile);
+        $this->syncFoodStoreSaleableStockoutAlert($companyId, $branchId, $sectorProfile);
+        $this->syncWholesaleOrderCoverageRiskAlert($companyId, $branchId, $sectorProfile);
+        $this->syncWholesaleOverdueCommitmentsAlert($companyId, $branchId, $sectorProfile);
         $this->syncBranchSalesDropAlerts($companyId);
         $this->syncTechnicalMonitoringAlerts($companyId);
     }
@@ -138,6 +152,15 @@ class NotificationService
         ];
     }
 
+    public function cachedSummaryForCompany(int $companyId, ?int $branchId = null, int $limit = 5, int $ttlSeconds = 30): array
+    {
+        return Cache::remember(
+            $this->summaryCacheKey($companyId, $branchId, $limit),
+            now()->addSeconds(max($ttlSeconds, 5)),
+            fn (): array => $this->summaryForCompany($companyId, $branchId, $limit),
+        );
+    }
+
     public function indexQuery(int $companyId, string $scope = 'active', ?int $branchId = null): Builder
     {
         return $this->scopedQuery($companyId, $branchId)
@@ -156,6 +179,8 @@ class NotificationService
                 'read_at' => now(),
                 'read_by' => $user->id,
             ]);
+
+            $this->forgetSummaryCache($notification->company_id, $notification->branch_id);
         }
 
         return $notification->fresh(['reader', 'branch']);
@@ -170,6 +195,8 @@ class NotificationService
                 'read_at' => now(),
                 'read_by' => $user->id,
             ]);
+
+        $this->forgetSummaryCache($companyId, $branchId);
     }
 
     private function syncOverdueSalesAlert(int $companyId): void
@@ -387,6 +414,140 @@ class NotificationService
         ]);
     }
 
+    private function syncMobileMoneyReconciliationAlert(int $companyId, ?int $branchId = null): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $query = Payment::query()
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where('branch_id', $selectedBranchId))
+            ->whereIn('method', $this->mobileMoneyMethods())
+            ->whereDoesntHave('reconciliationItem');
+
+        $payments = (clone $query)->get(['id', 'direction', 'amount', 'reference', 'payment_date']);
+        $count = (int) $payments->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'mobile-money-reconciliation-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $balance = round((float) $payments->sum(function (Payment $payment): float {
+            return $payment->direction === 'out'
+                ? -1 * (float) $payment->amount
+                : (float) $payment->amount;
+        }), 2);
+        $missingReferenceCount = (int) $payments->filter(fn (Payment $payment) => blank(trim((string) $payment->reference)))->count();
+        $oldestPaymentDate = $payments->sortBy('payment_date')->first()?->payment_date;
+
+        $this->upsertSystemAlert($companyId, 'mobile-money-reconciliation-risk'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => $missingReferenceCount > 0 ? 'danger' : 'warning',
+            'title' => 'Mobile money a rapprocher',
+            'message' => $count.' flux mobile money restent ouverts pour '.$this->money($balance).'.'.($missingReferenceCount > 0 ? ' '.$missingReferenceCount.' sans reference exploitable.' : '').($oldestPaymentDate ? ' Plus ancienne date : '.$this->formatDate($oldestPaymentDate).'.' : ''),
+            'action_url' => route('payments.index', ['reconciliation_status' => 'unreconciled']),
+            'meta' => [
+                'count' => $count,
+                'balance' => $balance,
+                'missing_reference_count' => $missingReferenceCount,
+                'oldest_payment_date' => $oldestPaymentDate,
+            ],
+        ]);
+    }
+
+    private function syncInternalTransferDepositAlert(int $companyId, ?int $branchId = null): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $thresholdDate = now()->subDays(2)->startOfDay();
+        $query = Payment::query()
+            ->withCount('attachments')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where('branch_id', $selectedBranchId))
+            ->where('payment_type', 'internal_transfer')
+            ->where('direction', 'in')
+            ->whereHas('cashAccount', fn (Builder $cashAccountQuery) => $cashAccountQuery->whereIn('type', $this->externalReconciliationAccountTypes()))
+            ->whereDoesntHave('reconciliationItem');
+
+        $payments = (clone $query)->get(['id', 'amount', 'payment_date', 'reference']);
+        $count = (int) $payments->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'internal-transfer-deposit-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $balance = round((float) $payments->sum('amount'), 2);
+        $staleCount = (int) $payments
+            ->filter(fn (Payment $payment) => $payment->payment_date && $payment->payment_date->startOfDay()->lte($thresholdDate))
+            ->count();
+        $missingReferenceCount = (int) $payments
+            ->filter(fn (Payment $payment) => $this->paymentNeedsDepositProofAttention($payment))
+            ->count();
+        $oldestPaymentDate = $payments->sortBy('payment_date')->first()?->payment_date;
+
+        $this->upsertSystemAlert($companyId, 'internal-transfer-deposit-risk'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => ($staleCount > 0 || $missingReferenceCount > 0) ? 'danger' : 'warning',
+            'title' => 'Versements agence a rapprocher',
+            'message' => $count.' versement(s) agence attendent encore le releve bancaire pour '.$this->money($balance).'.'.($staleCount > 0 ? ' '.$staleCount.' depot(s) depuis 2+ jours.' : '').($missingReferenceCount > 0 ? ' '.$missingReferenceCount.' sans bordereau exploitable.' : '').($oldestPaymentDate ? ' Plus ancienne date : '.$this->formatDate($oldestPaymentDate).'.' : ''),
+            'action_url' => route('payments.index', ['payment_type' => 'internal_transfer', 'reconciliation_status' => 'unreconciled']),
+            'meta' => [
+                'count' => $count,
+                'balance' => $balance,
+                'stale_count' => $staleCount,
+                'missing_reference_count' => $missingReferenceCount,
+                'oldest_payment_date' => $oldestPaymentDate,
+            ],
+        ]);
+    }
+
+    private function syncDocumentedInternalTransferDepositAlert(int $companyId, ?int $branchId = null): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $thresholdDate = now()->subDays(2)->startOfDay();
+        $query = Payment::query()
+            ->withCount('attachments')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where('branch_id', $selectedBranchId))
+            ->where('payment_type', 'internal_transfer')
+            ->where('direction', 'in')
+            ->whereHas('cashAccount', fn (Builder $cashAccountQuery) => $cashAccountQuery->whereIn('type', $this->externalReconciliationAccountTypes()))
+            ->whereDoesntHave('reconciliationItem');
+
+        $payments = (clone $query)->get(['id', 'amount', 'payment_date', 'reference']);
+        $documentedPayments = $payments
+            ->filter(fn (Payment $payment) => $this->paymentReadyForExternalReconciliation($payment))
+            ->values();
+        $count = (int) $documentedPayments->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'internal-transfer-documented-deposit-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $balance = round((float) $documentedPayments->sum('amount'), 2);
+        $staleCount = (int) $documentedPayments
+            ->filter(fn (Payment $payment) => $payment->payment_date && $payment->payment_date->startOfDay()->lte($thresholdDate))
+            ->count();
+        $oldestPaymentDate = $documentedPayments->sortBy('payment_date')->first()?->payment_date;
+
+        $this->upsertSystemAlert($companyId, 'internal-transfer-documented-deposit-risk'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => $staleCount > 0 ? 'danger' : 'warning',
+            'title' => 'Versements documentes a rapprocher',
+            'message' => $count.' versement(s) documentes attendent encore le rapprochement pour '.$this->money($balance).'.'.($staleCount > 0 ? ' '.$staleCount.' depot(s) depuis 2+ jours.' : '').($oldestPaymentDate ? ' Plus ancienne date : '.$this->formatDate($oldestPaymentDate).'.' : ''),
+            'action_url' => route('payments.index', ['deposit_documented' => 1]),
+            'meta' => [
+                'count' => $count,
+                'balance' => $balance,
+                'stale_count' => $staleCount,
+                'oldest_payment_date' => $oldestPaymentDate,
+            ],
+        ]);
+    }
+
     private function syncLotExpiryAlerts(int $companyId, ?int $branchId = null): void
     {
         $scopeSuffix = $branchId ? '-'.$branchId : '';
@@ -459,6 +620,203 @@ class NotificationService
                 'nearest_expiry_date' => $nearestExpiryAt,
                 'horizon_days' => $horizonDays,
                 'highlights' => $expiringHighlights,
+            ],
+        ]);
+    }
+
+    private function syncTrackedSaleableStockAlert(int $companyId, ?int $branchId = null): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $products = $this->trackedProductsWithoutSaleableStock($companyId, $branchId);
+        $count = (int) $products->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'tracked-saleable-stock-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $highlights = $products
+            ->take(3)
+            ->map(fn (Product $product) => $product->display_name ?? $product->name ?? $product->sku ?? 'Produit')
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'tracked-saleable-stock-risk'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'danger',
+            'title' => 'Produits traces sans stock vendable',
+            'message' => $count.' produit(s) traces n ont plus aucun lot non expire disponible pour la vente.'.($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('stock.index', ['tracking_type' => 'tracked', 'saleability_state' => 'zero']),
+            'meta' => [
+                'count' => $count,
+                'highlights' => $highlights,
+            ],
+        ]);
+    }
+
+    private function syncFoodStoreShortDatedLotsAlert(int $companyId, ?int $branchId = null, array $sectorProfile = []): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+
+        if (($sectorProfile['key'] ?? null) !== 'food_store') {
+            $this->resolveSystemAlert($companyId, 'food-store-short-dated-lots'.$scopeSuffix);
+
+            return;
+        }
+
+        $lots = $this->foodStoreShortDatedLots($companyId, $branchId);
+        $count = (int) $lots->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'food-store-short-dated-lots'.$scopeSuffix);
+
+            return;
+        }
+
+        $productCount = $lots->pluck('product_id')->unique()->count();
+        $quantity = round((float) $lots->sum(fn (ProductLot $lot) => (float) $lot->quantity_available), 3);
+        $nearestExpiryAt = $lots->sortBy('expires_at')->first()?->expires_at;
+        $highlights = $lots
+            ->take(3)
+            ->map(fn (ProductLot $lot) => ($lot->product?->display_name ?? $lot->product?->name ?? 'Produit').' · '.$lot->displayCode())
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'food-store-short-dated-lots'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'warning',
+            'title' => 'Lots courts a ecouler',
+            'message' => $count.' lot(s) sur '.$productCount.' produit(s) expirent sous 7 jours pour '.number_format($quantity, 3, ',', ' ').' unite(s) encore a vendre.'.($nearestExpiryAt ? ' Prochaine date : '.$this->formatDate($nearestExpiryAt).'.' : '').($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('stock.lots', ['status' => 'expiring', 'availability' => 'available', 'expiry_window_days' => 7]),
+            'meta' => [
+                'count' => $count,
+                'product_count' => $productCount,
+                'quantity' => $quantity,
+                'nearest_expiry_date' => $nearestExpiryAt,
+                'highlights' => $highlights,
+            ],
+        ]);
+    }
+
+    private function syncFoodStoreSaleableStockoutAlert(int $companyId, ?int $branchId = null, array $sectorProfile = []): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+
+        if (($sectorProfile['key'] ?? null) !== 'food_store') {
+            $this->resolveSystemAlert($companyId, 'food-store-saleable-stockouts'.$scopeSuffix);
+
+            return;
+        }
+
+        $products = $this->foodStoreSaleableShelfProducts($companyId, $branchId)
+            ->filter(fn (Product $product) => (float) ($product->saleable_stock ?? 0) <= 0.0001)
+            ->values();
+        $count = (int) $products->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'food-store-saleable-stockouts'.$scopeSuffix);
+
+            return;
+        }
+
+        $highlights = $products
+            ->take(3)
+            ->map(fn (Product $product) => $product->display_name ?? $product->name ?? $product->sku ?? 'Produit')
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'food-store-saleable-stockouts'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'danger',
+            'title' => 'Ruptures rayon vendables',
+            'message' => $count.' reference(s) ont deja tourne en stock mais n ont plus rien de vendable au comptoir.'.($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('stock.index', ['saleability_state' => 'zero']),
+            'meta' => [
+                'count' => $count,
+                'highlights' => $highlights,
+            ],
+        ]);
+    }
+
+    private function syncWholesaleOrderCoverageRiskAlert(int $companyId, ?int $branchId = null, array $sectorProfile = []): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+
+        if (($sectorProfile['key'] ?? null) !== 'wholesale_distribution') {
+            $this->resolveSystemAlert($companyId, 'wholesale-order-coverage-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $summary = $this->orderCoverageService->wholesalePortfolioSummary($companyId, $branchId);
+        $count = (int) ($summary['orders_at_risk_count'] ?? 0);
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'wholesale-order-coverage-risk'.$scopeSuffix);
+
+            return;
+        }
+
+        $lines = (int) ($summary['order_lines_at_risk_count'] ?? 0);
+        $shortageQty = (float) ($summary['at_risk_shortage_qty'] ?? 0);
+        $highlights = collect($summary['highlights'] ?? [])->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'wholesale-order-coverage-risk'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'danger',
+            'title' => 'Commandes grossiste a risque',
+            'message' => $count.' commande(s) couvrent mal '.$lines.' ligne(s) pour '.number_format($shortageQty, 3, ',', ' ').' unite(s) encore non couvertes.'.($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('orders.index', ['coverage_state' => 'at_risk']),
+            'meta' => [
+                'count' => $count,
+                'lines' => $lines,
+                'shortage_qty' => $shortageQty,
+                'highlights' => $summary['highlights'] ?? [],
+            ],
+        ]);
+    }
+
+    private function syncWholesaleOverdueCommitmentsAlert(int $companyId, ?int $branchId = null, array $sectorProfile = []): void
+    {
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+
+        if (($sectorProfile['key'] ?? null) !== 'wholesale_distribution') {
+            $this->resolveSystemAlert($companyId, 'wholesale-overdue-commitments'.$scopeSuffix);
+
+            return;
+        }
+
+        $summary = $this->orderCoverageService->wholesalePortfolioSummary($companyId, $branchId);
+        $count = (int) ($summary['overdue_backlog_orders_count'] ?? 0);
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'wholesale-overdue-commitments'.$scopeSuffix);
+
+            return;
+        }
+
+        $remainingQty = (float) ($summary['overdue_backlog_remaining_qty'] ?? 0);
+        $highlights = collect($summary['overdue_highlights'] ?? [])->implode(', ');
+        $oldestTargetDate = $summary['oldest_overdue_target_date'] ?? null;
+        $message = $count.' commande(s) gardent encore '.number_format($remainingQty, 3, ',', ' ').' unite(s) en reliquat apres la date promise.';
+
+        if ($oldestTargetDate instanceof Carbon) {
+            $message .= ' Plus ancien engagement : '.$oldestTargetDate->format('d/m/Y').'.';
+        }
+
+        if ($highlights !== '') {
+            $message .= ' Exemples : '.$highlights.'.';
+        }
+
+        $this->upsertSystemAlert($companyId, 'wholesale-overdue-commitments'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'warning',
+            'title' => 'Engagements grossiste en retard',
+            'message' => $message,
+            'action_url' => route('orders.index', ['delivery_focus' => 'overdue']),
+            'meta' => [
+                'count' => $count,
+                'remaining_qty' => $remainingQty,
+                'oldest_target_date' => $oldestTargetDate?->toDateString(),
+                'highlights' => $summary['overdue_highlights'] ?? [],
             ],
         ]);
     }
@@ -609,6 +967,7 @@ class NotificationService
             'company_id' => $companyId,
             'code' => $code,
         ]);
+        $originalBranchId = $notification->branch_id;
 
         $wasResolved = $notification->exists && $notification->resolved_at !== null;
 
@@ -630,19 +989,45 @@ class NotificationService
         }
 
         $notification->save();
+        $this->forgetSummaryCache($companyId, $originalBranchId);
+        $this->forgetSummaryCache($companyId, $notification->branch_id);
 
         return $notification;
     }
 
     private function resolveSystemAlert(int $companyId, string $code): void
     {
-        InternalNotification::query()
+        $notification = InternalNotification::query()
             ->where('company_id', $companyId)
             ->where('code', $code)
             ->whereNull('resolved_at')
-            ->update([
-                'resolved_at' => now(),
-            ]);
+            ->first();
+
+        if (! $notification) {
+            return;
+        }
+
+        $notification->forceFill([
+            'resolved_at' => now(),
+        ])->save();
+
+        $this->forgetSummaryCache($companyId, $notification->branch_id);
+    }
+
+    private function summaryCacheKey(int $companyId, ?int $branchId = null, int $limit = 5): string
+    {
+        return sprintf('notifications:summary:%d:%s:%d', $companyId, $branchId ?: 'global', $limit);
+    }
+
+    private function forgetSummaryCache(int $companyId, ?int $branchId = null, array $limits = [5]): void
+    {
+        foreach ($limits as $limit) {
+            Cache::forget($this->summaryCacheKey($companyId, null, $limit));
+
+            if ($branchId) {
+                Cache::forget($this->summaryCacheKey($companyId, $branchId, $limit));
+            }
+        }
     }
 
     private function stockAlerts(int $companyId, ?int $branchId): int
@@ -660,6 +1045,125 @@ class NotificationService
             ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
             ->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock')
             ->count();
+    }
+
+    private function mobileMoneyMethods(): array
+    {
+        return ['wave', 'orange_money', 'moov_money', 'mobile_money'];
+    }
+
+    private function externalReconciliationAccountTypes(): array
+    {
+        return ['bank', 'mobile_money'];
+    }
+
+    private function paymentNeedsDepositProofAttention(Payment $payment): bool
+    {
+        return blank(trim((string) $payment->reference))
+            && ((int) ($payment->attachments_count ?? 0) === 0);
+    }
+
+    private function paymentReadyForExternalReconciliation(Payment $payment): bool
+    {
+        return filled(trim((string) $payment->reference))
+            || ((int) ($payment->attachments_count ?? 0) > 0);
+    }
+
+    private function trackedProductsWithoutSaleableStock(int $companyId, ?int $branchId = null)
+    {
+        $today = now()->toDateString();
+        $saleableLotBalances = ProductLot::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as saleable_qty')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->where(function (Builder $query) use ($today) {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', $today);
+            })
+            ->groupBy('product_id');
+
+        return Product::query()
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->where('products.sale_ok', true)
+            ->whereIn('products.tracking_type', ['lot', 'serial'])
+            ->whereHas('lots', fn (Builder $query) => $query
+                ->where('company_id', $companyId)
+                ->when($branchId, fn (Builder $branchQuery, int $selectedBranchId) => $branchQuery->where('branch_id', $selectedBranchId)))
+            ->leftJoinSub($saleableLotBalances, 'saleable_balances', fn ($join) => $join->on('products.id', '=', 'saleable_balances.product_id'))
+            ->select(['products.id', 'products.name', 'products.sku'])
+            ->whereRaw('COALESCE(saleable_balances.saleable_qty, 0) <= 0.0001')
+            ->orderBy('products.name')
+            ->get();
+    }
+
+    private function foodStoreShortDatedLots(int $companyId, ?int $branchId = null)
+    {
+        $today = now()->toDateString();
+        $horizon = now()->addDays(7)->toDateString();
+
+        return ProductLot::query()
+            ->with('product')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->whereNotNull('expires_at')
+            ->whereDate('expires_at', '>', $today)
+            ->whereDate('expires_at', '<=', $horizon)
+            ->whereHas('product', fn (Builder $query) => $query
+                ->where('type', 'stockable')
+                ->where('is_active', true)
+                ->where('sale_ok', true))
+            ->orderBy('expires_at')
+            ->orderBy('product_id')
+            ->get();
+    }
+
+    private function foodStoreSaleableShelfProducts(int $companyId, ?int $branchId = null)
+    {
+        $today = now()->toDateString();
+        $balances = StockMovement::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_in - quantity_out) as current_stock')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->groupBy('product_id');
+        $saleableLotBalances = ProductLot::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as saleable_qty')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->where(function (Builder $query) use ($today) {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', $today);
+            })
+            ->groupBy('product_id');
+        $saleableStockExpression = "CASE WHEN products.tracking_type IN ('lot', 'serial') THEN COALESCE(saleable_balances.saleable_qty, 0) ELSE COALESCE(balances.current_stock, 0) END";
+
+        return Product::query()
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->where('products.sale_ok', true)
+            ->where('products.min_stock', '>', 0)
+            ->where(function (Builder $query) use ($companyId, $branchId) {
+                $query->whereHas('stockMovements', fn (Builder $movementQuery) => $movementQuery
+                    ->where('company_id', $companyId)
+                    ->when($branchId, fn (Builder $scopedQuery, int $selectedBranchId) => $scopedQuery->where('branch_id', $selectedBranchId)))
+                    ->orWhereHas('lots', fn (Builder $lotQuery) => $lotQuery
+                        ->where('company_id', $companyId)
+                        ->when($branchId, fn (Builder $scopedQuery, int $selectedBranchId) => $scopedQuery->where('branch_id', $selectedBranchId)));
+            })
+            ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
+            ->leftJoinSub($saleableLotBalances, 'saleable_balances', fn ($join) => $join->on('products.id', '=', 'saleable_balances.product_id'))
+            ->select(['products.id', 'products.name', 'products.sku', 'products.min_stock', 'products.tracking_type'])
+            ->selectRaw($saleableStockExpression.' as saleable_stock')
+            ->orderBy('products.name')
+            ->get();
     }
 
     private function moduleLabel(string $module): string

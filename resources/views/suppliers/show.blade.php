@@ -4,21 +4,32 @@
 @section('page-title', 'Fournisseur '.$supplier->code)
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">{{ $supplier->name }}</h2>
-            <div class="muted">{{ $supplier->code }} · {{ $supplier->city ?: 'Ville non renseignee' }} · {{ $supplier->phone ?: 'Telephone non renseigne' }}</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('suppliers.index', ['search' => $supplier->code]) }}" class="button button-secondary">Retour aux fournisseurs</a>
-            @allowed('purchases.manage')
-                <a href="{{ route('purchases.create') }}" class="button button-primary">Nouvel achat</a>
-            @endallowed
-            @allowed('expenses.manage')
-                <a href="{{ route('expenses.create') }}" class="button button-secondary">Nouvelle depense</a>
-            @endallowed
-        </div>
-    </div>
+    @php
+        $headerActions = [
+            ['label' => 'Retour aux fournisseurs', 'url' => route('suppliers.index', ['search' => $supplier->code]), 'style' => 'secondary'],
+        ];
+        $openBalance = (float) ($stats['open_balance'] ?? 0);
+        $portfolioState = $openBalance > 0 ? 'open' : 'clear';
+
+        if (auth()->user()?->hasPermission('purchases.manage')) {
+            $headerActions[] = ['label' => 'Nouvel achat', 'url' => route('purchases.create'), 'style' => 'primary'];
+        }
+
+        if (auth()->user()?->hasPermission('expenses.manage')) {
+            $headerActions[] = ['label' => 'Nouvelle depense', 'url' => route('expenses.create'), 'style' => 'secondary'];
+        }
+    @endphp
+
+    @include('partials.erp-page-head', [
+        'eyebrow' => 'Fournisseur',
+        'title' => $supplier->name,
+        'description' => $supplier->code.' · '.($supplier->city ?: 'Ville non renseignee').' · '.($supplier->phone ?: 'Telephone non renseigne'),
+        'actions' => $headerActions,
+        'chips' => [
+            ['type' => 'activity', 'value' => $supplier->is_active ? 'active' : 'inactive'],
+            ['type' => 'portfolio', 'value' => $portfolioState],
+        ],
+    ])
 
     <section class="card" style="margin-bottom:20px;">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
@@ -92,7 +103,15 @@
                 <div><strong>Solde initial</strong><div class="muted">{{ number_format((float) $supplier->opening_balance, 0, ',', ' ') }} XOF</div></div>
                 <div><strong>Condition de paiement</strong><div class="muted">{{ $supplier->paymentTerm?->name ?: 'Aucune' }}</div></div>
                 <div><strong>Liste de prix</strong><div class="muted">{{ $supplier->priceList?->name ?: 'Tarif standard' }}</div></div>
-                <div><strong>Statut</strong><div class="muted">{{ $supplier->is_active ? 'Actif' : 'Inactif' }}</div></div>
+                <div>
+                    <strong>Statut</strong>
+                    <div style="margin-top:6px;">
+                        @include('partials.erp-status-badge', [
+                            'type' => 'activity',
+                            'value' => $supplier->is_active ? 'active' : 'inactive',
+                        ])
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -112,7 +131,14 @@
         </section>
     </div>
 
-    <div class="split">
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Creation du fournisseur, achats, depenses, reglements et autres actions recentes visibles sur ce dossier.',
+        'sectionId' => 'activity-history',
+    ])
+
+    <div class="split" style="margin-top:20px;">
         <section class="card" id="purchase-documents">
             <h2 style="margin-top:0;">Factures fournisseurs</h2>
             @forelse ($bills as $bill)

@@ -3,11 +3,11 @@
 use App\Http\Controllers\Api\InboundIntegrationWebhookController;
 use App\Modules\Core\Access\Http\Controllers\RoleController;
 use App\Modules\Core\Access\Http\Controllers\UserController;
-use App\Modules\Core\Automation\Http\Controllers\AutomationController;
 use App\Modules\Core\Approvals\Http\Controllers\ApprovalPortalController;
 use App\Modules\Core\Approvals\Http\Controllers\ApprovalStepController;
 use App\Modules\Core\Audit\Http\Controllers\ActivityLogController;
 use App\Modules\Core\Auth\Http\Controllers\AuthenticatedSessionController;
+use App\Modules\Core\Automation\Http\Controllers\AutomationController;
 use App\Modules\Core\Branch\Http\Controllers\BranchController;
 use App\Modules\Core\Collaboration\Http\Controllers\DocumentCollaborationController;
 use App\Modules\Core\Company\Http\Controllers\CompanyController;
@@ -15,6 +15,7 @@ use App\Modules\Core\Company\Http\Controllers\SettingsController;
 use App\Modules\Core\Dashboard\Http\Controllers\DashboardController;
 use App\Modules\Core\Dashboard\Http\Controllers\GlobalSearchController;
 use App\Modules\Core\Dashboard\Http\Controllers\MerchantRoutineController;
+use App\Modules\Core\Dashboard\Http\Controllers\NavigationFavoriteController;
 use App\Modules\Core\Dashboard\Http\Controllers\UiModeController;
 use App\Modules\Core\Notifications\Http\Controllers\NotificationController;
 use App\Modules\Core\Notifications\Http\Controllers\OutboundNotificationController;
@@ -44,6 +45,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/recherche', GlobalSearchController::class)
         ->middleware('permission:dashboard.view')
         ->name('search.index');
+    Route::post('/applications/favoris', [NavigationFavoriteController::class, 'toggle'])
+        ->middleware('permission:dashboard.view')
+        ->name('navigation.favorites.toggle');
     Route::post('/interface/mode', [UiModeController::class, 'update'])
         ->middleware('permission:dashboard.view')
         ->name('ui-mode.update');
@@ -168,5 +172,3 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
         ->middleware('permission:activity_logs.view')
         ->name('activity-logs.index');
 });
-
-

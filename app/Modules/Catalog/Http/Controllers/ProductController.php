@@ -7,10 +7,11 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductAttribute;
 use App\Modules\Catalog\Models\ProductAttributeValue;
 use App\Modules\Catalog\Models\ProductCategory;
+use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Company\Models\TaxRule;
-use App\Modules\Partners\Models\Partner;
 use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Partners\Models\Partner;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,12 +23,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class ProductController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly ActivityFeedService $activityFeedService,
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -105,6 +108,7 @@ class ProductController extends Controller
             'recentMovements' => $recentMovements,
             'trackedLots' => $trackedLots,
             'deletionGuard' => $this->deletionGuard($product),
+            'recentActivities' => $this->activityFeedService->recentForSubjects($product->company_id, [$product]),
         ]);
     }
 
@@ -165,8 +169,10 @@ class ProductController extends Controller
         $data['auto_replenish'] = $request->boolean('auto_replenish');
         $data['is_active'] = $request->boolean('is_active', true);
         $data['purchase_price'] = $canViewProductCosts ? round((float) ($data['purchase_price'] ?? 0), 2) : 0.0;
-        $data['image_path'] = $this->storeUploadedImage($request);
-        $data['image_disk'] = $data['image_path'] ? $this->productImageDisk() : null;
+        $storedImagePath = $this->storeUploadedImage($request);
+        $storedImageDisk = $storedImagePath ? $this->productImageDisk() : null;
+        $data['image_path'] = $storedImagePath;
+        $data['image_disk'] = $storedImageDisk;
 
         $variantPayload = $this->prepareVariantPayload($companyId, null, $data);
         $data['parent_product_id'] = $variantPayload['parent_product_id'];
@@ -175,22 +181,32 @@ class ProductController extends Controller
         $data['variant_signature'] = $variantPayload['variant_signature'];
         unset($data['variant_value_ids']);
 
-        $product = Product::query()->create($data);
-        $this->syncVariantValues($product, $variantPayload['value_ids']);
-        $this->syncSupplierInfos($product, $supplierInfos);
-        $this->activityLogger->log('products.create', 'Creation produit', $product, [
-            'sale_ok' => $product->sale_ok,
-            'purchase_ok' => $product->purchase_ok,
-            'sale_blocked' => $product->sale_blocked,
-            'sale_block_reason' => $product->sale_block_reason,
-            'purchase_blocked' => $product->purchase_blocked,
-            'purchase_block_reason' => $product->purchase_block_reason,
-            'invoice_policy' => $product->invoice_policy,
-            'tracking_type' => $product->tracking_type,
-            'is_variant' => $product->is_variant,
-            'parent_product_id' => $product->parent_product_id,
-            'variant_label' => $product->variant_label,
-        ]);
+        try {
+            $product = DB::transaction(function () use ($data, $supplierInfos, $variantPayload) {
+                $product = Product::query()->create($data);
+                $this->syncVariantValues($product, $variantPayload['value_ids']);
+                $this->syncSupplierInfos($product, $supplierInfos);
+                $this->activityLogger->log('products.create', 'Creation produit', $product, [
+                    'sale_ok' => $product->sale_ok,
+                    'purchase_ok' => $product->purchase_ok,
+                    'sale_blocked' => $product->sale_blocked,
+                    'sale_block_reason' => $product->sale_block_reason,
+                    'purchase_blocked' => $product->purchase_blocked,
+                    'purchase_block_reason' => $product->purchase_block_reason,
+                    'invoice_policy' => $product->invoice_policy,
+                    'tracking_type' => $product->tracking_type,
+                    'is_variant' => $product->is_variant,
+                    'parent_product_id' => $product->parent_product_id,
+                    'variant_label' => $product->variant_label,
+                ]);
+
+                return $product;
+            });
+        } catch (Throwable $exception) {
+            $this->deleteStoredImage($storedImagePath, $storedImageDisk);
+
+            throw $exception;
+        }
 
         return redirect()->route('products.show', $product)->with('success', 'Produit cree avec succes.');
     }
@@ -231,6 +247,11 @@ class ProductController extends Controller
         $data['auto_replenish'] = $request->boolean('auto_replenish');
         $data['is_active'] = $request->boolean('is_active', true);
         $data['purchase_price'] = $canViewProductCosts ? round((float) ($data['purchase_price'] ?? $product->purchase_price), 2) : (float) $product->purchase_price;
+        $currentImagePath = $product->image_path;
+        $currentImageDisk = $product->imageDisk();
+        $replacementImagePath = null;
+        $replacementImageDisk = null;
+        $deletePreviousImageAfterCommit = false;
 
         $variantPayload = $this->prepareVariantPayload($product->company_id, $product, $data);
         $data['parent_product_id'] = $variantPayload['parent_product_id'];
@@ -239,34 +260,46 @@ class ProductController extends Controller
         $data['variant_signature'] = $variantPayload['variant_signature'];
         unset($data['variant_value_ids']);
 
-        if ($request->boolean('remove_image')) {
-            $this->deleteStoredImage($product->image_path, $product->imageDisk());
+        if ($request->hasFile('image')) {
+            $replacementImagePath = $this->storeUploadedImage($request);
+            $replacementImageDisk = $replacementImagePath ? $this->productImageDisk() : null;
+            $deletePreviousImageAfterCommit = (bool) $currentImagePath;
+            $data['image_path'] = $replacementImagePath;
+            $data['image_disk'] = $replacementImageDisk;
+        } elseif ($request->boolean('remove_image')) {
+            $deletePreviousImageAfterCommit = (bool) $currentImagePath;
             $data['image_path'] = null;
             $data['image_disk'] = null;
         }
 
-        if ($request->hasFile('image')) {
-            $this->deleteStoredImage($product->image_path, $product->imageDisk());
-            $data['image_path'] = $this->storeUploadedImage($request);
-            $data['image_disk'] = $data['image_path'] ? $this->productImageDisk() : null;
+        try {
+            DB::transaction(function () use ($data, $product, $supplierInfos, $variantPayload) {
+                $product->update($data);
+                $this->syncVariantValues($product, $variantPayload['value_ids']);
+                $this->syncSupplierInfos($product, $supplierInfos);
+                $this->activityLogger->log('products.update', 'Mise a jour produit', $product, [
+                    'sale_ok' => $product->sale_ok,
+                    'purchase_ok' => $product->purchase_ok,
+                    'sale_blocked' => $product->sale_blocked,
+                    'sale_block_reason' => $product->sale_block_reason,
+                    'purchase_blocked' => $product->purchase_blocked,
+                    'purchase_block_reason' => $product->purchase_block_reason,
+                    'invoice_policy' => $product->invoice_policy,
+                    'tracking_type' => $product->tracking_type,
+                    'is_variant' => $product->is_variant,
+                    'parent_product_id' => $product->parent_product_id,
+                    'variant_label' => $product->variant_label,
+                ]);
+            });
+        } catch (Throwable $exception) {
+            $this->deleteStoredImage($replacementImagePath, $replacementImageDisk);
+
+            throw $exception;
         }
 
-        $product->update($data);
-        $this->syncVariantValues($product, $variantPayload['value_ids']);
-        $this->syncSupplierInfos($product, $supplierInfos);
-        $this->activityLogger->log('products.update', 'Mise a jour produit', $product, [
-            'sale_ok' => $product->sale_ok,
-            'purchase_ok' => $product->purchase_ok,
-            'sale_blocked' => $product->sale_blocked,
-            'sale_block_reason' => $product->sale_block_reason,
-            'purchase_blocked' => $product->purchase_blocked,
-            'purchase_block_reason' => $product->purchase_block_reason,
-            'invoice_policy' => $product->invoice_policy,
-            'tracking_type' => $product->tracking_type,
-            'is_variant' => $product->is_variant,
-            'parent_product_id' => $product->parent_product_id,
-            'variant_label' => $product->variant_label,
-        ]);
+        if ($deletePreviousImageAfterCommit) {
+            $this->deleteStoredImage($currentImagePath, $currentImageDisk);
+        }
 
         return redirect()->route('products.show', $product)->with('success', 'Produit mis a jour avec succes.');
     }
@@ -322,12 +355,17 @@ class ProductController extends Controller
             );
         }
 
-        $this->deleteStoredImage($product->image_path, $product->imageDisk());
-        $this->activityLogger->log('products.delete', 'Suppression produit', $product, [
-            'sku' => $product->sku,
-            'name' => $product->name,
-        ]);
-        $product->delete();
+        $imagePath = $product->image_path;
+        $imageDisk = $product->imageDisk();
+
+        DB::transaction(function () use ($product) {
+            $this->activityLogger->log('products.delete', 'Suppression produit', $product, [
+                'sku' => $product->sku,
+                'name' => $product->name,
+            ]);
+            $product->delete();
+        });
+        $this->deleteStoredImage($imagePath, $imageDisk);
 
         return redirect()->route('products.index')->with('success', 'Produit supprime avec succes.');
     }
@@ -335,6 +373,7 @@ class ProductController extends Controller
     private function validateProduct(Request $request, int $companyId, ?int $ignoreId = null): array
     {
         $canViewProductCosts = $this->canViewProductCosts($request);
+
         return $request->validate([
             'category_id' => [
                 'nullable',
@@ -405,7 +444,6 @@ class ProductController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
     }
-
 
     private function canViewProductCosts(Request $request): bool
     {
@@ -701,6 +739,9 @@ class ProductController extends Controller
             'type' => $type,
             'status' => $status,
             'stock_state' => $stockState,
+            'view' => in_array($request->string('view')->trim()->value(), ['list', 'kanban'], true)
+                ? $request->string('view')->trim()->value()
+                : 'list',
         ];
     }
 
@@ -751,15 +792,8 @@ class ProductController extends Controller
 
     private function generateSku(int $companyId): string
     {
-        $number = Product::query()->where('company_id', $companyId)->count() + 1;
-
-        do {
-            $sku = 'PRD-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
-            $exists = Product::query()->where('company_id', $companyId)->where('sku', $sku)->exists();
-            $number++;
-        } while ($exists);
-
-        return $sku;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'product_sku');
     }
 
     private function storeUploadedImage(Request $request): ?string
@@ -785,10 +819,3 @@ class ProductController extends Controller
         return (string) config('nema.product_media_disk', 'public');
     }
 }
-
-
-
-
-
-
-

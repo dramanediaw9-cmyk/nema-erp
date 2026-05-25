@@ -71,6 +71,33 @@ class PartnerPortfolioFiltersTest extends TestCase
             ->assertDontSee('Agro Import Mali');
     }
 
+    public function test_partner_portfolios_can_render_kanban_views(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('customers.index', [
+                'view' => 'kanban',
+                'search' => 'Sahel',
+            ]))
+            ->assertOk()
+            ->assertSee('Kanban')
+            ->assertSee('Sahel Market')
+            ->assertSee('Voir la fiche');
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('suppliers.index', [
+                'view' => 'kanban',
+                'search' => 'Mali',
+            ]))
+            ->assertOk()
+            ->assertSee('Kanban')
+            ->assertSee('Mali Fournitures Pro')
+            ->assertSee('Voir la fiche');
+    }
+
     private function workspaceSession(User $user): array
     {
         return [

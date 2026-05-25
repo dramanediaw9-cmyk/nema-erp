@@ -19,8 +19,7 @@ class StockService
 {
     public function __construct(
         private readonly PeriodLockService $periodLockService,
-    ) {
-    }
+    ) {}
 
     public function defaultWarehouseId(int $companyId, int $branchId): int
     {
@@ -171,6 +170,7 @@ class StockService
             'next_incoming_date' => $this->nextIncomingPurchaseDate($companyId, $branchId, $product->id, $warehouseId),
         ];
     }
+
     public function assertReservableQuantity(Product $product, int $companyId, int $branchId, float $quantity, ?int $warehouseId = null, string $context = 'commande client', ?int $excludeOrderId = null): void
     {
         if ($product->tracking_type === 'serial' && abs($quantity - round($quantity)) > 0.0001) {
@@ -251,6 +251,8 @@ class StockService
             unitCost: $unitCost,
             reason: $reason,
             notes: $notes,
+            referenceType: $referenceType,
+            referenceId: $referenceId,
             movementDate: $movementDate,
             user: $user,
         );
@@ -555,6 +557,3 @@ class StockService
         ]);
     }
 }
-
-
-

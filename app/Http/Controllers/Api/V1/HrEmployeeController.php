@@ -103,8 +103,7 @@ class HrEmployeeController
 
     private function generateNumber(int $companyId): string
     {
-        $number = HrEmployee::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'EMP-'.now()->format('Y').'-'.str_pad((string) $number, 5, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'hr_employee_number');
     }
 }

@@ -854,27 +854,19 @@ class ImportService
 
     private function generatePartnerCode(int $companyId, string $prefix): string
     {
-        $number = Partner::query()->where('company_id', $companyId)->count() + 1;
+        $documentType = match (strtoupper($prefix)) {
+            'C' => 'partner_customer_code',
+            'F' => 'partner_supplier_code',
+            default => 'partner_generic_code',
+        };
 
-        do {
-            $code = sprintf('%s%04d', Str::upper($prefix), $number);
-            $exists = Partner::query()->where('company_id', $companyId)->where('code', $code)->exists();
-            $number++;
-        } while ($exists);
-
-        return $code;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, $documentType);
     }
 
     private function generateSku(int $companyId): string
     {
-        $number = Product::query()->where('company_id', $companyId)->count() + 1;
-
-        do {
-            $sku = 'PRD-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
-            $exists = Product::query()->where('company_id', $companyId)->where('sku', $sku)->exists();
-            $number++;
-        } while ($exists);
-
-        return $sku;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'product_sku');
     }
 }

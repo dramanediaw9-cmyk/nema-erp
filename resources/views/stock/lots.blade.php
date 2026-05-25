@@ -237,6 +237,14 @@
                     </select>
                 </div>
                 <div>
+                    <label for="expiry_window_days">Horizon</label>
+                    <select id="expiry_window_days" name="expiry_window_days">
+                        <option value="7" @selected(($filters['expiry_window_days'] ?? 30) === 7)>7 jours</option>
+                        <option value="14" @selected(($filters['expiry_window_days'] ?? 30) === 14)>14 jours</option>
+                        <option value="30" @selected(($filters['expiry_window_days'] ?? 30) === 30)>30 jours</option>
+                    </select>
+                </div>
+                <div>
                     <label for="availability">Disponibilite</label>
                     <select id="availability" name="availability">
                         <option value="available" @selected($filters['availability'] === 'available')>Encore disponible</option>

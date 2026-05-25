@@ -10,6 +10,7 @@ use App\Modules\Core\Company\Services\DocumentNumberService;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Pos\Models\PosReturn;
 use App\Modules\Purchases\Models\PurchaseBill;
+use App\Modules\Purchases\Models\PurchaseCreditNote;
 use App\Modules\Sales\Models\SalesCreditNote;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
@@ -146,6 +147,49 @@ class AccountingService
         );
     }
 
+    public function recordPurchaseCreditNote(PurchaseCreditNote $creditNote, PurchaseBill $bill, User $user): JournalEntry
+    {
+        $lines = [
+            [
+                'account_code' => '401000',
+                'partner_id' => $creditNote->supplier_id,
+                'label' => 'Reduction dette '.$bill->bill_number,
+                'debit' => (float) $creditNote->total,
+                'credit' => 0,
+            ],
+            [
+                'account_code' => '601000',
+                'partner_id' => $creditNote->supplier_id,
+                'label' => 'Avoir fournisseur '.$creditNote->credit_note_number,
+                'debit' => 0,
+                'credit' => (float) $creditNote->net_total,
+            ],
+        ];
+
+        if ((float) $creditNote->tax_total > 0.009) {
+            $lines[] = [
+                'account_code' => '445100',
+                'partner_id' => $creditNote->supplier_id,
+                'label' => 'TVA deductible ajustee '.$creditNote->credit_note_number,
+                'debit' => 0,
+                'credit' => (float) $creditNote->tax_total,
+            ];
+        }
+
+        return $this->postEntry(
+            companyId: $creditNote->company_id,
+            tenantId: $creditNote->tenant_id,
+            branchId: $creditNote->branch_id,
+            journalCode: 'AVF',
+            entryDate: $creditNote->credit_note_date?->format('Y-m-d') ?? now()->toDateString(),
+            source: $creditNote,
+            reference: $creditNote->credit_note_number,
+            description: 'Avoir fournisseur '.$creditNote->credit_note_number,
+            createdBy: $user->id,
+            lines: $lines,
+        );
+    }
+
     public function recordCustomerReceipt(Payment $payment, SalesInvoice $invoice, CashAccount $cashAccount, User $user): JournalEntry
     {
         $treasuryCode = $this->treasuryAccountCode($cashAccount);
@@ -172,6 +216,39 @@ class AccountingService
                     'account_code' => '411000',
                     'partner_id' => $invoice->customer_id,
                     'label' => 'Reglement client '.$invoice->invoice_number,
+                    'debit' => 0,
+                    'credit' => (float) $payment->amount,
+                ],
+            ],
+        );
+    }
+
+    public function recordCustomerRefund(Payment $payment, SalesInvoice $invoice, CashAccount $cashAccount, User $user): JournalEntry
+    {
+        $treasuryCode = $this->treasuryAccountCode($cashAccount);
+
+        return $this->postEntry(
+            companyId: $payment->company_id,
+            tenantId: $payment->tenant_id,
+            branchId: $payment->branch_id,
+            journalCode: 'TRE',
+            entryDate: $payment->payment_date?->format('Y-m-d') ?? now()->toDateString(),
+            source: $payment,
+            reference: $payment->payment_number,
+            description: 'Remboursement client '.$payment->payment_number,
+            createdBy: $user->id,
+            lines: [
+                [
+                    'account_code' => '411000',
+                    'partner_id' => $invoice->customer_id,
+                    'label' => 'Remboursement trop-percu '.$invoice->invoice_number,
+                    'debit' => (float) $payment->amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_code' => $treasuryCode,
+                    'partner_id' => $payment->partner_id,
+                    'label' => 'Sortie tresorerie '.$payment->payment_number,
                     'debit' => 0,
                     'credit' => (float) $payment->amount,
                 ],

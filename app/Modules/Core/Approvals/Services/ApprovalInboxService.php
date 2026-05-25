@@ -10,6 +10,7 @@ use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class ApprovalInboxService
 {
@@ -94,6 +95,15 @@ class ApprovalInboxService
             ],
             'overdue_count' => $steps->filter(fn (ApprovalStep $step) => $step->isOverdue())->count(),
         ];
+    }
+
+    public function cachedSummaryForUser(User $user, int $companyId, int $ttlSeconds = 15): array
+    {
+        return Cache::remember(
+            sprintf('approvals:summary:%d:%d', $companyId, $user->id),
+            now()->addSeconds(max($ttlSeconds, 5)),
+            fn (): array => $this->summaryForUser($user, $companyId),
+        );
     }
 
     private function mapDocument(Model $document, string $module, string $moduleLabel, string $number, ?string $counterpart, ?string $documentDate): array

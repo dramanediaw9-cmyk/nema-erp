@@ -40,6 +40,7 @@
                     <label for="payment_type">Type de paiement</label>
                     <select id="payment_type" name="payment_type" required>
                         <option value="customer_receipt" @selected(old('payment_type', $paymentType) === 'customer_receipt')>Encaissement client</option>
+                        <option value="customer_refund" @selected(old('payment_type', $paymentType) === 'customer_refund')>Remboursement client</option>
                         <option value="supplier_payment" @selected(old('payment_type', $paymentType) === 'supplier_payment')>Reglement fournisseur</option>
                         <option value="internal_transfer" @selected(old('payment_type', $paymentType) === 'internal_transfer')>Versement interne</option>
                     </select>
@@ -50,7 +51,12 @@
                         <option value="">Selectionner une facture</option>
                         @foreach ($invoices as $invoice)
                             <option value="{{ $invoice->id }}" data-balance="{{ $invoice->balance_due }}" data-partner="{{ $invoice->customer?->name }}" @selected((string) old('invoice_id', $invoiceId) === (string) $invoice->id)>
-                                {{ $invoice->invoice_number }} - {{ $invoice->customer?->name }} (reste {{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF)
+                                {{ $invoice->invoice_number }} - {{ $invoice->customer?->name }}
+                                @if ((float) $invoice->balance_due < 0)
+                                    (a rembourser {{ number_format(abs((float) $invoice->balance_due), 0, ',', ' ') }} XOF)
+                                @else
+                                    (reste {{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF)
+                                @endif
                             </option>
                         @endforeach
                     </select>
@@ -139,7 +145,7 @@
                     return purchaseBillSelect;
                 }
 
-                if (paymentTypeSelect.value === 'customer_receipt') {
+                if (paymentTypeSelect.value === 'customer_receipt' || paymentTypeSelect.value === 'customer_refund') {
                     return invoiceSelect;
                 }
 
@@ -162,16 +168,19 @@
 
                 const balance = parseFloat(option.dataset.balance || '0');
                 const partner = option.dataset.partner || '';
-                help.textContent = 'Solde restant : ' + balance.toFixed(2) + ' XOF' + (partner ? ' · Tiers : ' + partner : '');
+                const isCustomerRefund = paymentTypeSelect.value === 'customer_refund';
+                const suggestedAmount = isCustomerRefund ? Math.abs(balance) : balance;
+                help.textContent = (isCustomerRefund ? 'Trop-percu a rembourser : ' : 'Solde restant : ') + suggestedAmount.toFixed(2) + ' XOF' + (partner ? ' · Tiers : ' + partner : '');
 
                 if (!amountInput.value) {
-                    amountInput.value = balance.toFixed(2);
+                    amountInput.value = suggestedAmount.toFixed(2);
                 }
             };
 
             const syncFields = () => {
                 const isSupplierPayment = paymentTypeSelect.value === 'supplier_payment';
                 const isInternalTransfer = paymentTypeSelect.value === 'internal_transfer';
+                const isCustomerRefund = paymentTypeSelect.value === 'customer_refund';
 
                 invoiceField.style.display = isSupplierPayment || isInternalTransfer ? 'none' : '';
                 purchaseBillField.style.display = isSupplierPayment && !isInternalTransfer ? '' : 'none';
@@ -179,7 +188,7 @@
                 invoiceSelect.required = !isSupplierPayment && !isInternalTransfer;
                 purchaseBillSelect.required = isSupplierPayment && !isInternalTransfer;
                 destinationAccountSelect.required = isInternalTransfer;
-                cashAccountLabel.textContent = isInternalTransfer ? 'Compte source' : 'Compte de tresorerie';
+                cashAccountLabel.textContent = isInternalTransfer ? 'Compte source' : (isCustomerRefund ? 'Compte de remboursement' : 'Compte de tresorerie');
 
                 updateHelp();
             };

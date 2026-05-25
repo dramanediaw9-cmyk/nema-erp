@@ -12,9 +12,7 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(private readonly ActivityLogger $activityLogger) {}
 
     public function create(): View|RedirectResponse
     {
@@ -35,8 +33,10 @@ class AuthenticatedSessionController extends Controller
         $key = sprintf('login:%s:%s', $credentials['email'], $request->ip());
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
+            $seconds = RateLimiter::availableIn($key);
+
             return back()->withErrors([
-                'email' => 'Trop de tentatives. Veuillez patienter une minute avant de réessayer.',
+                'email' => "Trop de tentatives. Veuillez patienter {$seconds} secondes avant de réessayer.",
             ])->onlyInput('email');
         }
 
@@ -49,7 +49,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if (! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password'], 'is_active' => true], (bool) $request->boolean('remember'))) {
-            RateLimiter::hit($key, 60);
+            RateLimiter::hit($key, 300);
 
             return back()->withErrors([
                 'email' => 'Les identifiants fournis sont invalides.',

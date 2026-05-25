@@ -18,6 +18,7 @@ use App\Modules\Core\Notifications\Services\NotificationService;
 use App\Modules\Core\Onboarding\Services\OnboardingService;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Expenses\Models\Expense;
+use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Purchases\Models\GoodsReceipt;
@@ -26,10 +27,12 @@ use App\Modules\Purchases\Models\PurchaseOrder;
 use App\Modules\Purchases\Models\PurchaseRequest;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
+use App\Modules\Sales\Services\OrderCoverageService;
 use App\Modules\Treasury\Models\CashAccount;
 use App\Modules\Treasury\Models\Payment;
 use App\Support\CurrentWorkspace;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -41,6 +44,7 @@ class DashboardController extends Controller
         private readonly SectorProfileService $sectorProfileService,
         private readonly ApplicationMonitoringService $applicationMonitoringService,
         private readonly ExecutiveBriefingService $executiveBriefingService,
+        private readonly OrderCoverageService $orderCoverageService,
     ) {}
 
     public function __invoke(CurrentWorkspace $workspace): View
@@ -99,6 +103,11 @@ class DashboardController extends Controller
             'demandes_achat_ouvertes' => PurchaseRequest::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->whereNull('converted_purchase_order_id')->whereIn('status', ['draft', 'pending_approval', 'approved'])->count(),
             'alertes_non_lues' => (int) ($notificationSummary['count'] ?? 0),
         ];
+        $stats = array_merge(
+            $stats,
+            $this->mobileMoneyWatch($companyId, $branchScopeId),
+            $this->internalTransferDepositWatch($companyId, $branchScopeId),
+        );
         $stats['approbations_en_attente_total'] = $stats['ventes_en_attente'] + $stats['achats_en_attente'] + $stats['depenses_en_attente'];
 
         $recentActivities = ActivityLog::query()
@@ -119,25 +128,37 @@ class DashboardController extends Controller
         $appMonitoring = $this->applicationMonitoringService->summary();
         $dashboardProfile = $this->dashboardProfile($user);
         $sectorProfile = $this->sectorProfileService->profileForCompany($companyId);
-        $premiumActionCenter = $this->premiumActionCenter($stats, $currentPeriodSummary, $onboarding, $appMonitoring);
+        $stats = array_merge(
+            $stats,
+            $this->pharmacySafetyWatch($companyId, $branchScopeId, $sectorProfile),
+            $this->foodStoreRetailWatch($companyId, $branchScopeId, $sectorProfile),
+            $this->wholesaleDistributionWatch($companyId, $branchScopeId, $sectorProfile),
+        );
+        $dashboardKpis = $this->decorateDashboardItems($this->dashboardKpis($dashboardProfile['key'], $stats), 'kpi');
+        $roleSpotlight = $this->decorateDashboardItems($this->roleSpotlight($dashboardProfile['key'], $stats, $monthStart), 'spotlight');
+        $sectorActionPlan = $this->decorateDashboardItems($this->sectorActionPlan($sectorProfile), 'sector');
+        $sectorSignals = $this->decorateDashboardItems($this->sectorOperationalSignals($sectorProfile, $stats), 'signal');
+        $premiumActionCenter = $this->decorateDashboardItems($this->premiumActionCenter($stats, $currentPeriodSummary, $onboarding, $appMonitoring), 'premium');
+        $operationalWatchlist = $this->decorateDashboardItems($this->operationalWatchlist($stats, $monthStart, (int) ($notificationSummary['count'] ?? 0)), 'watch');
+        $appCatalog = $this->decorateDashboardItems($this->appCatalog(), 'app');
         $executiveBrief = $this->executiveBriefingService->forDashboard($dashboardProfile['key'], $stats, $currentPeriodSummary, $appMonitoring, $onboarding);
 
         return view('dashboard.index', [
             'dashboardProfile' => $dashboardProfile,
-            'dashboardKpis' => $this->dashboardKpis($dashboardProfile['key'], $stats),
-            'roleActionPlan' => $this->roleActionPlan($dashboardProfile['key']),
-            'roleSpotlight' => $this->roleSpotlight($dashboardProfile['key'], $stats, $monthStart),
+            'dashboardKpis' => $dashboardKpis,
+            'roleSpotlight' => $roleSpotlight,
             'stats' => $stats,
             'recentActivities' => $recentActivities,
             'onboarding' => $onboarding,
             'showOnboardingBanner' => $showOnboardingBanner,
             'currentPeriodSummary' => $currentPeriodSummary,
-            'quickLinks' => $this->quickLinks(),
             'sectorProfile' => $sectorProfile,
-            'sectorActionPlan' => $this->sectorActionPlan($sectorProfile),
+            'sectorActionPlan' => $sectorActionPlan,
+            'sectorSignals' => $sectorSignals,
             'premiumBrief' => $this->premiumBrief($premiumActionCenter, $dashboardProfile['key']),
             'premiumActionCenter' => $premiumActionCenter,
-            'operationalWatchlist' => $this->operationalWatchlist($stats, $monthStart, (int) ($notificationSummary['count'] ?? 0)),
+            'operationalWatchlist' => $operationalWatchlist,
+            'appCatalog' => $appCatalog,
         ]);
     }
 
@@ -160,6 +181,107 @@ class DashboardController extends Controller
             ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
             ->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock')
             ->count();
+    }
+
+    private function mobileMoneyWatch(?int $companyId, ?int $branchId): array
+    {
+        if (! $companyId) {
+            return [
+                'mobile_money_unreconciled_count' => 0,
+                'mobile_money_unreconciled_amount' => 0.0,
+                'mobile_money_missing_reference_count' => 0,
+            ];
+        }
+
+        $payments = Payment::query()
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->whereIn('method', $this->mobileMoneyMethods())
+            ->whereDoesntHave('reconciliationItem')
+            ->get(['direction', 'amount', 'reference']);
+
+        return [
+            'mobile_money_unreconciled_count' => (int) $payments->count(),
+            'mobile_money_unreconciled_amount' => round((float) $payments->sum(function (Payment $payment): float {
+                return $payment->direction === 'out'
+                    ? -1 * (float) $payment->amount
+                    : (float) $payment->amount;
+            }), 2),
+            'mobile_money_missing_reference_count' => (int) $payments
+                ->filter(fn (Payment $payment) => blank(trim((string) $payment->reference)))
+                ->count(),
+        ];
+    }
+
+    private function internalTransferDepositWatch(?int $companyId, ?int $branchId): array
+    {
+        if (! $companyId) {
+            return [
+                'internal_transfer_pending_bank_count' => 0,
+                'internal_transfer_pending_bank_amount' => 0.0,
+                'internal_transfer_pending_bank_stale_count' => 0,
+                'internal_transfer_pending_bank_missing_reference_count' => 0,
+                'internal_transfer_pending_bank_documented_count' => 0,
+                'internal_transfer_pending_bank_documented_amount' => 0.0,
+                'internal_transfer_pending_bank_documented_stale_count' => 0,
+                'internal_transfer_pending_bank_oldest_date' => null,
+            ];
+        }
+
+        $thresholdDate = Carbon::now()->subDays(2)->startOfDay();
+        $payments = Payment::query()
+            ->withCount('attachments')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('payment_type', 'internal_transfer')
+            ->where('direction', 'in')
+            ->whereHas('cashAccount', fn ($query) => $query->whereIn('type', $this->externalReconciliationAccountTypes()))
+            ->whereDoesntHave('reconciliationItem')
+            ->get(['amount', 'payment_date', 'reference']);
+        $documentedPayments = $payments
+            ->filter(fn (Payment $payment) => $this->paymentReadyForExternalReconciliation($payment))
+            ->values();
+
+        return [
+            'internal_transfer_pending_bank_count' => (int) $payments->count(),
+            'internal_transfer_pending_bank_amount' => round((float) $payments->sum('amount'), 2),
+            'internal_transfer_pending_bank_stale_count' => (int) $payments
+                ->filter(fn (Payment $payment) => $payment->payment_date && $payment->payment_date->startOfDay()->lte($thresholdDate))
+                ->count(),
+            'internal_transfer_pending_bank_missing_reference_count' => (int) $payments
+                ->filter(fn (Payment $payment) => $this->paymentNeedsDepositProofAttention($payment))
+                ->count(),
+            'internal_transfer_pending_bank_documented_count' => (int) $documentedPayments->count(),
+            'internal_transfer_pending_bank_documented_amount' => round((float) $documentedPayments->sum('amount'), 2),
+            'internal_transfer_pending_bank_documented_stale_count' => (int) $documentedPayments
+                ->filter(fn (Payment $payment) => $payment->payment_date && $payment->payment_date->startOfDay()->lte($thresholdDate))
+                ->count(),
+            'internal_transfer_pending_bank_oldest_date' => $payments
+                ->sortBy(fn (Payment $payment) => $payment->payment_date?->timestamp ?? PHP_INT_MAX)
+                ->first()?->payment_date,
+        ];
+    }
+
+    private function mobileMoneyMethods(): array
+    {
+        return ['wave', 'orange_money', 'moov_money', 'mobile_money'];
+    }
+
+    private function externalReconciliationAccountTypes(): array
+    {
+        return ['bank', 'mobile_money'];
+    }
+
+    private function paymentNeedsDepositProofAttention(Payment $payment): bool
+    {
+        return blank(trim((string) $payment->reference))
+            && ((int) ($payment->attachments_count ?? 0) === 0);
+    }
+
+    private function paymentReadyForExternalReconciliation(Payment $payment): bool
+    {
+        return filled(trim((string) $payment->reference))
+            || ((int) ($payment->attachments_count ?? 0) > 0);
     }
 
     private function monthlyResult(?int $companyId, string $monthStart, ?int $branchId = null): float
@@ -374,6 +496,84 @@ class DashboardController extends Controller
         return $this->filterAuthorizedItems($actions);
     }
 
+    private function sectorOperationalSignals(array $sectorProfile, array $stats): array
+    {
+        $items = match ($sectorProfile['key'] ?? null) {
+            'wholesale_distribution' => [
+                [
+                    'permission' => 'orders.view',
+                    'label' => 'Commandes a risque stock',
+                    'value' => $this->number((int) ($stats['wholesale_orders_at_risk_count'] ?? 0)),
+                    'description' => ($stats['wholesale_orders_at_risk_count'] ?? 0).' commande(s) couvrent mal '.($stats['wholesale_order_lines_at_risk_count'] ?? 0).' ligne(s) pour '.number_format((float) ($stats['wholesale_at_risk_shortage_qty'] ?? 0), 3, ',', ' ').' unite(s) encore non couvertes.',
+                    'url' => route('orders.index', ['coverage_state' => 'at_risk']),
+                ],
+                [
+                    'permission' => 'orders.view',
+                    'label' => 'Commandes couvertes par appro',
+                    'value' => $this->number((int) ($stats['wholesale_orders_incoming_cover_count'] ?? 0)),
+                    'description' => ($stats['wholesale_orders_incoming_cover_count'] ?? 0).' commande(s) dependent deja d achats confirmes sur '.($stats['wholesale_order_lines_incoming_cover_count'] ?? 0).' ligne(s).',
+                    'url' => route('orders.index', ['coverage_state' => 'incoming']),
+                ],
+                [
+                    'permission' => 'orders.view',
+                    'label' => 'Engagements en retard',
+                    'value' => $this->number((int) ($stats['wholesale_overdue_backlog_orders_count'] ?? 0)),
+                    'description' => ($stats['wholesale_overdue_backlog_orders_count'] ?? 0).' commande(s) gardent un reliquat ouvert pour '.number_format((float) ($stats['wholesale_overdue_backlog_remaining_qty'] ?? 0), 3, ',', ' ').' unite(s) apres la date promise.',
+                    'url' => route('orders.index', ['delivery_focus' => 'overdue']),
+                ],
+            ],
+            'food_store' => [
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Lots courts a ecouler',
+                    'value' => $this->number((int) ($stats['food_short_dated_lots_count'] ?? 0)),
+                    'description' => ($stats['food_short_dated_lots_count'] ?? 0).' lot(s) sur '.($stats['food_short_dated_products_count'] ?? 0).' produit(s) expirent sous 7 jours pour '.number_format((float) ($stats['food_short_dated_quantity'] ?? 0), 3, ',', ' ').' unite(s) encore a ecouler.',
+                    'url' => route('stock.lots', ['status' => 'expiring', 'availability' => 'available', 'expiry_window_days' => 7]),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Ruptures rayon vendables',
+                    'value' => $this->number((int) ($stats['food_saleable_stockout_count'] ?? 0)),
+                    'description' => ($stats['food_saleable_stockout_count'] ?? 0).' reference(s) ont deja tourne en stock mais n ont plus rien de vendable au comptoir.',
+                    'url' => route('stock.index', ['saleability_state' => 'zero']),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Rayon vendable critique',
+                    'value' => $this->number((int) ($stats['food_saleable_critical_count'] ?? 0)),
+                    'description' => ($stats['food_saleable_critical_count'] ?? 0).' reference(s) restent vendables mais sont deja au seuil mini rayon.',
+                    'url' => route('stock.index', ['saleability_state' => 'critical']),
+                ],
+            ],
+            'pharmacy_parapharmacy' => [
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Lots proches de peremption',
+                    'value' => $this->number((int) ($stats['pharmacy_expiring_lots_count'] ?? 0)),
+                    'description' => ($stats['pharmacy_expiring_lots_count'] ?? 0).' lot(s) sur '.($stats['pharmacy_expiring_products_count'] ?? 0).' produit(s) expirent sous 30 jours.',
+                    'url' => route('stock.lots', ['status' => 'expiring', 'availability' => 'available']),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Lots expires encore en stock',
+                    'value' => $this->number((int) ($stats['pharmacy_expired_lots_count'] ?? 0)),
+                    'description' => ($stats['pharmacy_expired_lots_count'] ?? 0).' lot(s) sur '.($stats['pharmacy_expired_products_count'] ?? 0).' produit(s) sont deja expires mais encore disponibles.',
+                    'url' => route('stock.lots', ['status' => 'expired', 'availability' => 'available']),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Produits traces sans stock vendable',
+                    'value' => $this->number((int) ($stats['pharmacy_tracked_products_saleable_zero_count'] ?? 0)),
+                    'description' => ($stats['pharmacy_tracked_products_saleable_zero_count'] ?? 0).' reference(s) n ont plus aucun lot non expire disponible.',
+                    'url' => route('stock.index', ['tracking_type' => 'tracked', 'saleability_state' => 'zero']),
+                ],
+            ],
+            default => [],
+        };
+
+        return $this->filterAuthorizedItems($items);
+    }
+
     private function quickLinks(): array
     {
         return collect([
@@ -384,6 +584,61 @@ class DashboardController extends Controller
             ['permission' => 'reports.view', 'label' => 'Rapports dirigeants', 'description' => 'Voir les syntheses', 'url' => route('reports.index')],
             ['permission' => 'imports.manage', 'label' => 'Importer des donnees', 'description' => 'Clients, produits, stock, historiques', 'url' => route('imports.index')],
         ])->filter(fn (array $link) => auth()->user()?->hasPermission($link['permission']))->values()->all();
+    }
+
+    private function appCatalog(): array
+    {
+        return $this->filterAuthorizedItems([
+            ['permission' => 'dashboard.view', 'label' => 'Dashboard', 'short_label' => 'Dashboard', 'description' => 'Vue generale', 'url' => route('dashboard'), 'icon' => 'gauge'],
+            ['permission' => 'dashboard.view', 'label' => 'Demarrage', 'short_label' => 'Demarrage', 'description' => 'Parcours de mise en route', 'url' => route('onboarding.index'), 'icon' => 'rocket'],
+            ['permission' => 'approvals.view', 'label' => 'Approbations', 'short_label' => 'Approbations', 'description' => 'Documents a valider', 'url' => route('approvals.index'), 'icon' => 'approval'],
+            ['permission' => 'reports.view', 'label' => 'Rapports', 'short_label' => 'Rapports', 'description' => 'Chiffres et syntheses', 'url' => route('reports.index'), 'icon' => 'report'],
+            ['permission' => 'budgets.view', 'label' => 'Budgets', 'short_label' => 'Budgets', 'description' => 'Suivi budgetaire', 'url' => route('budgets.index'), 'icon' => 'gauge'],
+            ['permission' => 'notifications.view', 'label' => 'Alertes', 'short_label' => 'Alertes', 'description' => 'Alertes internes', 'url' => route('notifications.index'), 'icon' => 'alert'],
+            ['permission' => 'automation.view', 'label' => 'Automatisation', 'short_label' => 'Automatisation', 'description' => 'Regles automatiques', 'url' => route('automation.index'), 'icon' => 'flash'],
+            ['permission' => 'notifications.outbound.view', 'label' => 'Notif. sortantes', 'short_label' => 'Notif. sortantes', 'description' => 'SMS et emails', 'url' => route('notifications.outbound.index'), 'icon' => 'alert'],
+            ['permission' => 'imports.manage', 'label' => 'Imports CSV', 'short_label' => 'Imports CSV', 'description' => 'Chargement de donnees', 'url' => route('imports.index'), 'icon' => 'import'],
+            ['permission' => 'ops.view', 'label' => 'Operations', 'short_label' => 'Operations', 'description' => 'Controle technique', 'url' => route('ops.index'), 'icon' => 'ops'],
+            ['permission' => 'platform.view', 'label' => 'Plateforme', 'short_label' => 'Plateforme', 'description' => 'Connecteurs et sante', 'url' => route('platform.index'), 'icon' => 'ops'],
+            ['permission' => 'companies.view', 'label' => 'Entreprises', 'short_label' => 'Entreprises', 'description' => 'Societes', 'url' => route('companies.index'), 'icon' => 'building'],
+            ['permission' => 'branches.view', 'label' => 'Agences', 'short_label' => 'Agences', 'description' => 'Sites et agences', 'url' => route('branches.index'), 'icon' => 'building'],
+            ['permission' => 'users.view', 'label' => 'Utilisateurs', 'short_label' => 'Utilisateurs', 'description' => 'Comptes equipe', 'url' => route('users.index'), 'icon' => 'team'],
+            ['permission' => 'roles.view', 'label' => 'Roles', 'short_label' => 'Roles', 'description' => 'Acces et droits', 'url' => route('roles.index'), 'icon' => 'team'],
+            ['permission' => 'settings.view', 'label' => 'Parametres', 'short_label' => 'Parametres', 'description' => 'Reglages ERP', 'url' => route('settings.index'), 'icon' => 'settings'],
+            ['permission' => 'customers.view', 'label' => 'Clients', 'short_label' => 'Clients', 'description' => 'Portefeuille client', 'url' => route('customers.index'), 'icon' => 'customer'],
+            ['permission' => 'suppliers.view', 'label' => 'Fournisseurs', 'short_label' => 'Fournisseurs', 'description' => 'Base fournisseurs', 'url' => route('suppliers.index'), 'icon' => 'team'],
+            ['permission' => 'categories.view', 'label' => 'Categories', 'short_label' => 'Categories', 'description' => 'Familles produits', 'url' => route('categories.index'), 'icon' => 'grid'],
+            ['permission' => 'products.view', 'label' => 'Produits', 'short_label' => 'Produits', 'description' => 'Catalogue', 'url' => route('products.index'), 'icon' => 'stock'],
+            ['permission' => 'stock.view', 'label' => 'Inventaire', 'short_label' => 'Inventaire', 'description' => 'Stock et mouvements', 'url' => route('stock.index'), 'icon' => 'stock'],
+            ['permission' => 'stock.view', 'label' => 'Lots', 'short_label' => 'Lots', 'description' => 'Lots et peremption', 'url' => route('stock.lots'), 'icon' => 'stock'],
+            ['permission' => 'stock_counts.view', 'label' => 'Inventaires physiques', 'short_label' => 'Inventaires', 'description' => 'Comptages', 'url' => route('stock-counts.index'), 'icon' => 'gauge'],
+            ['permission' => 'crm.view', 'label' => 'CRM', 'short_label' => 'CRM', 'description' => 'Pipeline commercial', 'url' => route('crm.index'), 'icon' => 'customer'],
+            ['permission' => 'quotes.view', 'label' => 'Devis', 'short_label' => 'Devis', 'description' => 'Offres clients', 'url' => route('quotes.index'), 'icon' => 'document'],
+            ['permission' => 'orders.view', 'label' => 'Commandes', 'short_label' => 'Commandes', 'description' => 'Commandes clients', 'url' => route('orders.index'), 'icon' => 'orders'],
+            ['permission' => 'delivery_notes.view', 'label' => 'Livraisons', 'short_label' => 'Livraisons', 'description' => 'Bons de livraison', 'url' => route('delivery-notes.index'), 'icon' => 'truck'],
+            ['permission' => 'pos.view', 'label' => 'Point de Vente', 'short_label' => 'Point de Vente', 'description' => 'Caisse comptoir', 'url' => route('pos.index'), 'icon' => 'pos'],
+            ['permission' => 'sales.view', 'label' => 'Ventes', 'short_label' => 'Ventes', 'description' => 'Factures clients', 'url' => route('sales.index'), 'icon' => 'sell'],
+            ['permission' => 'credit_notes.view', 'label' => 'Avoirs', 'short_label' => 'Avoirs', 'description' => 'Credits clients', 'url' => route('credit-notes.index'), 'icon' => 'document'],
+            ['permission' => 'collections.view', 'label' => 'Recouvrement', 'short_label' => 'Recouvrement', 'description' => 'Impayes clients', 'url' => route('collections.index'), 'icon' => 'wallet'],
+            ['permission' => 'purchase_requests.view', 'label' => 'Demandes achat', 'short_label' => 'Demandes achat', 'description' => 'Demandes d appro', 'url' => route('purchase-requests.index'), 'icon' => 'buy'],
+            ['permission' => 'purchase_requests.view', 'label' => 'Reappro', 'short_label' => 'Reappro', 'description' => 'Reappro automatique', 'url' => route('replenishments.index'), 'icon' => 'flash'],
+            ['permission' => 'purchases.view', 'label' => 'Achats', 'short_label' => 'Achats', 'description' => 'Factures fournisseurs', 'url' => route('purchases.index'), 'icon' => 'buy'],
+            ['permission' => 'supplier_credit_notes.view', 'label' => 'Avoirs fournisseurs', 'short_label' => 'Avoirs four.', 'description' => 'Credits fournisseurs', 'url' => route('purchase-credit-notes.index'), 'icon' => 'document'],
+            ['permission' => 'purchase_orders.view', 'label' => 'Cmd fournisseurs', 'short_label' => 'Cmd fournisseurs', 'description' => 'Commandes fournisseurs', 'url' => route('purchase-orders.index'), 'icon' => 'orders'],
+            ['permission' => 'goods_receipts.view', 'label' => 'Receptions', 'short_label' => 'Receptions', 'description' => 'Receptions fournisseurs', 'url' => route('goods-receipts.index'), 'icon' => 'truck'],
+            ['permission' => 'cash_accounts.view', 'label' => 'Comptes', 'short_label' => 'Comptes', 'description' => 'Comptes de tresorerie', 'url' => route('cash-accounts.index'), 'icon' => 'bank'],
+            ['permission' => 'payments.view', 'label' => 'Paiements', 'short_label' => 'Paiements', 'description' => 'Encaissements et reglements', 'url' => route('payments.index'), 'icon' => 'wallet'],
+            ['permission' => 'reconciliations.view', 'label' => 'Rapprochements', 'short_label' => 'Rapprochements', 'description' => 'Rapprochement bancaire', 'url' => route('treasury-reconciliations.index'), 'icon' => 'bank'],
+            ['permission' => 'expenses.view', 'label' => 'Depenses', 'short_label' => 'Depenses', 'description' => 'Charges et sorties', 'url' => route('expenses.index'), 'icon' => 'expense'],
+            ['permission' => 'expense_categories.view', 'label' => 'Cat. depenses', 'short_label' => 'Cat. depenses', 'description' => 'Familles de charges', 'url' => route('expense-categories.index'), 'icon' => 'expense'],
+            ['permission' => 'accounting.view', 'label' => 'Comptabilite', 'short_label' => 'Comptabilite', 'description' => 'Plan et journaux', 'url' => route('accounting.accounts.index'), 'icon' => 'report'],
+            ['permission' => 'hr.view', 'label' => 'RH', 'short_label' => 'RH', 'description' => 'Capital humain', 'url' => route('hr.index'), 'icon' => 'team'],
+            ['permission' => 'payroll.view', 'label' => 'Paie', 'short_label' => 'Paie', 'description' => 'Gestion paie', 'url' => route('payroll.index'), 'icon' => 'wallet'],
+            ['permission' => 'projects.view', 'label' => 'Projets', 'short_label' => 'Projets', 'description' => 'Pilotage execution', 'url' => route('projects.index'), 'icon' => 'pulse'],
+            ['permission' => 'manufacturing.view', 'label' => 'Production', 'short_label' => 'Production', 'description' => 'Ordres et BOM', 'url' => route('manufacturing.index'), 'icon' => 'stock'],
+            ['permission' => 'commerce.view', 'label' => 'Commerce unifie', 'short_label' => 'Commerce', 'description' => 'Vue commerciale et stock', 'url' => route('commerce.index'), 'icon' => 'sell'],
+            ['permission' => 'activity_logs.view', 'label' => 'Journal activite', 'short_label' => 'Journal activite', 'description' => 'Trace des actions', 'url' => route('activity-logs.index'), 'icon' => 'pulse'],
+        ]);
     }
 
     private function operationalWatchlist(array $stats, string $monthStart, int $unreadAlerts): array
@@ -425,6 +680,34 @@ class DashboardController extends Controller
                 'url' => route('notifications.index', ['scope' => 'active', 'read_state' => 'unread']),
             ],
             [
+                'permission' => 'payments.view',
+                'label' => 'Mobile money a rapprocher',
+                'count' => $stats['mobile_money_unreconciled_count'] ?? 0,
+                'description' => $this->money((float) ($stats['mobile_money_unreconciled_amount'] ?? 0)).' encore ouverts'.(($stats['mobile_money_missing_reference_count'] ?? 0) > 0 ? ' · '.($stats['mobile_money_missing_reference_count']).' reference(s) manquante(s).' : '.'),
+                'url' => route('payments.index', ['reconciliation_status' => 'unreconciled']),
+            ],
+            [
+                'permission' => 'payments.view',
+                'label' => 'Versements agence a rapprocher',
+                'count' => $stats['internal_transfer_pending_bank_count'] ?? 0,
+                'description' => $this->money((float) ($stats['internal_transfer_pending_bank_amount'] ?? 0)).' en attente de confirmation bancaire'.(($stats['internal_transfer_pending_bank_stale_count'] ?? 0) > 0 ? ' · '.($stats['internal_transfer_pending_bank_stale_count']).' depot(s) depuis 2+ jours.' : '.'),
+                'url' => route('payments.index', ['payment_type' => 'internal_transfer', 'reconciliation_status' => 'unreconciled']),
+            ],
+            [
+                'permission' => 'payments.view',
+                'label' => 'Versements sans bordereau',
+                'count' => $stats['internal_transfer_pending_bank_missing_reference_count'] ?? 0,
+                'description' => ($stats['internal_transfer_pending_bank_missing_reference_count'] ?? 0).' depot(s) restent sans reference ni justificatif exploitable.',
+                'url' => route('payments.index', ['deposit_missing_reference' => 1]),
+            ],
+            [
+                'permission' => 'payments.view',
+                'label' => 'Versements documentes a rapprocher',
+                'count' => $stats['internal_transfer_pending_bank_documented_count'] ?? 0,
+                'description' => $this->money((float) ($stats['internal_transfer_pending_bank_documented_amount'] ?? 0)).' disposent deja d une preuve de depot exploitable.',
+                'url' => route('payments.index', ['deposit_documented' => 1]),
+            ],
+            [
                 'permission' => 'accounting.view',
                 'label' => 'Journaux du mois',
                 'count' => $stats['ecritures_mois'],
@@ -432,6 +715,190 @@ class DashboardController extends Controller
                 'url' => route('accounting.journal-entries.index', ['date_from' => $monthStart]),
             ],
         ])->filter(fn (array $item) => auth()->user()?->hasPermission($item['permission']))->values()->all();
+    }
+
+    private function pharmacySafetyWatch(?int $companyId, ?int $branchId, array $sectorProfile): array
+    {
+        if (! $companyId || ($sectorProfile['key'] ?? null) !== 'pharmacy_parapharmacy') {
+            return [
+                'pharmacy_expiring_lots_count' => 0,
+                'pharmacy_expiring_products_count' => 0,
+                'pharmacy_expired_lots_count' => 0,
+                'pharmacy_expired_products_count' => 0,
+                'pharmacy_tracked_products_saleable_zero_count' => 0,
+            ];
+        }
+
+        $today = Carbon::today()->toDateString();
+        $horizon = Carbon::today()->addDays(30)->toDateString();
+
+        $lotScope = ProductLot::query()
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->whereHas('product', fn ($query) => $query
+                ->where('type', 'stockable')
+                ->where('is_active', true)
+                ->where('sale_ok', true)
+                ->whereIn('tracking_type', ['lot', 'serial']));
+
+        $expiringLots = (clone $lotScope)
+            ->whereNotNull('expires_at')
+            ->whereDate('expires_at', '>', $today)
+            ->whereDate('expires_at', '<=', $horizon);
+
+        $expiredLots = (clone $lotScope)
+            ->whereNotNull('expires_at')
+            ->whereDate('expires_at', '<=', $today);
+
+        $saleableLotBalances = ProductLot::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as saleable_qty')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where(function ($query) use ($today) {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', $today);
+            })
+            ->groupBy('product_id');
+
+        $trackedProducts = Product::query()
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->where('products.sale_ok', true)
+            ->whereIn('products.tracking_type', ['lot', 'serial'])
+            ->leftJoinSub($saleableLotBalances, 'saleable_balances', fn ($join) => $join->on('products.id', '=', 'saleable_balances.product_id'))
+            ->select(['products.id'])
+            ->selectRaw('COALESCE(saleable_balances.saleable_qty, 0) as saleable_qty')
+            ->get();
+
+        return [
+            'pharmacy_expiring_lots_count' => (clone $expiringLots)->count(),
+            'pharmacy_expiring_products_count' => (clone $expiringLots)->distinct('product_id')->count('product_id'),
+            'pharmacy_expired_lots_count' => (clone $expiredLots)->count(),
+            'pharmacy_expired_products_count' => (clone $expiredLots)->distinct('product_id')->count('product_id'),
+            'pharmacy_tracked_products_saleable_zero_count' => (int) $trackedProducts
+                ->filter(fn (Product $product) => (float) ($product->saleable_qty ?? 0) <= 0.0001)
+                ->count(),
+        ];
+    }
+
+    private function foodStoreRetailWatch(?int $companyId, ?int $branchId, array $sectorProfile): array
+    {
+        if (! $companyId || ($sectorProfile['key'] ?? null) !== 'food_store') {
+            return [
+                'food_short_dated_lots_count' => 0,
+                'food_short_dated_products_count' => 0,
+                'food_short_dated_quantity' => 0.0,
+                'food_saleable_stockout_count' => 0,
+                'food_saleable_critical_count' => 0,
+            ];
+        }
+
+        $today = Carbon::today()->toDateString();
+        $horizon = Carbon::today()->addDays(7)->toDateString();
+
+        $shortDatedLots = ProductLot::query()
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->whereNotNull('expires_at')
+            ->whereDate('expires_at', '>', $today)
+            ->whereDate('expires_at', '<=', $horizon)
+            ->whereHas('product', fn ($query) => $query
+                ->where('type', 'stockable')
+                ->where('is_active', true)
+                ->where('sale_ok', true));
+
+        $saleableProducts = $this->foodStoreSaleableShelfProducts($companyId, $branchId);
+
+        return [
+            'food_short_dated_lots_count' => (clone $shortDatedLots)->count(),
+            'food_short_dated_products_count' => (clone $shortDatedLots)->distinct('product_id')->count('product_id'),
+            'food_short_dated_quantity' => round((float) (clone $shortDatedLots)->sum('quantity_available'), 3),
+            'food_saleable_stockout_count' => (int) $saleableProducts
+                ->filter(fn (Product $product) => (float) ($product->saleable_stock ?? 0) <= 0.0001)
+                ->count(),
+            'food_saleable_critical_count' => (int) $saleableProducts
+                ->filter(fn (Product $product) => (float) ($product->saleable_stock ?? 0) > 0.0001 && (float) ($product->saleable_stock ?? 0) <= (float) ($product->min_stock ?? 0))
+                ->count(),
+        ];
+    }
+
+    private function foodStoreSaleableShelfProducts(int $companyId, ?int $branchId = null)
+    {
+        $today = Carbon::today()->toDateString();
+        $balances = StockMovement::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_in - quantity_out) as current_stock')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->groupBy('product_id');
+
+        $saleableLotBalances = ProductLot::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as saleable_qty')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->where('quantity_available', '>', 0.0001)
+            ->where(function ($query) use ($today) {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', $today);
+            })
+            ->groupBy('product_id');
+
+        $saleableStockExpression = "CASE WHEN products.tracking_type IN ('lot', 'serial') THEN COALESCE(saleable_balances.saleable_qty, 0) ELSE COALESCE(balances.current_stock, 0) END";
+
+        return Product::query()
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->where('products.sale_ok', true)
+            ->where('products.min_stock', '>', 0)
+            ->where(function ($query) use ($companyId, $branchId) {
+                $query->whereHas('stockMovements', fn ($movementQuery) => $movementQuery
+                    ->where('company_id', $companyId)
+                    ->when($branchId, fn ($scopedQuery, $selectedBranchId) => $scopedQuery->where('branch_id', $selectedBranchId)))
+                    ->orWhereHas('lots', fn ($lotQuery) => $lotQuery
+                        ->where('company_id', $companyId)
+                        ->when($branchId, fn ($scopedQuery, $selectedBranchId) => $scopedQuery->where('branch_id', $selectedBranchId)));
+            })
+            ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
+            ->leftJoinSub($saleableLotBalances, 'saleable_balances', fn ($join) => $join->on('products.id', '=', 'saleable_balances.product_id'))
+            ->select(['products.id', 'products.name', 'products.sku', 'products.min_stock', 'products.tracking_type'])
+            ->selectRaw($saleableStockExpression.' as saleable_stock')
+            ->orderBy('products.name')
+            ->get();
+    }
+
+    private function wholesaleDistributionWatch(?int $companyId, ?int $branchId, array $sectorProfile): array
+    {
+        if (! $companyId || ($sectorProfile['key'] ?? null) !== 'wholesale_distribution') {
+            return [
+                'wholesale_orders_at_risk_count' => 0,
+                'wholesale_order_lines_at_risk_count' => 0,
+                'wholesale_at_risk_shortage_qty' => 0.0,
+                'wholesale_orders_incoming_cover_count' => 0,
+                'wholesale_order_lines_incoming_cover_count' => 0,
+                'wholesale_overdue_backlog_orders_count' => 0,
+                'wholesale_overdue_backlog_remaining_qty' => 0.0,
+                'wholesale_oldest_overdue_target_date' => null,
+            ];
+        }
+
+        $summary = $this->orderCoverageService->wholesalePortfolioSummary($companyId, $branchId);
+
+        return [
+            'wholesale_orders_at_risk_count' => (int) ($summary['orders_at_risk_count'] ?? 0),
+            'wholesale_order_lines_at_risk_count' => (int) ($summary['order_lines_at_risk_count'] ?? 0),
+            'wholesale_at_risk_shortage_qty' => (float) ($summary['at_risk_shortage_qty'] ?? 0),
+            'wholesale_orders_incoming_cover_count' => (int) ($summary['orders_incoming_cover_count'] ?? 0),
+            'wholesale_order_lines_incoming_cover_count' => (int) ($summary['order_lines_incoming_cover_count'] ?? 0),
+            'wholesale_overdue_backlog_orders_count' => (int) ($summary['overdue_backlog_orders_count'] ?? 0),
+            'wholesale_overdue_backlog_remaining_qty' => (float) ($summary['overdue_backlog_remaining_qty'] ?? 0),
+            'wholesale_oldest_overdue_target_date' => $summary['oldest_overdue_target_date'] ?? null,
+        ];
     }
 
     private function premiumActionCenter(array $stats, ?array $currentPeriodSummary, ?array $onboarding, array $appMonitoring): array
@@ -463,6 +930,42 @@ class DashboardController extends Controller
                 'metric' => $this->number((int) ($stats['alertes_stock'] ?? 0)),
                 'description' => 'Produits au minimum ou en dessous sur le perimetre actif.',
                 'url' => route('stock.index', ['stock_state' => 'low']),
+            ],
+            [
+                'permission' => 'payments.view',
+                'priority' => (($stats['mobile_money_unreconciled_count'] ?? 0) > 0 || ($stats['mobile_money_missing_reference_count'] ?? 0) > 0) ? 'high' : 'low',
+                'eyebrow' => 'Tresorerie terrain',
+                'label' => 'Rapprocher les wallets mobiles',
+                'metric' => $this->money((float) ($stats['mobile_money_unreconciled_amount'] ?? 0)),
+                'description' => ($stats['mobile_money_unreconciled_count'] ?? 0).' flux mobile money ouverts'.(($stats['mobile_money_missing_reference_count'] ?? 0) > 0 ? ' · '.($stats['mobile_money_missing_reference_count']).' sans reference exploitable.' : '.'),
+                'url' => route('payments.index', ['reconciliation_status' => 'unreconciled']),
+            ],
+            [
+                'permission' => 'payments.view',
+                'priority' => (($stats['internal_transfer_pending_bank_stale_count'] ?? 0) > 0 || ($stats['internal_transfer_pending_bank_count'] ?? 0) > 0) ? 'high' : 'low',
+                'eyebrow' => 'Depot terrain',
+                'label' => 'Confirmer les depots agence',
+                'metric' => $this->money((float) ($stats['internal_transfer_pending_bank_amount'] ?? 0)),
+                'description' => ($stats['internal_transfer_pending_bank_count'] ?? 0).' versement(s) attendent encore le releve bancaire'.(($stats['internal_transfer_pending_bank_stale_count'] ?? 0) > 0 ? ' · '.($stats['internal_transfer_pending_bank_stale_count']).' depuis 2+ jours.' : '.'),
+                'url' => route('payments.index', ['payment_type' => 'internal_transfer', 'reconciliation_status' => 'unreconciled']),
+            ],
+            [
+                'permission' => 'payments.view',
+                'priority' => ($stats['internal_transfer_pending_bank_missing_reference_count'] ?? 0) > 0 ? 'high' : 'low',
+                'eyebrow' => 'Piece depot',
+                'label' => 'Regulariser les bordereaux depot',
+                'metric' => $this->number((int) ($stats['internal_transfer_pending_bank_missing_reference_count'] ?? 0)),
+                'description' => ($stats['internal_transfer_pending_bank_missing_reference_count'] ?? 0).' versement(s) sans reference ni justificatif exploitable bloquent le rapprochement.',
+                'url' => route('payments.index', ['deposit_missing_reference' => 1]),
+            ],
+            [
+                'permission' => 'payments.view',
+                'priority' => (($stats['internal_transfer_pending_bank_documented_stale_count'] ?? 0) > 0 || ($stats['internal_transfer_pending_bank_documented_count'] ?? 0) > 0) ? 'medium' : 'low',
+                'eyebrow' => 'Depot documente',
+                'label' => 'Rapprocher les depots documentes',
+                'metric' => $this->money((float) ($stats['internal_transfer_pending_bank_documented_amount'] ?? 0)),
+                'description' => ($stats['internal_transfer_pending_bank_documented_count'] ?? 0).' versement(s) ont deja une preuve de depot'.(($stats['internal_transfer_pending_bank_documented_stale_count'] ?? 0) > 0 ? ' · '.($stats['internal_transfer_pending_bank_documented_stale_count']).' depuis 2+ jours.' : '.'),
+                'url' => route('payments.index', ['deposit_documented' => 1]),
             ],
             [
                 'permission' => 'purchase_requests.view',
@@ -557,12 +1060,221 @@ class DashboardController extends Controller
         ];
     }
 
+    private function decorateDashboardItems(array $items, string $group = 'generic'): array
+    {
+        return collect($items)
+            ->map(fn (array $item) => $this->decorateDashboardItem($item, $group))
+            ->values()
+            ->all();
+    }
+
+    private function decorateDashboardItem(array $item, string $group = 'generic'): array
+    {
+        $label = (string) ($item['label'] ?? $item['title'] ?? '');
+        $resolvedGroup = $item['group'] ?? $group;
+
+        $decorated = [
+            ...$item,
+            'group' => $resolvedGroup,
+            'icon' => $item['icon'] ?? $this->dashboardIconKey($label, (string) ($item['description'] ?? ''), $group),
+            'short_label' => $item['short_label'] ?? $this->dashboardShortLabel($label),
+        ];
+
+        if ($resolvedGroup === 'app') {
+            $decorated = [
+                ...$decorated,
+                ...$this->dashboardAppVisuals($decorated),
+            ];
+        }
+
+        return $decorated;
+    }
+
+    private function dashboardAppVisuals(array $item): array
+    {
+        $permission = (string) ($item['permission'] ?? '');
+        $label = (string) ($item['label'] ?? '');
+        $text = Str::lower(Str::ascii(trim($permission.' '.$label.' '.((string) ($item['description'] ?? '')).' '.((string) ($item['icon'] ?? '')))));
+
+        $familyKey = match (true) {
+            Str::contains($text, ['dashboard', 'demarrage', 'rocket']) => 'launch',
+            Str::contains($text, ['approval', 'approb', 'alerte', 'notif', 'automation', 'import', 'operation', 'plateforme', 'journal activite']) => 'control',
+            Str::contains($text, ['entreprise', 'agence', 'utilisateur', 'role', 'parametre']) => 'admin',
+            Str::contains($text, ['client', 'crm', 'devis', 'commande', 'livraison', 'vente', 'point de vente', 'avoir', 'recouvrement', 'commerce']) => 'commerce',
+            Str::contains($text, ['fournisseur', 'achat', 'reception', 'reappro']) => 'procurement',
+            Str::contains($text, ['categorie', 'produit', 'inventaire', 'stock', 'lot', 'production']) => 'inventory',
+            Str::contains($text, ['rapport', 'budget', 'compte', 'paiement', 'rapproch', 'depense', 'comptabilite']) => 'finance',
+            Str::contains($text, ['rh', 'paie', 'projet']) => 'people',
+            default => 'launch',
+        };
+
+        $familyLabels = [
+            'launch' => 'Accueil',
+            'control' => 'Pilotage',
+            'admin' => 'Administration',
+            'commerce' => 'Commerce',
+            'procurement' => 'Achats',
+            'inventory' => 'Stock',
+            'finance' => 'Finance',
+            'people' => 'Equipe',
+        ];
+
+        $variants = [
+            'launch' => [
+                ['app_accent' => '#0f766e', 'app_surface' => '#effaf8', 'app_soft' => '#d7f3ee', 'app_border' => '#b6e7de', 'app_ink' => '#0b4f56', 'app_muted' => '#4b6d70', 'app_shadow' => 'rgba(15, 118, 110, 0.16)', 'app_badge_start' => '#ffffff', 'app_badge_end' => '#bfece5'],
+                ['app_accent' => '#dc7a24', 'app_surface' => '#fff8ef', 'app_soft' => '#fde8cf', 'app_border' => '#f6d1a2', 'app_ink' => '#8c4b09', 'app_muted' => '#8a6a49', 'app_shadow' => 'rgba(220, 122, 36, 0.18)', 'app_badge_start' => '#fffdf8', 'app_badge_end' => '#f9d6a5'],
+                ['app_accent' => '#2563eb', 'app_surface' => '#f4f7ff', 'app_soft' => '#dce8ff', 'app_border' => '#bfd3ff', 'app_ink' => '#18439f', 'app_muted' => '#5d6d8c', 'app_shadow' => 'rgba(37, 99, 235, 0.16)', 'app_badge_start' => '#ffffff', 'app_badge_end' => '#ccdbff'],
+            ],
+            'control' => [
+                ['app_accent' => '#d9485f', 'app_surface' => '#fff4f6', 'app_soft' => '#ffd9e0', 'app_border' => '#f8b4c1', 'app_ink' => '#8d2342', 'app_muted' => '#91636c', 'app_shadow' => 'rgba(217, 72, 95, 0.18)', 'app_badge_start' => '#fffafb', 'app_badge_end' => '#ffc7d1'],
+                ['app_accent' => '#7c3aed', 'app_surface' => '#f7f2ff', 'app_soft' => '#e5d8ff', 'app_border' => '#cfb6ff', 'app_ink' => '#5322aa', 'app_muted' => '#6f5c91', 'app_shadow' => 'rgba(124, 58, 237, 0.18)', 'app_badge_start' => '#fcfbff', 'app_badge_end' => '#ddd0ff'],
+                ['app_accent' => '#0891b2', 'app_surface' => '#f0fbff', 'app_soft' => '#d4f2fb', 'app_border' => '#afe3f4', 'app_ink' => '#0d5f72', 'app_muted' => '#52747d', 'app_shadow' => 'rgba(8, 145, 178, 0.16)', 'app_badge_start' => '#fbfeff', 'app_badge_end' => '#c1ebf6'],
+            ],
+            'admin' => [
+                ['app_accent' => '#475569', 'app_surface' => '#f6f8fb', 'app_soft' => '#e5ebf4', 'app_border' => '#ccd7e6', 'app_ink' => '#334155', 'app_muted' => '#66758a', 'app_shadow' => 'rgba(71, 85, 105, 0.15)', 'app_badge_start' => '#ffffff', 'app_badge_end' => '#d7e0ee'],
+                ['app_accent' => '#7c3f99', 'app_surface' => '#fbf5ff', 'app_soft' => '#ecdaf6', 'app_border' => '#d8b9eb', 'app_ink' => '#5b2a73', 'app_muted' => '#7a678a', 'app_shadow' => 'rgba(124, 63, 153, 0.16)', 'app_badge_start' => '#fffaff', 'app_badge_end' => '#e3d0f0'],
+                ['app_accent' => '#0f4c81', 'app_surface' => '#f2f8fc', 'app_soft' => '#d5e9f7', 'app_border' => '#b5d7ee', 'app_ink' => '#123c61', 'app_muted' => '#5d768c', 'app_shadow' => 'rgba(15, 76, 129, 0.16)', 'app_badge_start' => '#fbfeff', 'app_badge_end' => '#c8e2f2'],
+            ],
+            'commerce' => [
+                ['app_accent' => '#f97316', 'app_surface' => '#fff6ee', 'app_soft' => '#ffe0c7', 'app_border' => '#ffc896', 'app_ink' => '#9a4a09', 'app_muted' => '#8f6c4f', 'app_shadow' => 'rgba(249, 115, 22, 0.18)', 'app_badge_start' => '#fffaf5', 'app_badge_end' => '#ffd2ad'],
+                ['app_accent' => '#e85d75', 'app_surface' => '#fff4f7', 'app_soft' => '#ffd7df', 'app_border' => '#f7b4c2', 'app_ink' => '#962d4e', 'app_muted' => '#8c6170', 'app_shadow' => 'rgba(232, 93, 117, 0.18)', 'app_badge_start' => '#fffafc', 'app_badge_end' => '#ffc8d4'],
+                ['app_accent' => '#ec4899', 'app_surface' => '#fff3fb', 'app_soft' => '#fbd5ed', 'app_border' => '#f6b1df', 'app_ink' => '#9d2262', 'app_muted' => '#93677d', 'app_shadow' => 'rgba(236, 72, 153, 0.18)', 'app_badge_start' => '#fffafe', 'app_badge_end' => '#f8c7e7'],
+            ],
+            'procurement' => [
+                ['app_accent' => '#d97706', 'app_surface' => '#fffbeb', 'app_soft' => '#fde7bf', 'app_border' => '#f7cf8e', 'app_ink' => '#8d4c05', 'app_muted' => '#8b7052', 'app_shadow' => 'rgba(217, 119, 6, 0.16)', 'app_badge_start' => '#fffdf7', 'app_badge_end' => '#f7d79f'],
+                ['app_accent' => '#c17c00', 'app_surface' => '#fff8e8', 'app_soft' => '#f6e3b8', 'app_border' => '#ecd08a', 'app_ink' => '#805500', 'app_muted' => '#89704c', 'app_shadow' => 'rgba(193, 124, 0, 0.16)', 'app_badge_start' => '#fffdf7', 'app_badge_end' => '#f2d89e'],
+                ['app_accent' => '#b45309', 'app_surface' => '#fff7ed', 'app_soft' => '#fed9aa', 'app_border' => '#f8bd7b', 'app_ink' => '#7c3f06', 'app_muted' => '#896551', 'app_shadow' => 'rgba(180, 83, 9, 0.16)', 'app_badge_start' => '#fffaf5', 'app_badge_end' => '#f8c795'],
+            ],
+            'inventory' => [
+                ['app_accent' => '#059669', 'app_surface' => '#effcf7', 'app_soft' => '#cdf7e6', 'app_border' => '#a7ebd2', 'app_ink' => '#0c654d', 'app_muted' => '#4f756b', 'app_shadow' => 'rgba(5, 150, 105, 0.18)', 'app_badge_start' => '#fafffd', 'app_badge_end' => '#b9f0da'],
+                ['app_accent' => '#16a34a', 'app_surface' => '#f2fcf3', 'app_soft' => '#d7f5dd', 'app_border' => '#b7e8c0', 'app_ink' => '#166534', 'app_muted' => '#54755a', 'app_shadow' => 'rgba(22, 163, 74, 0.18)', 'app_badge_start' => '#fbfffc', 'app_badge_end' => '#c7eecf'],
+                ['app_accent' => '#65a30d', 'app_surface' => '#f8fceb', 'app_soft' => '#e6f7c8', 'app_border' => '#d3eb9f', 'app_ink' => '#4d7c0f', 'app_muted' => '#6f7e58', 'app_shadow' => 'rgba(101, 163, 13, 0.18)', 'app_badge_start' => '#fdfff8', 'app_badge_end' => '#dcf2b8'],
+            ],
+            'finance' => [
+                ['app_accent' => '#2563eb', 'app_surface' => '#f5f8ff', 'app_soft' => '#dfe9ff', 'app_border' => '#c0d4ff', 'app_ink' => '#18439f', 'app_muted' => '#5d6d8c', 'app_shadow' => 'rgba(37, 99, 235, 0.18)', 'app_badge_start' => '#ffffff', 'app_badge_end' => '#cfddff'],
+                ['app_accent' => '#4f46e5', 'app_surface' => '#f5f5ff', 'app_soft' => '#e3e0ff', 'app_border' => '#c6c2ff', 'app_ink' => '#3730a3', 'app_muted' => '#68658b', 'app_shadow' => 'rgba(79, 70, 229, 0.18)', 'app_badge_start' => '#ffffff', 'app_badge_end' => '#d5d2ff'],
+                ['app_accent' => '#0284c7', 'app_surface' => '#f0f9ff', 'app_soft' => '#d5efff', 'app_border' => '#acdefd', 'app_ink' => '#0c5a84', 'app_muted' => '#5b7486', 'app_shadow' => 'rgba(2, 132, 199, 0.18)', 'app_badge_start' => '#fbfdff', 'app_badge_end' => '#c4e8ff'],
+            ],
+            'people' => [
+                ['app_accent' => '#9333ea', 'app_surface' => '#faf5ff', 'app_soft' => '#ead7ff', 'app_border' => '#d6b4ff', 'app_ink' => '#6b21a8', 'app_muted' => '#7a668d', 'app_shadow' => 'rgba(147, 51, 234, 0.18)', 'app_badge_start' => '#fffaff', 'app_badge_end' => '#e1cbff'],
+                ['app_accent' => '#db2777', 'app_surface' => '#fff5fa', 'app_soft' => '#ffd9ea', 'app_border' => '#f7b6d3', 'app_ink' => '#9d174d', 'app_muted' => '#946879', 'app_shadow' => 'rgba(219, 39, 119, 0.18)', 'app_badge_start' => '#fffafe', 'app_badge_end' => '#ffc8df'],
+                ['app_accent' => '#8b5cf6', 'app_surface' => '#f7f4ff', 'app_soft' => '#e5dcff', 'app_border' => '#cebeff', 'app_ink' => '#5b21b6', 'app_muted' => '#756a91', 'app_shadow' => 'rgba(139, 92, 246, 0.18)', 'app_badge_start' => '#fefdff', 'app_badge_end' => '#dbd0ff'],
+            ],
+        ];
+
+        $paletteOptions = $variants[$familyKey] ?? $variants['launch'];
+        $variantIndex = abs((int) crc32($label !== '' ? $label : $permission)) % count($paletteOptions);
+
+        return [
+            'app_family' => $familyLabels[$familyKey] ?? 'Applications',
+            ...$paletteOptions[$variantIndex],
+        ];
+    }
+
+    private function simpleLaunchpad(
+        string $profileKey,
+        array $roleActionPlan,
+        array $quickLinks,
+        array $sectorActionPlan,
+        array $premiumActionCenter,
+    ): array {
+        $roleItems = collect($roleActionPlan)->map(fn (array $item) => [
+            ...$item,
+            'source_label' => 'Routine',
+        ]);
+        $quickItems = collect($quickLinks)->map(fn (array $item) => [
+            ...$item,
+            'source_label' => 'Rapide',
+        ]);
+        $sectorItems = collect($sectorActionPlan)->map(fn (array $item) => [
+            ...$item,
+            'source_label' => 'Metier',
+        ]);
+        $priorityItems = collect($premiumActionCenter)
+            ->filter(fn (array $item) => ($item['priority'] ?? 'low') !== 'low')
+            ->map(fn (array $item) => [
+                ...$item,
+                'source_label' => 'Priorite',
+            ]);
+
+        $ordered = $profileKey === 'pilotage'
+            ? $quickItems->concat($priorityItems)->concat($roleItems)->concat($sectorItems)
+            : $roleItems->concat($quickItems)->concat($priorityItems)->concat($sectorItems);
+
+        return $ordered
+            ->unique('url')
+            ->take(8)
+            ->values()
+            ->all();
+    }
+
     private function filterAuthorizedItems(array $items): array
     {
         return collect($items)
             ->filter(fn (array $item) => ! isset($item['permission']) || auth()->user()?->hasPermission($item['permission']))
             ->values()
             ->all();
+    }
+
+    private function dashboardIconKey(string $label, string $description = '', string $group = 'generic'): string
+    {
+        $text = Str::lower(Str::ascii(trim($label.' '.$description)));
+
+        return match (true) {
+            Str::contains($text, ['caisse', 'pos', 'comptoir']) => 'pos',
+            Str::contains($text, ['vente', 'encais', 'recouvr']) => 'sell',
+            Str::contains($text, ['achat', 'appro', 'fournisseur', 'reception']) => 'buy',
+            Str::contains($text, ['depense', 'charge']) => 'expense',
+            Str::contains($text, ['approb', 'valid', 'arbitr']) => 'approval',
+            Str::contains($text, ['rapport', 'resultat', 'journal', 'ecriture']) => 'report',
+            Str::contains($text, ['import']) => 'import',
+            Str::contains($text, ['stock', 'lot', 'produit', 'rayon']) => 'stock',
+            Str::contains($text, ['alerte', 'risque', 'bloqu', 'retard']) => 'alert',
+            Str::contains($text, ['wallet', 'mobile money', 'wave', 'orange money', 'moov']) => 'wallet',
+            Str::contains($text, ['depot', 'bordereau', 'banque', 'rapproch', 'reconciliation']) => 'bank',
+            Str::contains($text, ['parametre', 'reglage', 'societe']) => 'settings',
+            Str::contains($text, ['sante', 'plateforme', 'technique']) => 'ops',
+            Str::contains($text, ['demarrage', 'mise en route']) => 'rocket',
+            Str::contains($text, ['client', 'creance']) => 'customer',
+            Str::contains($text, ['commande']) => 'orders',
+            Str::contains($text, ['periode', 'cloture']) => 'calendar',
+            Str::contains($text, ['recherche']) => 'search',
+            default => match ($group) {
+                'kpi' => 'gauge',
+                'premium' => 'flash',
+                'watch' => 'alert',
+                'spotlight' => 'pulse',
+                'sector', 'signal' => 'grid',
+                default => 'grid',
+            },
+        };
+    }
+
+    private function dashboardShortLabel(string $label): string
+    {
+        $text = Str::lower(Str::ascii($label));
+
+        return match (true) {
+            Str::contains($text, ['nouvelle vente pos']) => 'Encaisser',
+            Str::contains($text, ['ouvrir la caisse']) => 'Caisse',
+            Str::contains($text, ['nouvelle vente', 'creer une vente']) => 'Vendre',
+            Str::contains($text, ['nouvel achat', 'creer un achat']) => 'Acheter',
+            Str::contains($text, ['nouvelle depense']) => 'Depenser',
+            Str::contains($text, ['approb', 'valid', 'arbitr']) => 'Valider',
+            Str::contains($text, ['rapport']) => 'Rapports',
+            Str::contains($text, ['import']) => 'Importer',
+            Str::contains($text, ['stock']) => 'Stock',
+            Str::contains($text, ['alerte']) => 'Alertes',
+            Str::contains($text, ['reception']) => 'Reception',
+            Str::contains($text, ['demande']) => 'Demandes',
+            Str::contains($text, ['recouvr']) => 'Recouvrer',
+            Str::contains($text, ['journal']) => 'Journaux',
+            Str::contains($text, ['parametre', 'reglage']) => 'Reglages',
+            Str::contains($text, ['wallet', 'mobile money']) => 'Wallets',
+            Str::contains($text, ['depot', 'bordereau']) => 'Depots',
+            Str::contains($text, ['sante', 'plateforme']) => 'Controle',
+            default => Str::of($label)->words(2, '')->trim()->value(),
+        };
     }
 
     private function money(float $value): string

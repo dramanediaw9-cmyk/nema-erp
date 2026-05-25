@@ -9,12 +9,11 @@ use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Core\Notifications\Services\OutboundNotificationService;
 use App\Modules\Inventory\Models\Warehouse;
-use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
-use App\Modules\Purchases\Models\PurchaseRequest;
 use App\Modules\Purchases\Services\PurchaseRequestService;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
+use App\Modules\Sales\Services\OrderCoverageService;
 use App\Modules\Sales\Services\SalesInvoiceService;
 use App\Modules\Sales\Services\SalesOrderService;
 use App\Modules\Sales\Services\SalesPortalLinkService;
@@ -29,6 +28,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesOrderController extends Controller
@@ -37,7 +37,7 @@ class SalesOrderController extends Controller
         private readonly SalesOrderService $salesOrderService,
         private readonly SalesInvoiceService $salesInvoiceService,
         private readonly SalesPortalLinkService $salesPortalLinkService,
-        private readonly StockService $stockService,
+        private readonly OrderCoverageService $orderCoverageService,
         private readonly PricingService $pricingService,
         private readonly PurchaseRequestService $purchaseRequestService,
         private readonly ApprovalFlowService $approvalFlowService,
@@ -45,8 +45,7 @@ class SalesOrderController extends Controller
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
         private readonly PdfDocumentService $pdfDocumentService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -54,14 +53,19 @@ class SalesOrderController extends Controller
         abort_if(! $companyId, 403);
 
         $filters = $this->filters($request);
+        $orders = $this->filteredQuery($companyId, $filters)
+            ->latest('order_date')
+            ->latest('id')
+            ->paginate(15)
+            ->withQueryString();
+        $orderCoverageSnapshots = $orders->getCollection()
+            ->mapWithKeys(fn (SalesOrder $order) => [$order->id => $this->orderCoverageService->snapshotForOrder($order)])
+            ->all();
 
         return view('orders.index', [
-            'orders' => $this->filteredQuery($companyId, $filters)
-                ->latest('order_date')
-                ->latest('id')
-                ->paginate(15)
-                ->withQueryString(),
+            'orders' => $orders,
             'filters' => $filters,
+            'orderCoverageSnapshots' => $orderCoverageSnapshots,
             'branches' => Branch::query()
                 ->where('company_id', $companyId)
                 ->where('is_active', true)
@@ -198,21 +202,19 @@ class SalesOrderController extends Controller
             'generatedPurchaseRequests.convertedPurchaseOrder',
         ]);
 
-        $lineCoverage = $order->items
-            ->mapWithKeys(fn ($item) => [$item->id => $this->lineCoverageSnapshot($order, $item)])
-            ->all();
+        $coverageSnapshot = $this->orderCoverageService->snapshotForOrder($order);
 
         return view('orders.show', [
             'order' => $order,
             'portal' => $this->salesPortalLinkService->orderPortalData($order),
-            'lineCoverage' => $lineCoverage,
-            'coverageSummary' => $this->coverageSummary($lineCoverage),
+            'lineCoverage' => $coverageSnapshot['line_coverage'],
+            'coverageSummary' => $coverageSnapshot['summary'],
             'generatedPurchaseRequests' => $order->generatedPurchaseRequests->sortByDesc('id')->values(),
             'openGeneratedPurchaseRequest' => $this->purchaseRequestService->findOpenGeneratedRequestForOrder($order),
         ]);
     }
 
-    public function print(SalesOrder $order, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
+    public function print(SalesOrder $order, CurrentWorkspace $workspace): Response
     {
         abort_if($workspace->companyId() !== $order->company_id, 403);
 
@@ -298,11 +300,8 @@ class SalesOrderController extends Controller
             return redirect()->route('purchase-requests.show', $openRequest)->with('error', 'Une demande d achat issue de cette commande est deja ouverte.');
         }
 
-        $lineCoverage = $order->items
-            ->mapWithKeys(fn ($item) => [$item->id => $this->lineCoverageSnapshot($order, $item)])
-            ->all();
-
-        $atRiskRows = $this->atRiskCoverageRows($order, $lineCoverage);
+        $coverageSnapshot = $this->orderCoverageService->snapshotForOrder($order);
+        $atRiskRows = $this->orderCoverageService->atRiskCoverageRows($order, $coverageSnapshot['line_coverage']);
         if ($atRiskRows->isEmpty()) {
             return redirect()->route('orders.show', $order)->with('error', 'Aucune ligne de commande ne necessite de demande d achat supplementaire.');
         }
@@ -341,143 +340,6 @@ class SalesOrderController extends Controller
         return redirect()->route('purchase-requests.show', $purchaseRequest)->with('success', 'Demande d achat generee depuis les lignes a risque de la commande.');
     }
 
-    private function lineCoverageSnapshot(SalesOrder $order, $item): array
-    {
-        $product = $item->product;
-        $remainingQty = round($item->remainingQty(), 3);
-
-        if (! $product || $product->type !== 'stockable') {
-            return [
-                'status' => 'service',
-                'label' => 'Sans contrainte stock',
-                'tone' => 'badge-muted',
-                'required_qty' => $remainingQty,
-                'available_now' => null,
-                'incoming_qty' => 0.0,
-                'coverable_qty' => null,
-                'shortage_qty' => 0.0,
-                'next_incoming_date' => null,
-                'detail' => 'Article non stockable ou service.',
-            ];
-        }
-
-        if ($remainingQty <= 0.0001) {
-            return [
-                'status' => 'completed',
-                'label' => 'Entierement livre',
-                'tone' => 'badge-success',
-                'required_qty' => 0.0,
-                'available_now' => 0.0,
-                'incoming_qty' => 0.0,
-                'coverable_qty' => 0.0,
-                'shortage_qty' => 0.0,
-                'next_incoming_date' => null,
-                'detail' => 'Aucune quantite restante a couvrir.',
-            ];
-        }
-
-        $excludeOrderId = in_array($order->status, ['confirmed', 'partial_delivered'], true) ? $order->id : null;
-        $coverage = $this->stockService->forecastCoverage(
-            $product,
-            $order->company_id,
-            $order->branch_id,
-            $remainingQty,
-            $order->warehouse_id,
-            $excludeOrderId,
-        );
-
-        $isReservedFlow = in_array($order->status, ['confirmed', 'partial_delivered'], true);
-
-        if ($coverage['required_qty'] <= $coverage['available_now']) {
-            return [
-                ...$coverage,
-                'status' => $isReservedFlow ? 'reserved' : 'available',
-                'label' => $isReservedFlow ? 'Reserve sur stock' : 'Disponible immediatement',
-                'tone' => 'badge-success',
-                'detail' => $isReservedFlow
-                    ? 'Le depot peut couvrir le reliquat sans nouvel achat.'
-                    : 'Le stock disponible apres reservations couvre deja cette ligne.',
-            ];
-        }
-
-        if ($coverage['required_qty'] <= $coverage['coverable_qty']) {
-            $dateLabel = $coverage['next_incoming_date'] ? $coverage['next_incoming_date']->format('d/m/Y') : 'date a confirmer';
-
-            return [
-                ...$coverage,
-                'status' => $isReservedFlow ? 'secured_incoming' : 'incoming',
-                'label' => $isReservedFlow ? 'Couvert avec appro attendu' : 'Couvert par approvisionnement',
-                'tone' => 'badge-warning',
-                'detail' => 'Complement attendu le '.$dateLabel.'.',
-            ];
-        }
-
-        return [
-            ...$coverage,
-            'status' => $isReservedFlow ? 'at_risk' : 'uncovered',
-            'label' => $isReservedFlow ? 'Reservation a risque' : 'Rupture a couvrir',
-            'tone' => 'badge-danger',
-            'detail' => 'Il manque '.number_format((float) $coverage['shortage_qty'], 3, ',', ' ').' apres le stock et les achats attendus.',
-        ];
-    }
-
-    private function coverageSummary(array $lineCoverage): array
-    {
-        $summary = [
-            'covered_now' => 0,
-            'covered_incoming' => 0,
-            'at_risk' => 0,
-            'service' => 0,
-        ];
-
-        foreach ($lineCoverage as $coverage) {
-            switch ($coverage['status']) {
-                case 'available':
-                case 'reserved':
-                case 'completed':
-                    $summary['covered_now']++;
-                    break;
-                case 'incoming':
-                case 'secured_incoming':
-                    $summary['covered_incoming']++;
-                    break;
-                case 'service':
-                    $summary['service']++;
-                    break;
-                default:
-                    $summary['at_risk']++;
-                    break;
-            }
-        }
-
-        $summary['total'] = count($lineCoverage);
-
-        return $summary;
-    }
-
-    private function atRiskCoverageRows(SalesOrder $order, array $lineCoverage): Collection
-    {
-        return $order->items
-            ->map(function ($item) use ($lineCoverage) {
-                $coverage = $lineCoverage[$item->id] ?? null;
-
-                if (! $coverage || ! in_array($coverage['status'], ['at_risk', 'uncovered'], true)) {
-                    return null;
-                }
-
-                if ((float) ($coverage['shortage_qty'] ?? 0) <= 0.0001) {
-                    return null;
-                }
-
-                return [
-                    'item' => $item,
-                    'coverage' => $coverage,
-                ];
-            })
-            ->filter()
-            ->values();
-    }
-
     private function purchaseRequestPriority(SalesOrder $order): string
     {
         $targetDate = $order->commitment_date ?? $order->requested_delivery_date;
@@ -510,8 +372,8 @@ class SalesOrderController extends Controller
 
     private function filteredQuery(int $companyId, array $filters): Builder
     {
-        return SalesOrder::query()
-            ->with(['customer', 'branch', 'warehouse', 'creator', 'convertedInvoice', 'deliveryNotes', 'originQuote', 'items'])
+        $query = SalesOrder::query()
+            ->with(['customer', 'branch', 'warehouse', 'creator', 'convertedInvoice', 'deliveryNotes', 'originQuote', 'items.product'])
             ->where('company_id', $companyId)
             ->when($filters['date_from'], fn (Builder $query, string $dateFrom) => $query->whereDate('order_date', '>=', $dateFrom))
             ->when($filters['date_to'], fn (Builder $query, string $dateTo) => $query->whereDate('order_date', '<=', $dateTo))
@@ -542,21 +404,47 @@ class SalesOrderController extends Controller
                         });
                 });
             });
+
+        if ($filters['coverage_state'] || $filters['delivery_focus']) {
+            $matchedIds = $this->orderCoverageService->filterOrders(
+                (clone $query)->get(),
+                $filters['coverage_state'],
+                $filters['delivery_focus'],
+            )->pluck('id')->all();
+
+            $query->whereKey($matchedIds !== [] ? $matchedIds : [0]);
+        }
+
+        return $query;
     }
 
     private function filters(Request $request): array
     {
+        $view = $request->string('view')->trim()->value() === 'kanban' ? 'kanban' : 'list';
         $status = $request->string('status')->trim()->value() ?: null;
         if (! in_array($status, ['draft', 'confirmed', 'partial_delivered', 'delivered', 'cancelled', 'converted'], true)) {
             $status = null;
         }
 
+        $coverageState = $request->string('coverage_state')->trim()->value() ?: null;
+        if (! in_array($coverageState, ['at_risk', 'incoming', 'covered_now'], true)) {
+            $coverageState = null;
+        }
+
+        $deliveryFocus = $request->string('delivery_focus')->trim()->value() ?: null;
+        if (! in_array($deliveryFocus, ['remaining', 'overdue'], true)) {
+            $deliveryFocus = null;
+        }
+
         return [
+            'view' => $view,
             'search' => $request->string('search')->trim()->value() ?: null,
             'date_from' => $request->string('date_from')->value() ?: null,
             'date_to' => $request->string('date_to')->value() ?: null,
             'branch_id' => $request->integer('branch_id') ?: null,
             'status' => $status,
+            'coverage_state' => $coverageState,
+            'delivery_focus' => $deliveryFocus,
         ];
     }
 
@@ -572,5 +460,3 @@ class SalesOrderController extends Controller
         ];
     }
 }
-
-

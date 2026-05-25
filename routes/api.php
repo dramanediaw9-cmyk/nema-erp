@@ -25,7 +25,7 @@ use App\Http\Controllers\Api\V1\CommerceChannelController;
 use App\Http\Controllers\Api\V1\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->middleware('api.token')->group(function (): void {
+Route::prefix('v1')->middleware(['api.token', 'throttle:api'])->group(function (): void {
     Route::get('/workspace', WorkspaceController::class);
     Route::get('/platform/capabilities', PlatformCapabilityController::class);
     Route::get('/automation/rules', [AutomationRuleController::class, 'index']);

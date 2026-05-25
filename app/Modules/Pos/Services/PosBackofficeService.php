@@ -364,8 +364,25 @@ class PosBackofficeService
 
     public function nextCode(string $table, string $prefix, int $companyId): string
     {
-        $next = DB::table($table)->where('company_id', $companyId)->count() + 1;
+        $sequenceKey = match ([$table, strtoupper($prefix)]) {
+            ['pos_loyalty_programs', 'LOY'] => 'pos_loyalty_program_code',
+            ['pos_stored_value_cards', 'GFT'] => 'pos_gift_card_code',
+            ['pos_stored_value_cards', 'WLT'] => 'pos_wallet_card_code',
+            ['pos_preparation_printers', 'PRN'] => 'pos_preparation_printer_code',
+            ['pos_preparation_displays', 'DSP'] => 'pos_preparation_display_code',
+            ['pos_note_templates', 'NOTE'] => 'pos_note_template_code',
+            ['pos_combo_choices', 'CBO'] => 'pos_combo_choice_code',
+            ['pos_menu_categories', 'CAT'] => 'pos_menu_category_code',
+            ['pos_product_tags', 'TAG'] => 'pos_product_tag_code',
+            ['pos_profiles', 'POS'] => 'pos_profile_code',
+            default => throw new \InvalidArgumentException(sprintf(
+                'Aucune sequence definie pour %s/%s.',
+                $table,
+                strtoupper($prefix)
+            )),
+        };
 
-        return strtoupper($prefix).'-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, $sequenceKey);
     }
 }

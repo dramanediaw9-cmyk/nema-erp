@@ -199,7 +199,7 @@
 
     <div class="split" style="margin-bottom:20px; align-items:start;">
         <section class="card">
-            <h2 style="margin-top:0;">Sessions de la journee</h2>
+            <h2 style="margin-top:0;">Sessions concernees</h2>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -226,7 +226,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="muted">Aucune session POS trouvee pour cette date.</td>
+                            <td colspan="5" class="muted">Aucune session POS ouverte, cloturee ou active pour cette date.</td>
                         </tr>
                     @endforelse
                     </tbody>

@@ -232,6 +232,24 @@
                 font-weight: 600;
             }
             .workspace-pill strong { color: var(--brand-deep); }
+            .module-pill {
+                display: flex;
+                align-items: stretch;
+                gap: 8px;
+                flex-wrap: nowrap;
+            }
+            .module-pill form {
+                margin: 0;
+            }
+            .module-favorite-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 42px;
+                min-width: 42px;
+                padding: 0;
+                border-radius: 999px;
+            }
             .topbar-actions {
                 display: flex;
                 align-items: center;
@@ -419,6 +437,109 @@
             }
             .chip:hover { background: #f9f3ea; }
             .table-foot-note { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+            .erp-view-switcher {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px;
+                border-radius: 16px;
+                border: 1px solid rgba(102, 82, 56, 0.12);
+                background: rgba(255, 255, 255, 0.82);
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+            }
+            .erp-view-switcher__link {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 84px;
+                padding: 8px 12px;
+                border-radius: 10px;
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--muted);
+            }
+            .erp-view-switcher__link.is-active {
+                background: var(--brand);
+                color: #fff;
+                box-shadow: 0 12px 24px rgba(11, 79, 86, 0.16);
+            }
+            .erp-kanban-grid {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            }
+            .erp-kanban-card {
+                display: grid;
+                gap: 14px;
+                border: 1px solid rgba(102, 82, 56, 0.1);
+                background: linear-gradient(180deg, rgba(255, 253, 249, 0.98) 0%, rgba(247, 239, 228, 0.92) 100%);
+            }
+            .erp-kanban-card--success {
+                border-color: rgba(23, 107, 77, 0.26);
+                box-shadow: 0 16px 32px rgba(23, 107, 77, 0.08);
+            }
+            .erp-kanban-card--warning {
+                border-color: rgba(154, 91, 0, 0.26);
+                box-shadow: 0 16px 32px rgba(154, 91, 0, 0.08);
+            }
+            .erp-kanban-card--danger {
+                border-color: rgba(180, 35, 24, 0.24);
+                box-shadow: 0 16px 32px rgba(180, 35, 24, 0.08);
+            }
+            .erp-kanban-head {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .erp-kanban-head h3 {
+                margin: 0;
+                font-size: 18px;
+                letter-spacing: -.02em;
+            }
+            .erp-kanban-code {
+                color: var(--muted);
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: .12em;
+                font-weight: 800;
+            }
+            .erp-kanban-copy {
+                display: grid;
+                gap: 6px;
+            }
+            .erp-kanban-copy p {
+                margin: 0;
+            }
+            .erp-kanban-stats {
+                display: grid;
+                gap: 10px;
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+            .erp-kanban-stat {
+                padding: 12px 14px;
+                border-radius: 16px;
+                border: 1px solid rgba(102, 82, 56, 0.08);
+                background: rgba(255, 255, 255, 0.7);
+            }
+            .erp-kanban-stat .label {
+                color: var(--muted);
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: .12em;
+                font-weight: 800;
+            }
+            .erp-kanban-stat .value {
+                margin-top: 8px;
+                font-size: 22px;
+                font-weight: 800;
+                letter-spacing: -.03em;
+            }
+            .erp-kanban-actions {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
             .kpi-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
             .kpi { border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; background: rgba(255, 255, 255, 0.84); }
             .kpi .label { color: var(--muted); font-size: 12px; }
@@ -615,9 +736,14 @@
     $sectorProfile = $workspace->companyId() ? $sectorProfileService->profileForCompany($workspace->companyId()) : $sectorProfileService->defaultProfile();
     $uiMode = session('ui_mode', 'full');
     $isMerchantMode = $uiMode === 'merchant';
+    $pageTitle = trim($__env->yieldContent('page-title', 'Tableau de bord'));
     $globalSearchPlaceholder = $isMerchantMode
         ? 'Recherche simple : produit, client, ticket, paiement...'
         : 'Recherche globale : client, produit, vente, achat, paiement...';
+    $layoutBreadcrumbs = $erpNavigation['breadcrumbs'] ?? [];
+    if ($pageTitle !== '' && ($layoutBreadcrumbs === [] || ($layoutBreadcrumbs[array_key_last($layoutBreadcrumbs)]['label'] ?? null) !== $pageTitle)) {
+        $layoutBreadcrumbs[] = ['label' => $pageTitle, 'url' => null];
+    }
 @endphp
 <div class="shell" data-layout-shell data-sidebar-open="false">
     <div class="shell-backdrop" data-sidebar-backdrop hidden></div>
@@ -684,6 +810,20 @@
                     <span>Menu</span>
                 </button>
                 <div class="topbar-label">{{ $isMerchantMode ? 'Routine commerce' : 'Pilotage en temps reel' }}</div>
+                @if (! $isMerchantMode && ! empty($layoutBreadcrumbs))
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:12px;">
+                        @foreach ($layoutBreadcrumbs as $breadcrumb)
+                            @if (! $loop->first)
+                                <span aria-hidden="true">/</span>
+                            @endif
+                            @if (! empty($breadcrumb['url']) && ! $loop->last)
+                                <a href="{{ $breadcrumb['url'] }}" style="font-weight:700;">{{ $breadcrumb['label'] }}</a>
+                            @else
+                                <span style="{{ $loop->last ? 'font-weight:800; color:var(--brand-deep);' : 'font-weight:700;' }}">{{ $breadcrumb['label'] }}</span>
+                            @endif
+                        @endforeach
+                    </div>
+                @endif
                 <div class="topbar-title">@yield('page-title', 'Tableau de bord')</div>
                 <div class="workspace">
                     <span class="workspace-pill">
@@ -744,6 +884,85 @@
         </div>
 
         @include('partials.flash')
+
+        @if (! $isMerchantMode && ! empty($erpNavigation['modules'] ?? []))
+            <section class="card" style="margin-bottom:20px; padding:18px 20px;">
+                <div style="display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; align-items:flex-start;">
+                    <div style="display:grid; gap:10px; min-width:0;">
+                        <div class="topbar-label" style="margin:0;">Modules ERP</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                            @foreach (($erpNavigation['modules'] ?? []) as $module)
+                                <div class="module-pill">
+                                    <a
+                                        href="{{ $module['url'] }}"
+                                        class="workspace-pill"
+                                        style="gap:10px; background:{{ $module['active'] ? $module['surface'] : 'rgba(255,255,255,0.78)' }}; border-color:{{ $module['active'] ? $module['border'] : 'rgba(102, 82, 56, 0.12)' }}; color:{{ $module['active'] ? $module['accent'] : 'var(--muted)' }};"
+                                    >
+                                        @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 16])
+                                        <strong style="color:inherit;">{{ $module['label'] }}</strong>
+                                    </a>
+                                    @if (($erpNavigation['favorites_enabled'] ?? false) === true)
+                                        <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
+                                            @csrf
+                                            <input type="hidden" name="module_key" value="{{ $module['key'] }}">
+                                            <button
+                                                type="submit"
+                                                class="button {{ $module['favorite'] ? 'button-primary' : 'button-secondary' }} module-favorite-button"
+                                                aria-label="{{ $module['favorite'] ? 'Retirer' : 'Epingler' }} {{ $module['label'] }} des favoris"
+                                            >
+                                                @include('dashboard.partials.icon', ['name' => 'pin', 'size' => 14])
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @if (($erpNavigation['active_module'] ?? null) !== null)
+                        <div style="min-width:260px; max-width:340px; padding:14px 16px; border-radius:18px; border:1px solid rgba(102, 82, 56, 0.12); background:rgba(255,255,255,0.72);">
+                            <strong>{{ $erpNavigation['active_module']['label'] }}</strong>
+                            <p class="muted">{{ $erpNavigation['active_module']['hint'] }}</p>
+                        </div>
+                    @endif
+                </div>
+                @if (! empty($erpNavigation['quick_actions'] ?? []))
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
+                        @foreach (($erpNavigation['quick_actions'] ?? []) as $action)
+                            <a href="{{ $action['url'] }}" class="button {{ $loop->first ? 'button-primary' : 'button-secondary' }}">{{ $action['label'] }}</a>
+                        @endforeach
+                    </div>
+                @endif
+                @if (! empty($erpNavigation['favorite_modules'] ?? []))
+                    <div style="margin-top:18px; display:grid; gap:10px;">
+                        <div class="topbar-label" style="margin:0;">Modules favoris</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                            @foreach (($erpNavigation['favorite_modules'] ?? []) as $module)
+                                <div class="module-pill">
+                                    <a
+                                        href="{{ $module['url'] }}"
+                                        class="workspace-pill"
+                                        style="gap:10px; background:{{ $module['surface'] }}; border-color:{{ $module['border'] }}; color:{{ $module['accent'] }};"
+                                    >
+                                        @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 16])
+                                        <strong style="color:inherit;">{{ $module['label'] }}</strong>
+                                    </a>
+                                    @if (($erpNavigation['favorites_enabled'] ?? false) === true)
+                                        <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
+                                            @csrf
+                                            <input type="hidden" name="module_key" value="{{ $module['key'] }}">
+                                            <button type="submit" class="button button-secondary module-favorite-button" aria-label="Retirer {{ $module['label'] }} des favoris">
+                                                @include('dashboard.partials.icon', ['name' => 'pin', 'size' => 14])
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </section>
+        @endif
+
         @include('layouts.partials.merchant-quick-actions')
 
         @yield('content')

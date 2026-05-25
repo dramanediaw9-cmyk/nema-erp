@@ -5,13 +5,6 @@
 
 @section('content')
     @php($paymentMethodOptions = $paymentMethodOptions ?? \App\Support\PaymentMethodCatalog::options())
-    @php
-        $workflowLabel = match ($expense->status) {
-            'validated' => 'Approuvee',
-            'rejected' => 'Rejetee',
-            default => 'En attente',
-        };
-    @endphp
 
     <div class="page-head">
         <div>

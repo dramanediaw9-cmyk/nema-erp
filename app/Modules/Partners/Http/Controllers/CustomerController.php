@@ -4,6 +4,7 @@ namespace App\Modules\Partners\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Company\Models\PaymentTerm;
 use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Partners\Models\Partner;
@@ -20,9 +21,10 @@ use Illuminate\View\View;
 
 class CustomerController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly ActivityFeedService $activityFeedService,
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -53,24 +55,28 @@ class CustomerController extends Controller
     {
         abort_if($workspace->companyId() !== $customer->company_id || ! in_array($customer->type, ['customer', 'both'], true), 403);
 
+        $customer = $customer->load(['company', 'paymentTerm', 'priceList', 'contacts', 'addresses', 'bankAccounts', 'mobileWallets']);
+        $invoices = SalesInvoice::query()
+            ->with(['branch', 'approver'])
+            ->where('company_id', $customer->company_id)
+            ->where('customer_id', $customer->id)
+            ->latest('invoice_date')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+        $payments = Payment::query()
+            ->with(['cashAccount', 'creator', 'allocations.allocatable'])
+            ->where('company_id', $customer->company_id)
+            ->where('partner_id', $customer->id)
+            ->latest('payment_date')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
         return view('customers.show', [
-            'customer' => $customer->load(['company', 'paymentTerm', 'priceList', 'contacts', 'addresses', 'bankAccounts', 'mobileWallets']),
-            'invoices' => SalesInvoice::query()
-                ->with(['branch', 'approver'])
-                ->where('company_id', $customer->company_id)
-                ->where('customer_id', $customer->id)
-                ->latest('invoice_date')
-                ->latest('id')
-                ->limit(10)
-                ->get(),
-            'payments' => Payment::query()
-                ->with(['cashAccount', 'creator', 'allocations.allocatable'])
-                ->where('company_id', $customer->company_id)
-                ->where('partner_id', $customer->id)
-                ->latest('payment_date')
-                ->latest('id')
-                ->limit(10)
-                ->get(),
+            'customer' => $customer,
+            'invoices' => $invoices,
+            'payments' => $payments,
             'journalEntries' => JournalEntry::query()
                 ->with(['creator'])
                 ->where('company_id', $customer->company_id)
@@ -99,6 +105,10 @@ class CustomerController extends Controller
                     ->where('customer_id', $customer->id)
                     ->count(),
             ],
+            'recentActivities' => $this->activityFeedService->recentForSubjects(
+                $customer->company_id,
+                collect([$customer])->merge($invoices)->merge($payments),
+            ),
         ]);
     }
 
@@ -269,6 +279,9 @@ class CustomerController extends Controller
             'city' => $request->string('city')->trim()->value() ?: null,
             'status' => $status,
             'balance_state' => $balanceState,
+            'view' => in_array($request->string('view')->trim()->value(), ['list', 'kanban'], true)
+                ? $request->string('view')->trim()->value()
+                : 'list',
         ];
     }
 
@@ -297,14 +310,13 @@ class CustomerController extends Controller
 
     private function generateCode(int $companyId, string $prefix): string
     {
-        $number = Partner::query()->where('company_id', $companyId)->count() + 1;
+        $documentType = match (strtoupper($prefix)) {
+            'C' => 'partner_customer_code',
+            'F' => 'partner_supplier_code',
+            default => 'partner_generic_code',
+        };
 
-        do {
-            $code = sprintf('%s%04d', Str::upper($prefix), $number);
-            $exists = Partner::query()->where('company_id', $companyId)->where('code', $code)->exists();
-            $number++;
-        } while ($exists);
-
-        return $code;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, $documentType);
     }
 }

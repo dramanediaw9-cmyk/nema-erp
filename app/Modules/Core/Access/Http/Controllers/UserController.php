@@ -10,13 +10,12 @@ use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(private readonly ActivityLogger $activityLogger) {}
 
     public function index(CurrentWorkspace $workspace): View
     {
@@ -54,7 +53,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', Password::min(10)->mixedCase()->numbers()->symbols()->uncompromised(), 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'is_active' => ['nullable', 'boolean'],
@@ -99,9 +98,9 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'password' => ['nullable', 'string', Password::min(10)->mixedCase()->numbers()->symbols()->uncompromised(), 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'is_active' => ['nullable', 'boolean'],
@@ -132,7 +131,7 @@ class UserController extends Controller
     private function availableRoles(int $companyId)
     {
         return Role::query()
-            ->where(fn ($query) => $query->whereNull('company_id')->orWhere('company_id', $companyId))
+            ->where(fn($query) => $query->whereNull('company_id')->orWhere('company_id', $companyId))
             ->orderByDesc('is_system')
             ->orderBy('name')
             ->get();

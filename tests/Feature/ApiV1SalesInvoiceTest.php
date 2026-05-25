@@ -85,6 +85,38 @@ class ApiV1SalesInvoiceTest extends TestCase
             ->assertJsonPath('data.0.invoice_number', $invoice->invoice_number);
     }
 
+    public function test_api_actor_without_sales_permissions_cannot_read_or_create_sales_invoices(): void
+    {
+        $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $plainToken = $this->createApiToken($cashier);
+        $invoice = SalesInvoice::query()->where('company_id', $cashier->company_id)->where('notes', 'Facture de demonstration initiale')->firstOrFail();
+        $customer = Partner::query()->customers()->where('company_id', $cashier->company_id)->firstOrFail();
+        $product = Product::query()->where('company_id', $cashier->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/sales-invoices')
+            ->assertForbidden();
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/sales-invoices/'.$invoice->id)
+            ->assertForbidden();
+
+        $this->withToken($plainToken)
+            ->postJson('/api/v1/sales-invoices', [
+                'customer_id' => $customer->id,
+                'branch_id' => $cashier->branch_id,
+                'invoice_date' => now()->toDateString(),
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'qty' => 1,
+                        'unit_price' => 500,
+                    ],
+                ],
+            ])
+            ->assertForbidden();
+    }
+
     private function createApiToken(User $user): string
     {
         $plainToken = 'nema_test_sales_api_token_'.$user->id;

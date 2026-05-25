@@ -27,8 +27,9 @@ class ApplySecurityHeaders
         $headers->set('X-Content-Type-Options', 'nosniff');
         $headers->set('X-Frame-Options', 'DENY');
         $headers->set('X-Permitted-Cross-Domain-Policies', 'none');
+        $headers->set('X-XSS-Protection', '1; mode=block');
 
-        $headers->set('Strict-Transport-Security', 'max-age='.(int) config('nema.security_headers.hsts_max_age', 31536000).'; includeSubDomains');
+        $headers->set('Strict-Transport-Security', 'max-age=' . (int) config('nema.security_headers.hsts_max_age', 31536000) . '; includeSubDomains');
 
         return $response;
     }

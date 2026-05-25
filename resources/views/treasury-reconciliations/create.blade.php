@@ -113,7 +113,13 @@
                             <td>{{ $payment->payment_number }}</td>
                             <td>{{ $payment->payment_date?->format('d/m/Y') }}</td>
                             <td>{{ $payment->partner?->name ?: 'Sans tiers' }}</td>
-                            <td>{{ $payment->payment_type === 'supplier_payment' ? 'Reglement fournisseur' : ($payment->payment_type === 'pos_refund' ? 'Remboursement POS' : ($payment->payment_type === 'internal_transfer' ? ($payment->direction === 'in' ? 'Reception de versement' : 'Versement interne') : 'Encaissement client')) }}</td>
+                            <td>{{ match ($payment->payment_type) {
+                                'customer_refund' => 'Remboursement client',
+                                'supplier_payment' => 'Reglement fournisseur',
+                                'pos_refund' => 'Remboursement POS',
+                                'internal_transfer' => $payment->direction === 'in' ? 'Reception de versement' : 'Versement interne',
+                                default => 'Encaissement client',
+                            } }}</td>
                             <td>{{ $payment->direction === 'out' ? '-' : '+' }}{{ number_format((float) $payment->amount, 0, ',', ' ') }} XOF</td>
                             <td>
                                 @if ($indicator['is_documented_deposit'])

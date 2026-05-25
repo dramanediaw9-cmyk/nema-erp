@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Accounting\Services\AccountingService;
 use App\Modules\Accounting\Services\PeriodLockService;
 use App\Modules\Core\Company\Services\DocumentNumberService;
+use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\Models\SalesCreditNote;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesInvoiceItem;
@@ -17,11 +18,10 @@ class SalesCreditNoteService
 {
     public function __construct(
         private readonly DocumentNumberService $documentNumberService,
-        private readonly \App\Modules\Inventory\Services\StockService $stockService,
+        private readonly StockService $stockService,
         private readonly AccountingService $accountingService,
         private readonly PeriodLockService $periodLockService,
-    ) {
-    }
+    ) {}
 
     public function create(SalesInvoice $invoice, array $payload, array $rows, User $user): SalesCreditNote
     {
@@ -32,10 +32,6 @@ class SalesCreditNoteService
                 throw ValidationException::withMessages(['invoice' => 'Seules les factures clients approuvees peuvent recevoir un avoir.']);
             }
 
-            if ((float) $invoice->balance_due <= 0) {
-                throw ValidationException::withMessages(['invoice' => 'Cette facture est deja soldee et ne peut pas recevoir cet avoir dans cette version.']);
-            }
-
             $this->periodLockService->assertDateOpen($invoice->company_id, $payload['credit_note_date'], 'credit_note_date');
             $items = $this->normalizeItems($invoice, $rows);
 
@@ -44,8 +40,10 @@ class SalesCreditNoteService
             }
 
             $total = round((float) $items->sum('line_total'), 2);
-            if ($total > (float) $invoice->balance_due) {
-                throw ValidationException::withMessages(['items' => 'Le total de l avoir depasse le solde restant de la facture client.']);
+            $alreadyCredited = (float) $invoice->creditNotes->sum('total');
+            $creditableTotal = round((float) $invoice->total - $alreadyCredited, 2);
+            if ($total > $creditableTotal) {
+                throw ValidationException::withMessages(['items' => 'Le total de l avoir depasse le montant encore avoirable de la facture client.']);
             }
 
             $creditNote = SalesCreditNote::query()->create([
@@ -156,6 +154,7 @@ class SalesCreditNoteService
                 }
 
                 $unitPrice = round((float) $line['unit_price'], 2);
+
                 return [
                     'sales_invoice_item_id' => $invoiceItemId,
                     'product_id' => $line['product_id'],

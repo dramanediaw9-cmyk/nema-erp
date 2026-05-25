@@ -113,6 +113,39 @@ class ApiV1PartnerTest extends TestCase
             ->assertJsonPath('data.0.code', 'FAPI9999');
     }
 
+    public function test_customer_only_api_actor_cannot_access_supplier_partner_surfaces(): void
+    {
+        $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $plainToken = $this->createApiToken($cashier);
+        $supplier = Partner::query()->create([
+            'tenant_id' => $cashier->tenant_id,
+            'company_id' => $cashier->company_id,
+            'type' => 'supplier',
+            'code' => 'FAPI-FORBIDDEN',
+            'name' => 'Fournisseur non autorise API',
+            'is_active' => true,
+        ]);
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/partners?type=customer')
+            ->assertOk();
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/partners?type=supplier')
+            ->assertForbidden();
+
+        $this->withToken($plainToken)
+            ->getJson('/api/v1/partners/'.$supplier->id)
+            ->assertForbidden();
+
+        $this->withToken($plainToken)
+            ->postJson('/api/v1/partners', [
+                'type' => 'supplier',
+                'name' => 'Fournisseur API Interdit',
+            ])
+            ->assertForbidden();
+    }
+
     private function createApiToken(User $user): string
     {
         $plainToken = 'nema_test_api_token_'.$user->id;

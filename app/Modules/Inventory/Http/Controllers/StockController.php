@@ -15,8 +15,8 @@ use App\Modules\Inventory\Services\StockService;
 use App\Modules\Purchases\Models\GoodsReceipt;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\DeliveryNote;
-use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Sales\Models\SalesOrder;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use App\Support\Exports\CsvExportService;
@@ -35,8 +35,7 @@ class StockController extends Controller
         private readonly StockService $stockService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -379,6 +378,7 @@ class StockController extends Controller
 
     private function stockQuery(int $companyId, int $branchId, array $filters): Builder
     {
+        $today = now()->toDateString();
         $balances = StockMovement::query()
             ->select('product_id')
             ->selectRaw('SUM(quantity_in - quantity_out) as current_stock')
@@ -386,11 +386,33 @@ class StockController extends Controller
             ->where('branch_id', $branchId)
             ->when($filters['warehouse_id'], fn (Builder $query, int $warehouseId) => $query->where('warehouse_id', $warehouseId))
             ->groupBy('product_id');
+        $trackedBalances = DB::table('product_lots')
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as tracked_stock')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($filters['warehouse_id'], fn ($query, int $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->groupBy('product_id');
+        $saleableBalances = DB::table('product_lots')
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_available) as saleable_stock')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($filters['warehouse_id'], fn ($query, int $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->where(function ($query) use ($today) {
+                $query->whereNull('expires_at')
+                    ->orWhereDate('expires_at', '>=', $today);
+            })
+            ->groupBy('product_id');
+        $displayStockExpression = "CASE WHEN products.tracking_type IN ('lot', 'serial') THEN COALESCE(tracked_balances.tracked_stock, 0) ELSE COALESCE(balances.current_stock, 0) END";
+        $saleableStockExpression = "CASE WHEN products.tracking_type IN ('lot', 'serial') THEN COALESCE(saleable_balances.saleable_stock, 0) ELSE COALESCE(balances.current_stock, 0) END";
 
         return Product::query()
             ->where('products.company_id', $companyId)
             ->where('products.type', 'stockable')
             ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
+            ->leftJoinSub($trackedBalances, 'tracked_balances', fn ($join) => $join->on('products.id', '=', 'tracked_balances.product_id'))
+            ->leftJoinSub($saleableBalances, 'saleable_balances', fn ($join) => $join->on('products.id', '=', 'saleable_balances.product_id'))
             ->leftJoin('product_categories', 'products.category_id', '=', 'product_categories.id')
             ->select([
                 'products.id',
@@ -403,7 +425,8 @@ class StockController extends Controller
                 'products.is_active',
                 'product_categories.name as category_name',
             ])
-            ->selectRaw('COALESCE(balances.current_stock, 0) as current_stock')
+            ->selectRaw($displayStockExpression.' as current_stock')
+            ->selectRaw($saleableStockExpression.' as query_saleable_stock')
             ->when($filters['search'], function (Builder $query, string $search) {
                 $like = '%'.$search.'%';
 
@@ -413,9 +436,16 @@ class StockController extends Controller
                 });
             })
             ->when($filters['category_id'], fn (Builder $query, int $categoryId) => $query->where('products.category_id', $categoryId))
-            ->when($filters['stock_state'] === 'low', fn (Builder $query) => $query->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock'))
-            ->when($filters['stock_state'] === 'positive', fn (Builder $query) => $query->whereRaw('COALESCE(balances.current_stock, 0) > 0'))
-            ->when($filters['stock_state'] === 'zero', fn (Builder $query) => $query->whereRaw('COALESCE(balances.current_stock, 0) = 0'))
+            ->when($filters['tracking_type'] === 'tracked', fn (Builder $query) => $query->whereIn('products.tracking_type', ['lot', 'serial']))
+            ->when(in_array($filters['tracking_type'], ['none', 'lot', 'serial'], true), fn (Builder $query, string $trackingType) => $query->where('products.tracking_type', $trackingType))
+            ->when($filters['stock_state'] === 'low', fn (Builder $query) => $query->whereRaw($displayStockExpression.' <= products.min_stock'))
+            ->when($filters['stock_state'] === 'positive', fn (Builder $query) => $query->whereRaw($displayStockExpression.' > 0'))
+            ->when($filters['stock_state'] === 'zero', fn (Builder $query) => $query->whereRaw($displayStockExpression.' = 0'))
+            ->when($filters['saleability_state'] === 'low', fn (Builder $query) => $query->whereRaw($saleableStockExpression.' <= products.min_stock'))
+            ->when($filters['saleability_state'] === 'critical', fn (Builder $query) => $query
+                ->whereRaw($saleableStockExpression.' > 0')
+                ->whereRaw($saleableStockExpression.' <= products.min_stock'))
+            ->when($filters['saleability_state'] === 'zero', fn (Builder $query) => $query->whereRaw($saleableStockExpression.' = 0'))
             ->orderBy('products.name');
     }
 
@@ -445,9 +475,11 @@ class StockController extends Controller
 
         return $products->map(function (Product $product) use ($companyId, $branchId, $warehouseId, $reservedByProduct) {
             $reservedStock = (float) ($reservedByProduct[(string) $product->id] ?? 0);
-            $saleableStock = in_array($product->tracking_type, ['lot', 'serial'], true)
-                ? $this->stockService->saleableQuantity($product, $companyId, $branchId, $warehouseId)
-                : (float) $product->current_stock;
+            $saleableStock = array_key_exists('query_saleable_stock', $product->getAttributes())
+                ? (float) $product->getAttribute('query_saleable_stock')
+                : (in_array($product->tracking_type, ['lot', 'serial'], true)
+                    ? $this->stockService->saleableQuantity($product, $companyId, $branchId, $warehouseId)
+                    : (float) $product->current_stock);
 
             $product->reserved_stock = $reservedStock;
             $product->saleable_stock = $saleableStock;
@@ -464,11 +496,23 @@ class StockController extends Controller
             $stockState = null;
         }
 
+        $trackingType = $request->string('tracking_type')->trim()->value() ?: null;
+        if (! in_array($trackingType, ['tracked', 'none', 'lot', 'serial'], true)) {
+            $trackingType = null;
+        }
+
+        $saleabilityState = $request->string('saleability_state')->trim()->value() ?: null;
+        if (! in_array($saleabilityState, ['low', 'critical', 'zero'], true)) {
+            $saleabilityState = null;
+        }
+
         return [
             'search' => $request->string('search')->trim()->value() ?: null,
             'category_id' => $request->integer('category_id') ?: null,
             'warehouse_id' => $request->integer('warehouse_id') ?: null,
             'stock_state' => $stockState,
+            'tracking_type' => $trackingType,
+            'saleability_state' => $saleabilityState,
         ];
     }
 
@@ -695,13 +739,3 @@ class StockController extends Controller
             ->get();
     }
 }
-
-
-
-
-
-
-
-
-
-

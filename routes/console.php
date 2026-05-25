@@ -1,8 +1,8 @@
 <?php
 
-use App\Modules\Core\Branch\Models\Branch;
-use App\Modules\Core\Automation\Services\AutomationEngineService;
 use App\Modules\Core\Approvals\Services\ApprovalFlowService;
+use App\Modules\Core\Automation\Services\AutomationEngineService;
+use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Notifications\Services\NotificationService;
@@ -11,8 +11,8 @@ use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Core\Ops\Services\BackupService;
 use App\Modules\Core\Ops\Services\OpsAlertingService;
 use App\Modules\Core\Ops\Services\PriorityExecutionService;
-use App\Modules\Core\Platform\Services\CorePulseService;
 use App\Modules\Core\Ops\Services\SystemHealthService;
+use App\Modules\Core\Platform\Services\CorePulseService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;

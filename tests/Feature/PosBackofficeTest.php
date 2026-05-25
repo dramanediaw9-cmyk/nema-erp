@@ -25,6 +25,13 @@ class PosBackofficeTest extends TestCase
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
 
         $this->actingAs($user)->withSession($this->workspaceSession($user))
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSeeText('Caisse comptoir')
+            ->assertSeeText('Operations caisse')
+            ->assertSeeText('Rapport journalier');
+
+        $this->actingAs($user)->withSession($this->workspaceSession($user))
             ->get(route('pos.orders.index'))
             ->assertOk()
             ->assertSeeText('Commandes, brouillons et retours');

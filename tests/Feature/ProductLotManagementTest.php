@@ -123,6 +123,71 @@ class ProductLotManagementTest extends TestCase
             ->assertDontSee('LOT-STABLE-001');
     }
 
+    public function test_stock_lots_page_supports_short_expiry_window_filter(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $warehouse = Warehouse::query()
+            ->where('company_id', $manager->company_id)
+            ->where('branch_id', $manager->branch_id)
+            ->where('is_default', true)
+            ->firstOrFail();
+
+        $product = Product::query()->create([
+            'company_id' => $manager->company_id,
+            'sku' => 'PRD-LOT-MGMT-02',
+            'barcode' => '770000000032',
+            'name' => 'Yaourt date courte',
+            'unit' => 'pot',
+            'type' => 'stockable',
+            'tracking_type' => 'lot',
+            'sale_price' => 700,
+            'purchase_price' => 480,
+            'min_stock' => 4,
+            'is_active' => true,
+            'sale_ok' => true,
+            'purchase_ok' => true,
+        ]);
+
+        ProductLot::query()->create([
+            'company_id' => $manager->company_id,
+            'branch_id' => $manager->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'tracking_type' => 'lot',
+            'lot_number' => 'LOT-7J-001',
+            'expires_at' => now()->addDays(5)->toDateString(),
+            'received_at' => now()->subDay()->toDateString(),
+            'unit_cost' => 480,
+            'quantity_received' => 9,
+            'quantity_available' => 9,
+        ]);
+
+        ProductLot::query()->create([
+            'company_id' => $manager->company_id,
+            'branch_id' => $manager->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'tracking_type' => 'lot',
+            'lot_number' => 'LOT-14J-001',
+            'expires_at' => now()->addDays(12)->toDateString(),
+            'received_at' => now()->subDay()->toDateString(),
+            'unit_cost' => 480,
+            'quantity_received' => 7,
+            'quantity_available' => 7,
+        ]);
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->get(route('stock.lots', [
+                'status' => 'expiring',
+                'expiry_window_days' => 7,
+            ]))
+            ->assertOk()
+            ->assertSee('Horizon surveille : 7 jours')
+            ->assertSee('LOT-7J-001')
+            ->assertDontSee('LOT-14J-001');
+    }
+
     private function workspaceSession(User $user): array
     {
         return [

@@ -165,6 +165,36 @@ class ProductCatalogFiltersTest extends TestCase
             ->assertDontSee('PRD-BAR-02');
     }
 
+    public function test_products_page_can_render_kanban_view(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        Product::query()->create([
+            'company_id' => $user->company_id,
+            'sku' => 'PRD-KANBAN-01',
+            'barcode' => '554433221100',
+            'name' => 'Savon kanban',
+            'unit' => 'piece',
+            'type' => 'stockable',
+            'sale_price' => 900,
+            'purchase_price' => 650,
+            'min_stock' => 4,
+            'description' => 'Produit pour la vue kanban',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('products.index', [
+                'view' => 'kanban',
+                'search' => 'KANBAN',
+            ]))
+            ->assertOk()
+            ->assertSee('Kanban')
+            ->assertSee('Savon kanban')
+            ->assertSee('Ouvrir fiche');
+    }
+
     private function workspaceSession(User $user): array
     {
         return [

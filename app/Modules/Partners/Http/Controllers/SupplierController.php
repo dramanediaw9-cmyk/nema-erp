@@ -4,6 +4,7 @@ namespace App\Modules\Partners\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\JournalEntry;
+use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Company\Models\PaymentTerm;
 use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Expenses\Models\Expense;
@@ -24,9 +25,9 @@ class SupplierController extends Controller
 {
     public function __construct(
         private readonly ActivityLogger $activityLogger,
+        private readonly ActivityFeedService $activityFeedService,
         private readonly SupplierPerformanceService $supplierPerformanceService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -57,32 +58,37 @@ class SupplierController extends Controller
     {
         abort_if($workspace->companyId() !== $supplier->company_id || ! in_array($supplier->type, ['supplier', 'both'], true), 403);
 
+        $supplier = $supplier->load(['company', 'paymentTerm', 'priceList', 'contacts', 'addresses', 'bankAccounts', 'mobileWallets']);
+        $bills = PurchaseBill::query()
+            ->with(['branch', 'approver'])
+            ->where('company_id', $supplier->company_id)
+            ->where('supplier_id', $supplier->id)
+            ->latest('bill_date')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+        $payments = Payment::query()
+            ->with(['cashAccount', 'creator', 'allocations.allocatable'])
+            ->where('company_id', $supplier->company_id)
+            ->where('partner_id', $supplier->id)
+            ->latest('payment_date')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+        $expenses = Expense::query()
+            ->with(['category'])
+            ->where('company_id', $supplier->company_id)
+            ->where('supplier_id', $supplier->id)
+            ->latest('expense_date')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
         return view('suppliers.show', [
-            'supplier' => $supplier->load(['company', 'paymentTerm', 'priceList', 'contacts', 'addresses', 'bankAccounts', 'mobileWallets']),
-            'bills' => PurchaseBill::query()
-                ->with(['branch', 'approver'])
-                ->where('company_id', $supplier->company_id)
-                ->where('supplier_id', $supplier->id)
-                ->latest('bill_date')
-                ->latest('id')
-                ->limit(10)
-                ->get(),
-            'payments' => Payment::query()
-                ->with(['cashAccount', 'creator', 'allocations.allocatable'])
-                ->where('company_id', $supplier->company_id)
-                ->where('partner_id', $supplier->id)
-                ->latest('payment_date')
-                ->latest('id')
-                ->limit(10)
-                ->get(),
-            'expenses' => Expense::query()
-                ->with(['category'])
-                ->where('company_id', $supplier->company_id)
-                ->where('supplier_id', $supplier->id)
-                ->latest('expense_date')
-                ->latest('id')
-                ->limit(10)
-                ->get(),
+            'supplier' => $supplier,
+            'bills' => $bills,
+            'payments' => $payments,
+            'expenses' => $expenses,
             'journalEntries' => JournalEntry::query()
                 ->with(['creator'])
                 ->where('company_id', $supplier->company_id)
@@ -112,6 +118,10 @@ class SupplierController extends Controller
                     ->sum('total'),
             ],
             'performance' => $this->supplierPerformanceService->summaryForSupplier($supplier->company_id, $supplier->id),
+            'recentActivities' => $this->activityFeedService->recentForSubjects(
+                $supplier->company_id,
+                collect([$supplier])->merge($bills)->merge($payments)->merge($expenses),
+            ),
         ]);
     }
 
@@ -282,6 +292,9 @@ class SupplierController extends Controller
             'city' => $request->string('city')->trim()->value() ?: null,
             'status' => $status,
             'balance_state' => $balanceState,
+            'view' => in_array($request->string('view')->trim()->value(), ['list', 'kanban'], true)
+                ? $request->string('view')->trim()->value()
+                : 'list',
         ];
     }
 
@@ -310,17 +323,13 @@ class SupplierController extends Controller
 
     private function generateCode(int $companyId, string $prefix): string
     {
-        $number = Partner::query()->where('company_id', $companyId)->count() + 1;
+        $documentType = match (strtoupper($prefix)) {
+            'C' => 'partner_customer_code',
+            'F' => 'partner_supplier_code',
+            default => 'partner_generic_code',
+        };
 
-        do {
-            $code = sprintf('%s%04d', Str::upper($prefix), $number);
-            $exists = Partner::query()->where('company_id', $companyId)->where('code', $code)->exists();
-            $number++;
-        } while ($exists);
-
-        return $code;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, $documentType);
     }
 }
-
-
-

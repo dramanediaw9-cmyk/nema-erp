@@ -368,8 +368,7 @@ class CommerceController extends Controller
 
     private function generateChannelCode(int $companyId): string
     {
-        $sequence = CommerceChannel::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'CH-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'commerce_channel_code');
     }
 }

@@ -33,9 +33,8 @@ class HrLeaveService
 
     public function generateLeaveNumber(int $companyId): string
     {
-        $sequence = HrLeaveRequest::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'CONGE-'.now()->format('Y').'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'hr_leave_number');
     }
 
     public function calculateTotalDays(string $startDate, string $endDate): float

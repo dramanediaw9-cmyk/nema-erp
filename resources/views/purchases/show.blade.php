@@ -5,16 +5,8 @@
 
 @section('content')
     @php
-        $workflowLabel = match ($bill->status) {
-            'validated' => 'Approuvee',
-            'rejected' => 'Rejetee',
-            default => 'En attente',
-        };
-        $workflowTone = match ($bill->status) {
-            'validated' => 'badge-success',
-            'rejected' => 'badge-danger',
-            default => 'badge-warning',
-        };
+        $workflowStatus = \App\Support\ErpStatusPresenter::present('workflow', $bill->status);
+        $paymentStatus = \App\Support\ErpStatusPresenter::present('payment', $bill->payment_status);
     @endphp
     <div class="premium-detail-page">
         <section class="card premium-detail-hero premium-detail-hero--sage">
@@ -24,10 +16,10 @@
                     <h2>{{ $bill->bill_number }} · {{ $bill->supplier?->name }}</h2>
                     <p class="muted">Facture du {{ $bill->bill_date?->format('d/m/Y') }} rattachee a l agence {{ $bill->branch?->name }} et a {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}. La page donne d abord une lecture approvisionnement et tresorerie avant le detail comptable.</p>
                     <div class="premium-detail-hero__meta">
-                        <span class="badge {{ $workflowTone }}">{{ $workflowLabel }}</span>
-                        <span class="badge badge-muted">Paiement : {{ str($bill->payment_status)->replace('_', ' ')->title() }}</span>
-                        <span class="badge badge-muted">Agence : {{ $bill->branch?->name }}</span>
-                        <span class="badge badge-muted">Depot : {{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</span>
+                        @include('partials.erp-status-badge', ['status' => $workflowStatus])
+                        @include('partials.erp-status-badge', ['status' => $paymentStatus])
+                        @include('partials.erp-status-badge', ['label' => 'Agence : '.($bill->branch?->name ?? 'Non renseignee'), 'tone' => 'muted'])
+                        @include('partials.erp-status-badge', ['label' => 'Depot : '.($bill->warehouse?->name ?? 'Entrepot par defaut'), 'tone' => 'muted'])
                     </div>
                 </div>
                 <div class="premium-detail-panel">
@@ -57,6 +49,11 @@
                                 <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Enregistrer un reglement</a>
                             @endallowed
                         @endif
+                        @if ($bill->status === 'validated' && (float) $bill->balance_due > 0)
+                            @allowed('supplier_credit_notes.issue')
+                                <a href="{{ route('purchase-credit-notes.create', $bill) }}" class="button button-secondary">Emettre un avoir fournisseur</a>
+                            @endallowed
+                        @endif
                     </div>
                 </div>
             </div>
@@ -71,6 +68,12 @@
                 <a href="{{ route('accounting.journal-entries.index', ['source_type' => 'purchases', 'search' => $bill->bill_number]) }}" class="premium-anchor-card">
                     <strong>Ecriture comptable</strong>
                     <div class="muted">Ouvrir directement les journaux lies a cet achat.</div>
+                </a>
+            @endallowed
+            @allowed('supplier_credit_notes.view')
+                <a href="#supplier-credits" class="premium-anchor-card">
+                    <strong>Avoirs fournisseurs</strong>
+                    <div class="muted">Suivre les reductions de dette et les retours fournisseur.</div>
                 </a>
             @endallowed
             <a href="#stock-effects" class="premium-anchor-card">
@@ -104,7 +107,7 @@
     @endif
 
     <div class="premium-stat-grid" style="margin-bottom:20px;">
-        <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowLabel }}</div><div class="hint">Etat de validation de la facture fournisseur.</div></article>
+        <article class="premium-stat-card"><div class="label">Workflow</div><div class="value">{{ $workflowStatus['label'] }}</div><div class="hint">Etat de validation de la facture fournisseur.</div></article>
         <article class="premium-stat-card"><div class="label">Total facture</div><div class="value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div><div class="hint">Montant total facture par le fournisseur.</div></article>
         <article class="premium-stat-card"><div class="label">Montant paye</div><div class="value">{{ number_format((float) $bill->amount_paid, 0, ',', ' ') }}</div><div class="hint">Reglements deja associes a cet achat.</div></article>
         <article class="premium-stat-card"><div class="label">Solde restant</div><div class="value">{{ number_format((float) $bill->balance_due, 0, ',', ' ') }}</div><div class="hint">Montant encore du au fournisseur.</div></article>
@@ -114,7 +117,7 @@
         <section class="card">
             <h2 style="margin-top:0;">Validation</h2>
             <div class="grid">
-                <div><strong>Statut</strong><div class="muted">{{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente d approbation') }}</div></div>
+                <div><strong>Statut</strong><div class="muted">{{ $workflowStatus['label'] }}</div></div>
                 <div><strong>Creee par</strong><div class="muted">{{ $bill->creator?->name ?? 'Systeme' }}</div></div>
                 <div><strong>Approuvee par</strong><div class="muted">{{ $bill->approver?->name ?? 'Non approuvee' }}</div></div>
                 <div><strong>Date d approbation</strong><div class="muted">{{ $bill->approved_at?->format('d/m/Y H:i') ?? 'Non disponible' }}</div></div>
@@ -128,7 +131,7 @@
         <section class="card">
             <h2 style="margin-top:0;">Synthese d impact</h2>
             <div class="grid">
-                <div><strong>Statut paiement</strong><div class="muted">{{ $bill->payment_status === 'paid' ? 'Payee' : ($bill->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}</div></div>
+                <div><strong>Statut paiement</strong><div class="muted">{{ $paymentStatus['label'] }}</div></div>
                 <div><strong>Entrepot</strong><div class="muted">{{ $bill->warehouse?->name ?? 'Entrepot par defaut' }}</div></div>
                 <div><strong>Effet stock</strong><div class="muted">{{ $bill->goodsReceipt ? 'Stock deja receptionne avant facturation' : ($bill->status === 'validated' ? 'Stock mis a jour' : ($bill->status === 'rejected' ? 'Aucun effet stock final' : 'En attente d approbation finale')) }}</div></div>
                 <div><strong>Effet comptable</strong><div class="muted">{{ $bill->status === 'validated' ? 'Ecriture generee' : ($bill->status === 'rejected' ? 'Aucune ecriture finale' : 'Ecriture en attente') }}</div></div>
@@ -137,7 +140,59 @@
         </section>
     </div>
 
-    <div class="split" style="margin-bottom:20px;">
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Validation, receptions, reglements et autres actions recentes liees a cette facture fournisseur.',
+        'sectionId' => 'activity-history',
+    ])
+
+    @allowed('supplier_credit_notes.view')
+        <section class="card" id="supplier-credits" style="margin:20px 0;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+                <div>
+                    <h2 style="margin-top:0;">Avoirs fournisseurs</h2>
+                    <p class="muted" style="margin-top:4px;">Credits obtenus sur cette facture, avec sortie stock possible si les articles sont retournes au fournisseur.</p>
+                </div>
+                @if ($bill->status === 'validated' && (float) $bill->balance_due > 0)
+                    @allowed('supplier_credit_notes.issue')
+                        <a href="{{ route('purchase-credit-notes.create', $bill) }}" class="button button-primary">Nouvel avoir fournisseur</a>
+                    @endallowed
+                @endif
+            </div>
+
+            <div class="table-wrap" style="margin-top:16px;">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Numero</th>
+                        <th>Date</th>
+                        <th>Montant</th>
+                        <th>Stock</th>
+                        <th>Cree par</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($bill->creditNotes as $creditNote)
+                        <tr>
+                            <td><strong>{{ $creditNote->credit_note_number }}</strong></td>
+                            <td>{{ $creditNote->credit_note_date?->format('d/m/Y') }}</td>
+                            <td>{{ number_format((float) $creditNote->total, 0, ',', ' ') }} XOF</td>
+                            <td>{{ $creditNote->destock_items ? 'Retour fournisseur' : 'Sans sortie stock' }}</td>
+                            <td>{{ $creditNote->creator?->name ?? 'Systeme' }}</td>
+                            <td><a href="{{ route('purchase-credit-notes.show', $creditNote) }}" class="button button-secondary">Voir</a></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="muted">Aucun avoir fournisseur enregistre sur cette facture.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endallowed
+
+    <div class="split" style="margin:20px 0;">
         <section class="card">
             <h2 style="margin-top:0;">Articles receptionnes</h2>
             <div class="table-wrap">

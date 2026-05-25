@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Approvals\Services\ApprovalFlowService;
+use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Core\Notifications\Services\OutboundNotificationService;
@@ -22,10 +23,10 @@ use App\Support\Pdf\PdfDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PurchaseBillController extends Controller
@@ -35,11 +36,11 @@ class PurchaseBillController extends Controller
         private readonly ApprovalFlowService $approvalFlowService,
         private readonly PricingService $pricingService,
         private readonly OutboundNotificationService $outboundNotificationService,
+        private readonly ActivityFeedService $activityFeedService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
         private readonly PdfDocumentService $pdfDocumentService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -297,9 +298,14 @@ class PurchaseBillController extends Controller
             'approvalSteps.assignedApprover',
             'approvalSteps.delegatedBy',
             'paymentAllocations.payment.cashAccount',
+            'creditNotes.items.product',
+            'creditNotes.creator',
             'internalComments.creator',
             'attachments.creator',
         ]);
+        $linkedPayments = $bill->paymentAllocations
+            ->pluck('payment')
+            ->filter();
 
         $stockReferenceType = $bill->goods_receipt_id ? GoodsReceipt::class : PurchaseBill::class;
         $stockReferenceId = $bill->goods_receipt_id ?: $bill->id;
@@ -320,10 +326,14 @@ class PurchaseBillController extends Controller
                 ->where('reference_id', $stockReferenceId)
                 ->orderBy('movement_date')
                 ->get(),
+            'recentActivities' => $this->activityFeedService->recentForSubjects(
+                $purchase->company_id,
+                collect([$bill])->merge($linkedPayments)->merge($bill->creditNotes)->merge(array_filter([$bill->goodsReceipt, $bill->purchaseOrder])),
+            ),
         ]);
     }
 
-    public function print(PurchaseBill $purchase, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
+    public function print(PurchaseBill $purchase, CurrentWorkspace $workspace): Response
     {
         abort_if($workspace->companyId() !== $purchase->company_id, 403);
 
@@ -395,6 +405,7 @@ class PurchaseBillController extends Controller
 
     private function filters(Request $request): array
     {
+        $view = $request->string('view')->trim()->value() === 'kanban' ? 'kanban' : 'list';
         $status = $request->string('status')->trim()->value() ?: null;
         if (! in_array($status, ['validated', 'pending_approval', 'rejected'], true)) {
             $status = null;
@@ -411,6 +422,7 @@ class PurchaseBillController extends Controller
         }
 
         return [
+            'view' => $view,
             'search' => $request->string('search')->trim()->value() ?: null,
             'date_from' => $request->string('date_from')->value() ?: null,
             'date_to' => $request->string('date_to')->value() ?: null,
@@ -529,15 +541,3 @@ class PurchaseBillController extends Controller
             ->all();
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-

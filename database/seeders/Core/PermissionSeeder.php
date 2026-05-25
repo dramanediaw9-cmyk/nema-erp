@@ -77,6 +77,9 @@ class PermissionSeeder extends Seeder
             ['module' => 'purchases', 'slug' => 'purchases.view', 'name' => 'Voir les achats'],
             ['module' => 'purchases', 'slug' => 'purchases.manage', 'name' => 'Gerer les achats'],
             ['module' => 'purchases', 'slug' => 'purchases.approve', 'name' => 'Approuver les achats'],
+            ['module' => 'supplier_credit_notes', 'slug' => 'supplier_credit_notes.view', 'name' => 'Voir les avoirs fournisseurs'],
+            ['module' => 'supplier_credit_notes', 'slug' => 'supplier_credit_notes.manage', 'name' => 'Gerer les avoirs fournisseurs'],
+            ['module' => 'supplier_credit_notes', 'slug' => 'supplier_credit_notes.issue', 'name' => 'Emettre des avoirs fournisseurs'],
             ['module' => 'purchases', 'slug' => 'purchase_orders.view', 'name' => 'Voir les commandes fournisseurs'],
             ['module' => 'purchases', 'slug' => 'purchase_orders.manage', 'name' => 'Gerer les commandes fournisseurs'],
             ['module' => 'purchases', 'slug' => 'goods_receipts.view', 'name' => 'Voir les receptions fournisseurs'],
@@ -120,4 +123,3 @@ class PermissionSeeder extends Seeder
         }
     }
 }
-

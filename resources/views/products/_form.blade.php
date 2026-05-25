@@ -196,8 +196,30 @@
     }
 </style>
 
+@php
+    $canViewProductCosts = auth()->user()?->hasPermission('products.cost.view');
+    $supplierRows = collect(old('supplier_infos', $product->supplierInfos->map(fn ($info) => [
+        'supplier_id' => $info->supplier_id,
+        'supplier_product_code' => $info->supplier_product_code,
+        'supplier_product_name' => $info->supplier_product_name,
+        'min_qty' => $info->min_qty,
+        'unit_cost' => $info->unit_cost,
+        'lead_time_days' => $info->lead_time_days,
+        'is_preferred' => $info->is_preferred,
+    ])->all()));
 
-@php($canViewProductCosts = auth()->user()?->hasPermission('products.cost.view'))
+    if ($supplierRows->count() < 4) {
+        $supplierRows = $supplierRows->merge(array_fill(0, 4 - $supplierRows->count(), [
+            'supplier_id' => '',
+            'supplier_product_code' => '',
+            'supplier_product_name' => '',
+            'min_qty' => '',
+            'unit_cost' => '',
+            'lead_time_days' => '',
+            'is_preferred' => false,
+        ]));
+    }
+@endphp
 
 <div class="card">
     <div class="product-media-layout">
@@ -524,29 +546,6 @@
                 </div>
             </div>
         </section>
-
-        @php
-            $supplierRows = collect(old('supplier_infos', $product->supplierInfos->map(fn ($info) => [
-                'supplier_id' => $info->supplier_id,
-                'supplier_product_code' => $info->supplier_product_code,
-                'supplier_product_name' => $info->supplier_product_name,
-                'min_qty' => $info->min_qty,
-                'unit_cost' => $info->unit_cost,
-                'lead_time_days' => $info->lead_time_days,
-                'is_preferred' => $info->is_preferred,
-            ])->all()));
-            if ($supplierRows->count() < 4) {
-                $supplierRows = $supplierRows->merge(array_fill(0, 4 - $supplierRows->count(), [
-                    'supplier_id' => '',
-                    'supplier_product_code' => '',
-                    'supplier_product_name' => '',
-                    'min_qty' => '',
-                    'unit_cost' => '',
-                    'lead_time_days' => '',
-                    'is_preferred' => false,
-                ]));
-            }
-        @endphp
 
         <section class="card" style="padding:18px;">
             <h3 class="section-title">Fournisseurs produit</h3>

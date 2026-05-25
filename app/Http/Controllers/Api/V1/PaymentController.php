@@ -39,7 +39,7 @@ class PaymentController
             ->with(['cashAccount', 'partner', 'allocations.allocatable'])
             ->where('company_id', $company->id)
             ->when($branchScopeId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
-            ->when(in_array($request->string('payment_type')->trim()->value(), ['customer_receipt', 'supplier_payment', 'pos_refund', 'internal_transfer'], true), fn (Builder $query) => $query->where('payment_type', $request->string('payment_type')->trim()->value()))
+            ->when(in_array($request->string('payment_type')->trim()->value(), ['customer_receipt', 'customer_refund', 'supplier_payment', 'pos_refund', 'internal_transfer'], true), fn (Builder $query) => $query->where('payment_type', $request->string('payment_type')->trim()->value()))
             ->when(in_array($request->string('method')->trim()->value(), PaymentMethodCatalog::values(), true), fn (Builder $query) => $query->where('method', $request->string('method')->trim()->value()))
             ->when($request->integer('cash_account_id') > 0, fn (Builder $query) => $query->where('cash_account_id', $request->integer('cash_account_id')))
             ->when($request->string('search')->trim()->value() !== '', function (Builder $query) use ($request) {
@@ -81,7 +81,7 @@ class PaymentController
         abort_unless($actor->hasPermission('payments.validate'), 403);
         $selectedType = $request->input('payment_type', 'customer_receipt');
 
-        if (! in_array($selectedType, ['customer_receipt', 'supplier_payment', 'internal_transfer'], true)) {
+        if (! in_array($selectedType, ['customer_receipt', 'customer_refund', 'supplier_payment', 'internal_transfer'], true)) {
             $selectedType = 'customer_receipt';
         }
 
@@ -139,6 +139,13 @@ class PaymentController
             null,
             $request->integer('branch_id') ?: null,
         );
+
+        if ($selectedType === 'customer_refund') {
+            $payment = $this->paymentService->recordCustomerRefund($company->id, $branchId, $invoice, $cashAccount, $data, $actor);
+
+            return response()->json($this->paymentPayload($payment), 201);
+        }
+
         $payment = $this->paymentService->recordCustomerReceipt($company->id, $branchId, $invoice, $cashAccount, $data, $actor);
 
         return response()->json($this->paymentPayload($payment), 201);
@@ -160,12 +167,12 @@ class PaymentController
     private function validatePayment(Request $request, int $companyId, string $selectedType): array
     {
         return $request->validate([
-            'payment_type' => ['nullable', Rule::in(['customer_receipt', 'supplier_payment', 'internal_transfer'])],
+            'payment_type' => ['nullable', Rule::in(['customer_receipt', 'customer_refund', 'supplier_payment', 'internal_transfer'])],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId)->where('is_active', true))],
             'invoice_id' => [
                 'nullable',
                 'integer',
-                Rule::requiredIf($selectedType === 'customer_receipt'),
+                Rule::requiredIf(in_array($selectedType, ['customer_receipt', 'customer_refund'], true)),
                 Rule::exists('sales_invoices', 'id')->where(fn ($query) => $query->where('company_id', $companyId)),
             ],
             'purchase_bill_id' => [

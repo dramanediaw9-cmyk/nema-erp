@@ -2,14 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Mail\OpsTestMail;
+use App\Models\User;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Models\IntegrationConnection;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use App\Modules\Core\Ops\Services\SystemHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -354,7 +355,7 @@ class OpsHealthTest extends TestCase
 
         $this->artisan('nema:ops:alert-dispatch')->assertExitCode(0);
 
-        Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
+        Http::assertSent(function (Request $request): bool {
             return $request->hasHeader('X-Nema-Idempotency-Key')
                 && $request->hasHeader('X-Nema-Signature');
         });

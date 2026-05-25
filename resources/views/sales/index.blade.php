@@ -210,6 +210,10 @@
 @endpush
 
 @section('content')
+    @php
+        $currentView = $filters['view'] ?? 'list';
+    @endphp
+
     <div class="premium-page">
         <section class="card sales-hero">
             <div class="premium-hero__grid">
@@ -270,6 +274,7 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('sales.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+                <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
                     <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, client, agence, note...">
@@ -322,7 +327,7 @@
                 </div>
                 <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
                     <button type="submit" class="button button-primary">Filtrer</button>
-                    <a href="{{ route('sales.index') }}" class="button button-secondary">Reinitialiser</a>
+                    <a href="{{ route('sales.index', ['view' => $currentView]) }}" class="button button-secondary">Reinitialiser</a>
                 </div>
             </form>
         </section>
@@ -331,148 +336,282 @@
             <div class="table-note">
                 <strong>{{ number_format($invoices->count(), 0, ',', ' ') }}</strong>
                 <span>facture(s) visibles sur cette page.</span>
-                <span>Mode d affichage memorise pour la liste des ventes.</span>
+                @if ($currentView === 'list')
+                    <span>Mode d affichage memorise pour la liste des ventes.</span>
+                @else
+                    <span>Lecture par cartes pour prioriser les encaissements et validations.</span>
+                @endif
             </div>
-            <div class="mode-switch" data-display-controls="sales">
-                <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
-                <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                @include('partials.erp-view-switcher', [
+                    'view' => $currentView,
+                    'label' => 'Vue ventes',
+                    'listUrl' => route('sales.index', array_merge(request()->query(), ['view' => 'list'])),
+                    'kanbanUrl' => route('sales.index', array_merge(request()->query(), ['view' => 'kanban'])),
+                ])
+                @if ($currentView === 'list')
+                    <div class="mode-switch" data-display-controls="sales">
+                        <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
+                        <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+                    </div>
+                @endif
             </div>
         </div>
 
-        <section class="card table-wrap records-table is-compact" data-display-table="sales">
-            <table>
-                <thead>
-                <tr>
-                    <th>Numero</th>
-                    <th>Date</th>
-                    <th class="col-optional-md">Echeance</th>
-                    <th>Client</th>
-                    <th class="col-optional-lg">Agence</th>
-                    <th>Workflow</th>
-                    <th>Total</th>
-                    <th>Reste</th>
-                    <th>Suivi</th>
-                    <th>Action</th>
-                </tr>
-                </thead>
-                <tbody>
+        @if ($currentView === 'kanban')
+            <div class="erp-kanban-grid">
                 @forelse ($invoices as $invoice)
                     @php
                         $nextStep = $invoice->approvalSteps->firstWhere('status', 'pending');
-                        $workflowLabel = match ($invoice->status) {
-                            'validated' => 'Approuvee',
-                            'rejected' => 'Rejetee',
-                            'cancelled' => 'Annulee',
-                            default => 'En attente',
-                        };
-                        $workflowClass = match ($invoice->status) {
-                            'validated' => 'badge-success',
-                            'rejected' => 'badge-danger',
-                            'cancelled' => 'badge-danger',
-                            default => 'badge-warning',
-                        };
                         $followUpLabel = 'Dans les delais';
-                        $followUpClass = 'badge-success';
+                        $followUpTone = 'success';
 
                         if ($invoice->status === 'cancelled') {
                             $followUpLabel = 'Annulee';
-                            $followUpClass = 'badge-danger';
+                            $followUpTone = 'danger';
                         } elseif ($invoice->status === 'rejected') {
                             $followUpLabel = 'Rejetee';
-                            $followUpClass = 'badge-danger';
+                            $followUpTone = 'danger';
                         } elseif ($invoice->status !== 'validated') {
                             $followUpLabel = 'Workflow';
-                            $followUpClass = 'badge-warning';
+                            $followUpTone = 'warning';
                         } elseif ($invoice->payment_status === 'paid') {
                             $followUpLabel = 'A jour';
-                            $followUpClass = 'badge-success';
+                            $followUpTone = 'success';
                         } elseif (! $invoice->due_date) {
                             $followUpLabel = 'Sans echeance';
-                            $followUpClass = 'badge-muted';
+                            $followUpTone = 'muted';
                         } elseif ($invoice->due_date->lt($today)) {
                             $followUpLabel = 'En retard';
-                            $followUpClass = 'badge-warning';
+                            $followUpTone = 'warning';
                         } elseif ($invoice->due_date->lte($soonDate)) {
                             $followUpLabel = 'Echeance proche';
-                            $followUpClass = 'badge-muted';
+                            $followUpTone = 'muted';
                         }
+
+                        $cardTone = $followUpTone === 'danger'
+                            ? 'danger'
+                            : (($followUpTone === 'warning' || $followUpTone === 'muted' || $invoice->payment_status !== 'paid') ? 'warning' : 'success');
                     @endphp
-                    <tr>
-                        <td>
-                            <strong>{{ $invoice->invoice_number }}</strong>
-                            @if ($invoice->notes)
-                                <div class="muted row-note">{{ $invoice->notes }}</div>
-                            @endif
-                        </td>
-                        <td>{{ $invoice->invoice_date?->format('d/m/Y') }}</td>
-                        <td class="col-optional-md">{{ $invoice->due_date?->format('d/m/Y') ?? 'Non renseignee' }}</td>
-                        <td>{{ $invoice->customer?->name }}</td>
-                        <td class="col-optional-lg">{{ $invoice->branch?->name }}</td>
-                        <td>
-                            <span class="badge {{ $workflowClass }}">
-                                {{ $workflowLabel }}
-                            </span>
-                            @if ($invoice->status === 'pending_approval' && $nextStep)
-                                <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
-                            @elseif ($invoice->status === 'rejected')
-                                <div class="muted row-note">Rejetee le {{ $invoice->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
-                            @elseif ($invoice->status === 'cancelled')
-                                <div class="muted row-note">Annulee le {{ $invoice->cancelled_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
-                            @endif
-                        </td>
-                        <td>{{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</td>
-                        <td>{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF</td>
-                        <td>
-                            <div class="status-stack">
-                                <span class="badge {{ $invoice->payment_status === 'paid' ? 'badge-success' : 'badge-muted' }}">
-                                    {{ $invoice->payment_status === 'paid' ? 'Payee' : ($invoice->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}
-                                </span>
-                                <span class="badge {{ $followUpClass }}">{{ $followUpLabel }}</span>
+                    <section class="card erp-kanban-card erp-kanban-card--{{ $cardTone }}">
+                        <div class="erp-kanban-head">
+                            <div class="erp-kanban-copy">
+                                <div class="erp-kanban-code">{{ $invoice->invoice_number }}</div>
+                                <h3>{{ $invoice->customer?->name ?? 'Client non renseigne' }}</h3>
+                                <p class="muted">{{ $invoice->invoice_date?->format('d/m/Y') }} · {{ $invoice->branch?->name ?? 'Agence non renseignee' }}</p>
                             </div>
-                        </td>
-                        <td>
-                            <div class="row-actions">
-                                <a href="{{ route('sales.show', $invoice) }}" class="button button-secondary">Voir</a>
-                                @if ($invoice->status === 'pending_approval')
-                                    @allowed('sales.approve')
-                                        <form method="POST" action="{{ route('sales.approve', $invoice) }}">
-                                            @csrf
-                                            <button type="submit" class="button button-primary">Approuver</button>
-                                        </form>
-                                    @endallowed
-                                    @allowed('sales.cancel')
-                                        <form method="POST" action="{{ route('sales.cancel', $invoice) }}">
-                                            @csrf
-                                            <button type="submit" class="button button-secondary">Annuler</button>
-                                        </form>
-                                    @endallowed
-                                @elseif ($invoice->status === 'validated')
-                                    @if ($invoice->payment_status !== 'paid')
-                                        @allowed('payments.manage')
-                                            <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Encaisser</a>
-                                        @endallowed
-                                    @endif
-                                    @allowed('credit_notes.issue')
-                                        @if ((float) $invoice->balance_due > 0)
-                                            <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-secondary">Avoir</a>
-                                        @endif
+                            <div style="display:grid; gap:8px; justify-items:end;">
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'workflow',
+                                    'value' => $invoice->status,
+                                ])
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'payment',
+                                    'value' => $invoice->payment_status,
+                                ])
+                                @include('partials.erp-status-badge', [
+                                    'label' => $followUpLabel,
+                                    'tone' => $followUpTone,
+                                ])
+                            </div>
+                        </div>
+                        <div class="erp-kanban-stats">
+                            <div class="erp-kanban-stat">
+                                <div class="label">Total</div>
+                                <div class="value">{{ number_format((float) $invoice->total, 0, ',', ' ') }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Reste</div>
+                                <div class="value">{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Echeance</div>
+                                <div class="value">{{ $invoice->due_date?->format('d/m') ?? 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="erp-kanban-copy">
+                            <p class="muted">{{ $invoice->warehouse?->name ?? 'Entrepot par defaut' }}</p>
+                            @if ($invoice->status === 'pending_approval' && $nextStep)
+                                <p class="muted">Etape suivante : {{ $nextStep->label }}</p>
+                            @elseif ($invoice->status === 'rejected')
+                                <p class="muted">Rejetee le {{ $invoice->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</p>
+                            @elseif ($invoice->status === 'cancelled')
+                                <p class="muted">Annulee le {{ $invoice->cancelled_at?->format('d/m/Y H:i') ?? 'N/A' }}</p>
+                            @elseif ($invoice->notes)
+                                <p class="muted">{{ $invoice->notes }}</p>
+                            @else
+                                <p class="muted">{{ $followUpLabel }} · suivi commercial en cours.</p>
+                            @endif
+                        </div>
+                        <div class="erp-kanban-actions">
+                            <a href="{{ route('sales.show', $invoice) }}" class="button button-secondary">Voir la facture</a>
+                            @if ($invoice->status === 'pending_approval')
+                                @allowed('sales.approve')
+                                    <form method="POST" action="{{ route('sales.approve', $invoice) }}">
+                                        @csrf
+                                        <button type="submit" class="button button-primary">Approuver</button>
+                                    </form>
+                                @endallowed
+                                @allowed('sales.cancel')
+                                    <form method="POST" action="{{ route('sales.cancel', $invoice) }}">
+                                        @csrf
+                                        <button type="submit" class="button button-secondary">Annuler</button>
+                                    </form>
+                                @endallowed
+                            @elseif ($invoice->status === 'validated')
+                                @if ($invoice->payment_status !== 'paid')
+                                    @allowed('payments.manage')
+                                        <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Encaisser</a>
                                     @endallowed
                                 @endif
-                            </div>
-                        </td>
-                    </tr>
+                                @allowed('credit_notes.issue')
+                                    @if ((float) $invoice->balance_due > 0)
+                                        <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-secondary">Avoir</a>
+                                    @endif
+                                @endallowed
+                            @endif
+                        </div>
+                    </section>
                 @empty
-                    <tr>
-                        <td colspan="10" class="muted">Aucune facture de vente ne correspond aux filtres selectionnes.</td>
-                    </tr>
+                    <section class="card empty-state" style="grid-column:1 / -1;">
+                        <h3>Aucune facture de vente ne correspond aux filtres selectionnes.</h3>
+                        <p class="muted">Ajuste la recherche, le workflow, le paiement ou l echeance.</p>
+                    </section>
                 @endforelse
-                </tbody>
-            </table>
+            </div>
 
             @if (method_exists($invoices, 'links'))
                 <div style="margin-top:18px;">{{ $invoices->links() }}</div>
             @endif
-        </section>
+        @else
+            <section class="card table-wrap records-table is-compact" data-display-table="sales">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Numero</th>
+                        <th>Date</th>
+                        <th class="col-optional-md">Echeance</th>
+                        <th>Client</th>
+                        <th class="col-optional-lg">Agence</th>
+                        <th>Workflow</th>
+                        <th>Total</th>
+                        <th>Reste</th>
+                        <th>Suivi</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($invoices as $invoice)
+                        @php
+                            $nextStep = $invoice->approvalSteps->firstWhere('status', 'pending');
+                            $followUpLabel = 'Dans les delais';
+                            $followUpTone = 'success';
+
+                            if ($invoice->status === 'cancelled') {
+                                $followUpLabel = 'Annulee';
+                                $followUpTone = 'danger';
+                            } elseif ($invoice->status === 'rejected') {
+                                $followUpLabel = 'Rejetee';
+                                $followUpTone = 'danger';
+                            } elseif ($invoice->status !== 'validated') {
+                                $followUpLabel = 'Workflow';
+                                $followUpTone = 'warning';
+                            } elseif ($invoice->payment_status === 'paid') {
+                                $followUpLabel = 'A jour';
+                                $followUpTone = 'success';
+                            } elseif (! $invoice->due_date) {
+                                $followUpLabel = 'Sans echeance';
+                                $followUpTone = 'muted';
+                            } elseif ($invoice->due_date->lt($today)) {
+                                $followUpLabel = 'En retard';
+                                $followUpTone = 'warning';
+                            } elseif ($invoice->due_date->lte($soonDate)) {
+                                $followUpLabel = 'Echeance proche';
+                                $followUpTone = 'muted';
+                            }
+                        @endphp
+                        <tr>
+                            <td>
+                                <strong>{{ $invoice->invoice_number }}</strong>
+                                @if ($invoice->notes)
+                                    <div class="muted row-note">{{ $invoice->notes }}</div>
+                                @endif
+                            </td>
+                            <td>{{ $invoice->invoice_date?->format('d/m/Y') }}</td>
+                            <td class="col-optional-md">{{ $invoice->due_date?->format('d/m/Y') ?? 'Non renseignee' }}</td>
+                            <td>{{ $invoice->customer?->name }}</td>
+                            <td class="col-optional-lg">{{ $invoice->branch?->name }}</td>
+                            <td>
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'workflow',
+                                    'value' => $invoice->status,
+                                ])
+                                @if ($invoice->status === 'pending_approval' && $nextStep)
+                                    <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
+                                @elseif ($invoice->status === 'rejected')
+                                    <div class="muted row-note">Rejetee le {{ $invoice->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
+                                @elseif ($invoice->status === 'cancelled')
+                                    <div class="muted row-note">Annulee le {{ $invoice->cancelled_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
+                                @endif
+                            </td>
+                            <td>{{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</td>
+                            <td>{{ number_format((float) $invoice->balance_due, 0, ',', ' ') }} XOF</td>
+                            <td>
+                                <div class="status-stack">
+                                    @include('partials.erp-status-badge', [
+                                        'type' => 'payment',
+                                        'value' => $invoice->payment_status,
+                                    ])
+                                    @include('partials.erp-status-badge', [
+                                        'label' => $followUpLabel,
+                                        'tone' => $followUpTone,
+                                    ])
+                                </div>
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    <a href="{{ route('sales.show', $invoice) }}" class="button button-secondary">Voir</a>
+                                    @if ($invoice->status === 'pending_approval')
+                                        @allowed('sales.approve')
+                                            <form method="POST" action="{{ route('sales.approve', $invoice) }}">
+                                                @csrf
+                                                <button type="submit" class="button button-primary">Approuver</button>
+                                            </form>
+                                        @endallowed
+                                        @allowed('sales.cancel')
+                                            <form method="POST" action="{{ route('sales.cancel', $invoice) }}">
+                                                @csrf
+                                                <button type="submit" class="button button-secondary">Annuler</button>
+                                            </form>
+                                        @endallowed
+                                    @elseif ($invoice->status === 'validated')
+                                        @if ($invoice->payment_status !== 'paid')
+                                            @allowed('payments.manage')
+                                                <a href="{{ route('payments.create', ['invoice' => $invoice->id]) }}" class="button button-primary">Encaisser</a>
+                                            @endallowed
+                                        @endif
+                                        @allowed('credit_notes.issue')
+                                            @if ((float) $invoice->balance_due > 0)
+                                                <a href="{{ route('credit-notes.create', $invoice) }}" class="button button-secondary">Avoir</a>
+                                            @endif
+                                        @endallowed
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="10" class="muted">Aucune facture de vente ne correspond aux filtres selectionnes.</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+
+                @if (method_exists($invoices, 'links'))
+                    <div style="margin-top:18px;">{{ $invoices->links() }}</div>
+                @endif
+            </section>
+        @endif
     </div>
 
     <script>

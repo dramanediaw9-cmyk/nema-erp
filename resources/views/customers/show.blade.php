@@ -4,24 +4,36 @@
 @section('page-title', 'Client '.$customer->code)
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">{{ $customer->name }}</h2>
-            <div class="muted">{{ $customer->code }} · {{ $customer->city ?: 'Ville non renseignee' }} · {{ $customer->phone ?: 'Telephone non renseigne' }}</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('customers.index', ['search' => $customer->code]) }}" class="button button-secondary">Retour aux clients</a>
-            @allowed('sales.manage')
-                <a href="{{ route('sales.create') }}" class="button button-primary">Nouvelle vente</a>
-            @endallowed
-            @allowed('payments.manage')
-                <a href="{{ route('payments.create', ['type' => 'customer_receipt']) }}" class="button button-secondary">Nouvel encaissement</a>
-            @endallowed
-            @allowed('collections.view')
-                <a href="{{ route('collections.index', ['customer_id' => $customer->id]) }}" class="button button-secondary">Portefeuille recouvrement</a>
-            @endallowed
-        </div>
-    </div>
+    @php
+        $headerActions = [
+            ['label' => 'Retour aux clients', 'url' => route('customers.index', ['search' => $customer->code]), 'style' => 'secondary'],
+        ];
+        $openBalance = (float) ($stats['open_balance'] ?? 0);
+        $portfolioState = $openBalance > 0 ? 'open' : 'clear';
+
+        if (auth()->user()?->hasPermission('sales.manage')) {
+            $headerActions[] = ['label' => 'Nouvelle vente', 'url' => route('sales.create'), 'style' => 'primary'];
+        }
+
+        if (auth()->user()?->hasPermission('payments.manage')) {
+            $headerActions[] = ['label' => 'Nouvel encaissement', 'url' => route('payments.create', ['type' => 'customer_receipt']), 'style' => 'secondary'];
+        }
+
+        if (auth()->user()?->hasPermission('collections.view')) {
+            $headerActions[] = ['label' => 'Portefeuille recouvrement', 'url' => route('collections.index', ['customer_id' => $customer->id]), 'style' => 'secondary'];
+        }
+    @endphp
+
+    @include('partials.erp-page-head', [
+        'eyebrow' => 'Client',
+        'title' => $customer->name,
+        'description' => $customer->code.' · '.($customer->city ?: 'Ville non renseignee').' · '.($customer->phone ?: 'Telephone non renseigne'),
+        'actions' => $headerActions,
+        'chips' => [
+            ['type' => 'activity', 'value' => $customer->is_active ? 'active' : 'inactive'],
+            ['type' => 'portfolio', 'value' => $portfolioState],
+        ],
+    ])
 
     <section class="card" style="margin-bottom:20px;">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
@@ -64,7 +76,15 @@
                 <div><strong>Adresse</strong><div class="muted">{{ $customer->address ?: 'Non renseignee' }}</div></div>
                 <div><strong>NIF</strong><div class="muted">{{ $customer->nif ?: 'Non renseigne' }}</div></div>
                 <div><strong>Solde initial</strong><div class="muted">{{ number_format((float) $customer->opening_balance, 0, ',', ' ') }} XOF</div></div>
-                <div><strong>Statut</strong><div class="muted">{{ $customer->is_active ? 'Actif' : 'Inactif' }}</div></div>
+                <div>
+                    <strong>Statut</strong>
+                    <div style="margin-top:6px;">
+                        @include('partials.erp-status-badge', [
+                            'type' => 'activity',
+                            'value' => $customer->is_active ? 'active' : 'inactive',
+                        ])
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -82,7 +102,14 @@
         </section>
     </div>
 
-    <div class="split">
+    @include('partials.activity-history', [
+        'activities' => $recentActivities,
+        'title' => 'Historique des actions',
+        'description' => 'Creation du client, ventes, encaissements et autres operations recentes rattachees a ce dossier.',
+        'sectionId' => 'activity-history',
+    ])
+
+    <div class="split" style="margin-top:20px;">
         <section class="card" id="sales-documents">
             <h2 style="margin-top:0;">Factures clients</h2>
             @forelse ($invoices as $invoice)

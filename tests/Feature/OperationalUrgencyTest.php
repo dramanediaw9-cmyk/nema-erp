@@ -68,6 +68,60 @@ class OperationalUrgencyTest extends TestCase
             ->assertSee('Regler');
     }
 
+    public function test_sales_index_can_render_kanban_view_for_collection_priorities(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'Facture de demonstration initiale')
+            ->firstOrFail();
+
+        $invoice->update([
+            'due_date' => now()->subDays(2)->toDateString(),
+            'status' => 'validated',
+            'payment_status' => 'partial',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('sales.index', [
+                'search' => $invoice->invoice_number,
+                'view' => 'kanban',
+            ]))
+            ->assertOk()
+            ->assertSee($invoice->invoice_number)
+            ->assertSee($invoice->customer->name)
+            ->assertSee('Voir la facture')
+            ->assertSee('Encaisser');
+    }
+
+    public function test_purchases_index_can_render_kanban_view_for_supplier_priorities(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $bill = PurchaseBill::query()
+            ->where('company_id', $user->company_id)
+            ->where('notes', 'Facture fournisseur de demonstration')
+            ->firstOrFail();
+
+        $bill->update([
+            'due_date' => now()->addDays(2)->toDateString(),
+            'status' => 'validated',
+            'payment_status' => 'partial',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('purchases.index', [
+                'search' => $bill->bill_number,
+                'view' => 'kanban',
+            ]))
+            ->assertOk()
+            ->assertSee($bill->bill_number)
+            ->assertSee($bill->supplier->name)
+            ->assertSee('Voir la facture')
+            ->assertSee('Regler');
+    }
+
     public function test_expenses_index_filters_old_unpaid_expenses(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();

@@ -72,6 +72,7 @@
                         (bool) $entry->is_reversal => 'Contrepassation',
                         $entry->source_type === \App\Modules\Sales\Models\SalesInvoice::class => 'Vente',
                         $entry->source_type === \App\Modules\Purchases\Models\PurchaseBill::class => 'Achat',
+                        $entry->source_type === \App\Modules\Purchases\Models\PurchaseCreditNote::class => 'Avoir fournisseur',
                         $entry->source_type === \App\Modules\Expenses\Models\Expense::class => 'Depense',
                         $entry->source_type === \App\Modules\Treasury\Models\Payment::class => 'Paiement',
                         default => 'Autre',

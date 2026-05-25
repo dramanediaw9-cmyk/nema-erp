@@ -94,8 +94,7 @@ class PayrollRunController
 
     private function generateNumber(int $companyId): string
     {
-        $number = PayrollRun::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'PAY-'.now()->format('Y').'-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'payroll_run_number');
     }
 }

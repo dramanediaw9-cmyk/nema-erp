@@ -21,6 +21,7 @@
 /test-results
 /storage/*.key
 /storage/pail
+/storage/phpstan
 /storage/framework/views/*.php
 /storage/framework/testing/disks/**
 /storage/app/public/products/*.png

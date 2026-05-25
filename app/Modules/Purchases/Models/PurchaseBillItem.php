@@ -7,6 +7,7 @@ use App\Modules\Core\Company\Models\TaxRule;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseBillItem extends Model
 {
@@ -48,5 +49,10 @@ class PurchaseBillItem extends Model
     public function taxRule(): BelongsTo
     {
         return $this->belongsTo(TaxRule::class);
+    }
+
+    public function creditNoteItems(): HasMany
+    {
+        return $this->hasMany(PurchaseCreditNoteItem::class);
     }
 }

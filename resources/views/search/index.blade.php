@@ -67,6 +67,48 @@
             display: grid;
             gap: 20px;
         }
+        .search-shortcuts {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+        .search-shortcut-card {
+            display: grid;
+            gap: 14px;
+        }
+        .search-favorite-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+        .search-favorite-item {
+            display: grid;
+            gap: 10px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(102, 82, 56, 0.1);
+            background: rgba(255, 255, 255, 0.76);
+        }
+        .search-favorite-item__head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .search-recent-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .search-recent-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(102, 82, 56, 0.1);
+            background: rgba(255, 255, 255, 0.78);
+        }
         .search-results {
             display: grid;
             gap: 16px;
@@ -124,6 +166,70 @@
                     </form>
                 </div>
             </div>
+        </section>
+
+        <section class="search-shortcuts">
+            <section class="card search-shortcut-card">
+                <div>
+                    <div class="badge badge-muted">Favoris</div>
+                    <h3 style="margin:12px 0 6px;">Modules favoris</h3>
+                    <p class="muted">Epingle les modules utilises chaque jour pour reduire les clics de navigation.</p>
+                    @if (! $favoritesEnabled)
+                        <div class="help" style="margin-top:8px;">Les favoris seront disponibles apres la mise a jour de la base.</div>
+                    @endif
+                </div>
+                <div class="search-favorite-grid">
+                    @php
+                        $modulesToDisplay = $favoriteModules->isNotEmpty() ? $favoriteModules : $suggestedModules;
+                    @endphp
+                    @foreach ($modulesToDisplay as $module)
+                        <div class="search-favorite-item">
+                            <div class="search-favorite-item__head">
+                                <div>
+                                    <strong>{{ $module['label'] }}</strong>
+                                    <div class="muted" style="margin-top:6px;">{{ $module['hint'] }}</div>
+                                </div>
+                                @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 18])
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <a href="{{ $module['url'] }}" class="button button-secondary">Ouvrir</a>
+                                @if ($favoritesEnabled)
+                                    <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
+                                        @csrf
+                                        <input type="hidden" name="module_key" value="{{ $module['key'] }}">
+                                        <button type="submit" class="button {{ ! empty($module['favorite']) ? 'button-primary' : 'button-secondary' }}">
+                                            {{ ! empty($module['favorite']) ? 'Retirer favori' : 'Epingler' }}
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+
+            <section class="card search-shortcut-card">
+                <div>
+                    <div class="badge badge-muted">Historique</div>
+                    <h3 style="margin:12px 0 6px;">Recherches recentes</h3>
+                    <p class="muted">Relance vite une recherche deja utilisee sans retaper le numero, le client ou le produit.</p>
+                </div>
+                @if ($recentSearches->isEmpty())
+                    <div class="empty-state" style="padding:20px 16px;">
+                        <h3 style="font-size:18px;">Aucune recherche recente</h3>
+                        <p class="muted">Les derniers termes recherches apparaitront ici.</p>
+                    </div>
+                @else
+                    <div class="search-recent-list">
+                        @foreach ($recentSearches as $recentSearch)
+                            <a href="{{ route('search.index', ['q' => $recentSearch]) }}" class="search-recent-pill">
+                                @include('dashboard.partials.icon', ['name' => 'search', 'size' => 14])
+                                <span>{{ $recentSearch }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
         </section>
 
         @if ($query === '')

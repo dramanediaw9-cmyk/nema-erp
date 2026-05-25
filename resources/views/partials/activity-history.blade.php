@@ -28,6 +28,7 @@
                     \App\Modules\Expenses\Models\Expense::class => 'Depense',
                     \App\Modules\Purchases\Models\GoodsReceipt::class => 'Reception',
                     \App\Modules\Purchases\Models\PurchaseOrder::class => 'Commande fournisseur',
+                    \App\Modules\Purchases\Models\PurchaseCreditNote::class => 'Avoir fournisseur',
                     \App\Modules\Sales\Models\SalesCreditNote::class => 'Avoir client',
                     default => class_basename((string) $activity->subject_type),
                 };

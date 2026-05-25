@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Modules\Core\Integrations\Models\ApiToken;
+use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,13 +19,17 @@ class EnsureApiTokenIsValid
         }
 
         $hashed = hash('sha256', $token);
+        /** @var ApiToken|null $apiToken */
         $apiToken = ApiToken::query()
             ->with('company')
             ->where('token_hash', $hashed)
             ->when($request->route('company'), fn ($query, $company) => $query->where('company_id', (int) $company))
             ->first();
 
-        if (! $apiToken || ($apiToken->expires_at && $apiToken->expires_at->isPast())) {
+        /** @var CarbonInterface|null $expiresAt */
+        $expiresAt = $apiToken?->expires_at;
+
+        if (! $apiToken || ($expiresAt instanceof CarbonInterface && $expiresAt->isPast())) {
             return new JsonResponse(['message' => 'Jeton API invalide ou expire.'], 401);
         }
 

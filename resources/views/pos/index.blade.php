@@ -144,6 +144,27 @@
         }
         .pos-kpi .label { color: #6d8096; font-size: 12px; }
         .pos-kpi .value { margin-top: 8px; font-size: 20px; font-weight: 800; color: #13253b; }
+        .pos-shortcuts-grid {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        }
+        .pos-shortcut-card {
+            display: block;
+            padding: 16px 18px;
+            border-radius: 20px;
+            border: 1px solid #dbe6f2;
+            background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+        }
+        .pos-shortcut-card strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #10233a;
+        }
+        .pos-shortcut-card .muted {
+            color: #6f7f92;
+        }
         @media (max-width: 1080px) {
             .pos-home-grid { grid-template-columns: 1fr; }
         }
@@ -178,6 +199,35 @@
             </div>
         </section>
 
+        <section class="pos-panel">
+            <div class="pos-panel-head">
+                <div>
+                    <h3>Operations caisse</h3>
+                    <div class="muted">Acces direct aux actions frequentes sans quitter l accueil POS.</div>
+                </div>
+            </div>
+            <div class="pos-panel-body">
+                <div class="pos-shortcuts-grid">
+                    <a href="{{ $currentSession ? route('pos.sales.create', ['session' => $currentSession->id]) : route('pos.index') }}" class="pos-shortcut-card">
+                        <strong>{{ $currentSession ? 'Nouvelle vente comptoir' : 'Ouvrir une session' }}</strong>
+                        <div class="muted">{{ $currentSession ? 'Lancer rapidement un ticket dans la session ouverte.' : 'Demarrer la caisse avec le bon compte et le bon entrepot.' }}</div>
+                    </a>
+                    <a href="{{ $currentSession ? route('pos.show', $currentSession) : route('pos.sessions.index') }}" class="pos-shortcut-card">
+                        <strong>{{ $currentSession ? 'Voir la session active' : 'Voir les sessions' }}</strong>
+                        <div class="muted">{{ $currentSession ? 'Suivre les tickets, retours et la cloture du poste courant.' : 'Retrouver les ouvertures et clotures recentes de caisse.' }}</div>
+                    </a>
+                    <a href="{{ route('pos.payments.index') }}" class="pos-shortcut-card">
+                        <strong>Paiements POS</strong>
+                        <div class="muted">Controler les encaissements comptoir et les modes de paiement utilises.</div>
+                    </a>
+                    <a href="{{ route('pos.report') }}" class="pos-shortcut-card">
+                        <strong>Rapport journalier</strong>
+                        <div class="muted">Comparer les ventes, les retours, la caisse attendue et les ecarts du jour.</div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
         @if (! $currentSession)
             <div class="pos-home-grid">
                 <section class="pos-panel">
@@ -186,7 +236,7 @@
                             <h3>Ouvrir une session de caisse</h3>
                             <div class="muted">Prepare le fond de caisse, choisis le compte et l entrepot de vente, puis demarre la session POS.</div>
                         </div>
-                        <span class="badge badge-warning">Pret a demarrer</span>
+                        @include('partials.erp-status-badge', ['label' => 'Pret a demarrer', 'tone' => 'warning'])
                     </div>
                     <div class="pos-panel-body">
                         <form method="POST" action="{{ route('pos.open') }}" class="form-grid">
@@ -315,7 +365,7 @@
                             <h3>Session en cours</h3>
                             <div class="muted">Vue rapide de la caisse active, des tickets du jour et des retours deja traites.</div>
                         </div>
-                        <span class="badge badge-warning">Ouverte</span>
+                        @include('partials.erp-status-badge', ['label' => 'Ouverte', 'tone' => 'warning'])
                     </div>
                     <div class="pos-panel-body">
                         <div class="pos-kpi-row" style="margin-bottom:16px;">
@@ -429,9 +479,10 @@
                                 <td>{{ $session->opener?->name }}</td>
                                 <td>{{ $session->opened_at?->format('d/m/Y H:i') }}</td>
                                 <td>
-                                    <span class="badge {{ $session->status === 'open' ? 'badge-warning' : 'badge-success' }}">
-                                        {{ $session->status === 'open' ? 'Ouverte' : 'Cloturee' }}
-                                    </span>
+                                    @include('partials.erp-status-badge', [
+                                        'label' => $session->status === 'open' ? 'Ouverte' : 'Cloturee',
+                                        'tone' => $session->status === 'open' ? 'warning' : 'success',
+                                    ])
                                 </td>
                                 <td><a href="{{ route('pos.show', $session) }}" class="button button-secondary">Voir</a></td>
                             </tr>

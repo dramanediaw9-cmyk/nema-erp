@@ -87,8 +87,7 @@ class HrDepartmentController
 
     private function generateCode(int $companyId): string
     {
-        $number = HrDepartment::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'DEP-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'hr_department_code');
     }
 }

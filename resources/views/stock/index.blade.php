@@ -330,7 +330,7 @@
             <div class="premium-section-head">
                 <div>
                     <h3>{{ $isMerchantMode ? 'Recherche simple' : 'Filtres stock' }}</h3>
-                    <p class="muted">{{ $isMerchantMode ? 'Retrouve vite un article ou affiche seulement les ruptures et les produits a surveiller.' : 'Affiner par produit, categorie, entrepot ou etat de stock.' }}</p>
+                    <p class="muted">{{ $isMerchantMode ? 'Retrouve vite un article ou affiche seulement les ruptures et les produits a surveiller.' : 'Affiner par produit, categorie, entrepot, tracabilite ou stock vendable.' }}</p>
                 </div>
             </div>
 
@@ -356,6 +356,16 @@
                         @endforeach
                     </select>
                 </div>
+                <div>
+                    <label for="tracking_type">Tracabilite</label>
+                    <select id="tracking_type" name="tracking_type">
+                        <option value="">Toutes</option>
+                        <option value="tracked" @selected(($filters['tracking_type'] ?? null) === 'tracked')>Produits traces</option>
+                        <option value="lot" @selected(($filters['tracking_type'] ?? null) === 'lot')>Suivi par lot</option>
+                        <option value="serial" @selected(($filters['tracking_type'] ?? null) === 'serial')>Suivi par serie</option>
+                        <option value="none" @selected(($filters['tracking_type'] ?? null) === 'none')>Non trace</option>
+                    </select>
+                </div>
                 @if (! $isMerchantMode)
                     <div>
                         <label for="warehouse_id">Entrepot</label>
@@ -374,6 +384,15 @@
                         <option value="low" @selected(($filters['stock_state'] ?? null) === 'low')>A surveiller</option>
                         <option value="positive" @selected(($filters['stock_state'] ?? null) === 'positive')>En stock</option>
                         <option value="zero" @selected(($filters['stock_state'] ?? null) === 'zero')>Rupture / zero</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="saleability_state">Stock vendable</label>
+                    <select id="saleability_state" name="saleability_state">
+                        <option value="">Tous</option>
+                        <option value="low" @selected(($filters['saleability_state'] ?? null) === 'low')>Vendable a surveiller</option>
+                        <option value="critical" @selected(($filters['saleability_state'] ?? null) === 'critical')>Vendable critique</option>
+                        <option value="zero" @selected(($filters['saleability_state'] ?? null) === 'zero')>Vendable nul</option>
                     </select>
                 </div>
                 <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
@@ -431,11 +450,17 @@
                 @forelse ($products as $product)
                     @php
                         $currentStock = (float) $product->current_stock;
+                        $saleableStock = (float) ($product->saleable_stock ?? $currentStock);
                         $valuation = $currentStock * (float) $product->purchase_price;
-                        $isAlert = $currentStock <= (float) $product->min_stock;
-                        $isZero = $currentStock <= 0;
-                        $statusClass = $isZero ? 'badge-danger' : ($isAlert ? 'badge-warning' : 'badge-success');
-                        $statusLabel = $isZero ? 'Rupture' : ($isAlert ? 'A surveiller' : 'En stock');
+                        $isTracked = in_array((string) $product->tracking_type, ['lot', 'serial'], true);
+                        $riskBasis = $isTracked ? $saleableStock : $currentStock;
+                        $isAlert = $riskBasis <= (float) $product->min_stock;
+                        $isZero = $riskBasis <= 0;
+                        $hasBlockedPhysicalStock = $isTracked && $currentStock > 0 && $saleableStock <= 0;
+                        $statusLabel = $hasBlockedPhysicalStock
+                            ? 'Stock non vendable'
+                            : ($isZero ? 'Rupture' : ($isAlert ? ($isTracked ? 'Vendable critique' : 'A surveiller') : 'En stock'));
+                        $statusTone = ($isZero || $hasBlockedPhysicalStock) ? 'danger' : ($isAlert ? 'warning' : 'success');
                     @endphp
                     <tr>
                         @unless ($isMerchantMode)
@@ -464,7 +489,10 @@
                             <td class="col-optional-lg">{{ number_format($valuation, 0, ',', ' ') }} XOF</td>
                         @endunless
                         <td>
-                            <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                            @include('partials.erp-status-badge', [
+                                'label' => $statusLabel,
+                                'tone' => $statusTone,
+                            ])
                         </td>
                         <td><a href="{{ route('stock.show', ['product' => $product->id, 'warehouse_id' => $filters['warehouse_id'] ?? null]) }}" class="button button-secondary">Voir</a></td>
                     </tr>

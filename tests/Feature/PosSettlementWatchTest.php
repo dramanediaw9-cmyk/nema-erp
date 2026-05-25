@@ -111,6 +111,93 @@ class PosSettlementWatchTest extends TestCase
             ->assertSee('200 XOF');
     }
 
+    public function test_reports_include_session_closed_today_even_if_it_opened_the_day_before(): void
+    {
+        $admin = User::query()->where('email', 'admin@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()
+            ->where('company_id', $admin->company_id)
+            ->where('branch_id', $admin->branch_id)
+            ->where('name', 'Caisse principale')
+            ->firstOrFail();
+        $waveAccount = CashAccount::query()
+            ->where('company_id', $admin->company_id)
+            ->where('branch_id', $admin->branch_id)
+            ->where('name', 'Wave')
+            ->firstOrFail();
+        $warehouse = Warehouse::query()
+            ->where('company_id', $admin->company_id)
+            ->where('branch_id', $admin->branch_id)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $session = PosSession::query()->create([
+            'company_id' => $admin->company_id,
+            'branch_id' => $admin->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'cash_account_id' => $cashAccount->id,
+            'session_number' => 'POS-OVERNIGHT-001',
+            'status' => 'closed',
+            'opening_amount' => 5000,
+            'expected_amount' => 5800,
+            'expected_breakdown' => [
+                'cash' => 5000,
+                'wave' => 800,
+            ],
+            'closing_amount' => 5800,
+            'counted_breakdown' => [
+                'cash' => 5000,
+                'wave' => 800,
+            ],
+            'variance_amount' => 0,
+            'variance_breakdown' => [
+                'cash' => 0,
+                'wave' => 0,
+            ],
+            'variance_notes' => [
+                'cash' => '',
+                'wave' => '',
+            ],
+            'opened_at' => now()->subDay()->setTime(23, 10),
+            'closed_at' => now()->setTime(0, 35),
+            'opened_by' => $admin->id,
+            'closed_by' => $admin->id,
+        ]);
+
+        Payment::query()->create([
+            'tenant_id' => $admin->tenant_id,
+            'company_id' => $admin->company_id,
+            'branch_id' => $admin->branch_id,
+            'cash_account_id' => $waveAccount->id,
+            'pos_session_id' => $session->id,
+            'partner_id' => null,
+            'payment_number' => 'PAY-OVERNIGHT-001',
+            'direction' => 'in',
+            'payment_type' => 'customer_receipt',
+            'payment_date' => now()->toDateString(),
+            'amount' => 800,
+            'method' => 'wave',
+            'reference' => '',
+            'notes' => 'Flux wave sur cloture de nuit',
+            'created_by' => $admin->id,
+        ]);
+
+        $sessionData = $this->workspaceSession($admin) + ['ui_mode' => 'merchant'];
+
+        $this->actingAs($admin)
+            ->withSession($sessionData)
+            ->get(route('merchant.routine'))
+            ->assertOk()
+            ->assertSee('Wave')
+            ->assertSee('800 XOF a rapprocher');
+
+        $this->actingAs($admin)
+            ->withSession($sessionData)
+            ->get(route('pos.report', ['date' => now()->toDateString()]))
+            ->assertOk()
+            ->assertSee('POS-OVERNIGHT-001')
+            ->assertSee('800 XOF');
+    }
+
     private function workspaceSession(User $user): array
     {
         return [

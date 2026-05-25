@@ -11,7 +11,7 @@ trait ResolvesApiActor
     protected function resolveApiUser(Request $request, int $companyId): User
     {
         $token = $request->attributes->get('apiToken');
-        $userId = (int) ($token?->created_by ?? 0);
+        $userId = (int) ($token ? $token->created_by : 0);
 
         $user = User::query()
             ->with(['roles.permissions'])
@@ -26,5 +26,15 @@ trait ResolvesApiActor
         }
 
         return $user;
+    }
+
+    protected function ensureApiPermission(User $user, string $permission): void
+    {
+        abort_unless($user->hasPermission($permission), 403);
+    }
+
+    protected function ensureAnyApiPermission(User $user, array $permissions): void
+    {
+        abort_unless($user->hasAnyPermission($permissions), 403);
     }
 }

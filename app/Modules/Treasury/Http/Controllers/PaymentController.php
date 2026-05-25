@@ -180,7 +180,7 @@ class PaymentController extends Controller
         abort_if(! $companyId || ! $workspace->branchId() || ! $user, 403);
 
         $paymentType = $request->string('type')->value() ?: 'customer_receipt';
-        if (! in_array($paymentType, ['customer_receipt', 'supplier_payment', 'internal_transfer'], true)) {
+        if (! in_array($paymentType, ['customer_receipt', 'customer_refund', 'supplier_payment', 'internal_transfer'], true)) {
             $paymentType = 'customer_receipt';
         }
 
@@ -208,7 +208,11 @@ class PaymentController extends Controller
                 ->with('customer')
                 ->where('company_id', $companyId)
                 ->where('status', 'validated')
-                ->whereIn('payment_status', ['unpaid', 'partial'])
+                ->when(
+                    $paymentType === 'customer_refund',
+                    fn (Builder $query) => $query->where('balance_due', '<', 0),
+                    fn (Builder $query) => $query->whereIn('payment_status', ['unpaid', 'partial'])
+                )
                 ->when($branchScopeId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
                 ->orderBy('invoice_date')
                 ->orderBy('invoice_number')
@@ -259,16 +263,16 @@ class PaymentController extends Controller
         abort_if(! $companyId || ! $user, 403);
 
         $selectedType = $request->input('payment_type', 'customer_receipt');
-        if (! in_array($selectedType, ['customer_receipt', 'supplier_payment', 'internal_transfer'], true)) {
+        if (! in_array($selectedType, ['customer_receipt', 'customer_refund', 'supplier_payment', 'internal_transfer'], true)) {
             $selectedType = 'customer_receipt';
         }
 
         $data = $request->validate([
-            'payment_type' => ['nullable', Rule::in(['customer_receipt', 'supplier_payment', 'internal_transfer'])],
+            'payment_type' => ['nullable', Rule::in(['customer_receipt', 'customer_refund', 'supplier_payment', 'internal_transfer'])],
             'invoice_id' => [
                 'nullable',
                 'integer',
-                Rule::requiredIf($selectedType === 'customer_receipt'),
+                Rule::requiredIf(in_array($selectedType, ['customer_receipt', 'customer_refund'], true)),
                 Rule::exists('sales_invoices', 'id')->where(fn ($query) => $query->where('company_id', $companyId)),
             ],
             'purchase_bill_id' => [
@@ -356,6 +360,19 @@ class PaymentController extends Controller
             $paymentType,
             $workspace->branchId(),
         );
+
+        if ($paymentType === 'customer_refund') {
+            $payment = $this->paymentService->recordCustomerRefund($companyId, $branchId, $invoice, $cashAccount, $data, $user);
+
+            $this->activityLogger->log('payments.create', 'Enregistrement remboursement client', $payment, [
+                'payment_number' => $payment->payment_number,
+                'amount' => $payment->amount,
+                'payment_type' => $paymentType,
+            ]);
+
+            return redirect()->route('sales.show', $invoice)->with('success', 'Remboursement client enregistre avec succes.');
+        }
+
         $payment = $this->paymentService->recordCustomerReceipt($companyId, $branchId, $invoice, $cashAccount, $data, $user);
 
         $this->activityLogger->log('payments.create', 'Enregistrement encaissement client', $payment, [
@@ -466,7 +483,7 @@ class PaymentController extends Controller
     {
         $view = $request->string('view')->trim()->value() === 'kanban' ? 'kanban' : 'list';
         $paymentType = $request->string('payment_type')->trim()->value() ?: null;
-        if (! in_array($paymentType, ['customer_receipt', 'supplier_payment', 'pos_refund', 'internal_transfer'], true)) {
+        if (! in_array($paymentType, ['customer_receipt', 'customer_refund', 'supplier_payment', 'pos_refund', 'internal_transfer'], true)) {
             $paymentType = null;
         }
 
@@ -699,6 +716,7 @@ class PaymentController extends Controller
     private function paymentTypeLabel(string $paymentType, ?string $direction = null): string
     {
         return match ($paymentType) {
+            'customer_refund' => 'Remboursement client',
             'supplier_payment' => 'Reglement fournisseur',
             'pos_refund' => 'Remboursement POS',
             'internal_transfer' => $direction === 'in' ? 'Reception de versement' : 'Versement interne',

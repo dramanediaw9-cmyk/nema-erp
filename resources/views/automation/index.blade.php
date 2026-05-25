@@ -13,7 +13,7 @@
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Moteur d automatisation transverse</h2>
-            <div class="muted">Le noyau relie les signaux critiques des approbations, creances, projets, production et connecteurs.</div>
+            <div class="muted">Le noyau relie les signaux critiques des approbations, creances, tresorerie mobile money, versements agence, projets, production et connecteurs.</div>
         </div>
         @allowed('automation.manage')
             <form method="POST" action="{{ route('automation.run-all') }}">

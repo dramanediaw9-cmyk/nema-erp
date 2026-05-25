@@ -50,7 +50,7 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    'encrypt' => env('SESSION_ENCRYPT', str_starts_with(env('APP_URL', 'http://localhost'), 'https://')),
 
     /*
     |--------------------------------------------------------------------------
@@ -132,7 +132,7 @@ return [
 
     'cookie' => env(
         'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
+        Str::slug((string) env('APP_NAME', 'laravel')) . '-session'
     ),
 
     /*
@@ -172,7 +172,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', str_starts_with(env('APP_URL', 'http://localhost'), 'https://')),
 
     /*
     |--------------------------------------------------------------------------

@@ -239,15 +239,13 @@ class HrController extends Controller
 
     private function generateDepartmentCode(int $companyId): string
     {
-        $sequence = HrDepartment::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'DEP-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'hr_department_code');
     }
 
     private function generateEmployeeNumber(int $companyId): string
     {
-        $sequence = HrEmployee::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'EMP-'.now()->format('Y').'-'.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'hr_employee_number');
     }
 }

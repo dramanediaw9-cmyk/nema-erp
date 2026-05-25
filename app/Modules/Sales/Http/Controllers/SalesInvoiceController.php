@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Approvals\Services\ApprovalFlowService;
+use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Core\Notifications\Services\OutboundNotificationService;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesInvoiceController extends Controller
@@ -38,11 +40,11 @@ class SalesInvoiceController extends Controller
         private readonly PricingService $pricingService,
         private readonly OutboundNotificationService $outboundNotificationService,
         private readonly SalesPortalLinkService $salesPortalLinkService,
+        private readonly ActivityFeedService $activityFeedService,
         private readonly ActivityLogger $activityLogger,
         private readonly CsvExportService $csvExportService,
         private readonly PdfDocumentService $pdfDocumentService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -319,6 +321,9 @@ class SalesInvoiceController extends Controller
             'paymentGatewayCallbacks.payment.cashAccount',
             'paymentGatewayCallbacks.cashAccount',
         ]);
+        $linkedPayments = $invoice->paymentAllocations
+            ->pluck('payment')
+            ->filter();
 
         return view('sales.show', [
             'invoice' => $invoice,
@@ -338,10 +343,14 @@ class SalesInvoiceController extends Controller
                 ->where('reference_id', $sale->id)
                 ->orderBy('movement_date')
                 ->get(),
+            'recentActivities' => $this->activityFeedService->recentForSubjects(
+                $sale->company_id,
+                collect([$invoice])->merge($linkedPayments)->merge($invoice->creditNotes),
+            ),
         ]);
     }
 
-    public function print(SalesInvoice $sale, CurrentWorkspace $workspace): \Symfony\Component\HttpFoundation\Response
+    public function print(SalesInvoice $sale, CurrentWorkspace $workspace): Response
     {
         abort_if($workspace->companyId() !== $sale->company_id, 403);
 
@@ -406,6 +415,7 @@ class SalesInvoiceController extends Controller
 
     private function filters(Request $request): array
     {
+        $view = $request->string('view')->trim()->value() === 'kanban' ? 'kanban' : 'list';
         $status = $request->string('status')->trim()->value() ?: null;
         if (! in_array($status, ['validated', 'pending_approval', 'cancelled', 'rejected'], true)) {
             $status = null;
@@ -422,6 +432,7 @@ class SalesInvoiceController extends Controller
         }
 
         return [
+            'view' => $view,
             'search' => $request->string('search')->trim()->value() ?: null,
             'date_from' => $request->string('date_from')->value() ?: null,
             'date_to' => $request->string('date_to')->value() ?: null,

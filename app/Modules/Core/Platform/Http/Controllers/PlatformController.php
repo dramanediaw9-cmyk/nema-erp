@@ -275,8 +275,7 @@ class PlatformController extends Controller
 
     private function generateConnectionCode(int $companyId): string
     {
-        $sequence = IntegrationConnection::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'INT-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'integration_connection_code');
     }
 }

@@ -24,8 +24,7 @@ class PurchaseOrderController extends Controller
         private readonly PurchaseOrderService $purchaseOrderService,
         private readonly PricingService $pricingService,
         private readonly ActivityLogger $activityLogger,
-    ) {
-    }
+    ) {}
 
     public function index(CurrentWorkspace $workspace): View
     {
@@ -53,7 +52,18 @@ class PurchaseOrderController extends Controller
             ->where('company_id', $companyId)
             ->purchasable()
             ->orderBy('name');
-        $productColumns = ['id', 'company_id', 'sku', 'name', 'unit', 'description', 'purchase_description', 'purchase_price'];
+        $productColumns = [
+            'id',
+            'company_id',
+            'sku',
+            'name',
+            'unit',
+            'description',
+            'purchase_description',
+            'purchase_price',
+            'purchase_unit_name',
+            'purchase_unit_ratio',
+        ];
 
         if ($hasProductParent) {
             $productQuery->with('parent:id,name');

@@ -4,6 +4,26 @@
 @section('page-title', 'Journaux d\'activite')
 
 @section('content')
+    @php
+        $visibleLogs = collect(method_exists($logs, 'items') ? $logs->items() : $logs);
+        $distinctUsers = $visibleLogs->pluck('user.name')->filter()->unique()->count();
+        $distinctActions = $visibleLogs->pluck('action')->filter()->unique()->count();
+        $distinctIps = $visibleLogs->pluck('ip_address')->filter()->unique()->count();
+    @endphp
+
+    @include('partials.erp-page-head', [
+        'eyebrow' => 'Historique',
+        'title' => 'Historique des actions',
+        'description' => 'Retrouve les evenements utilisateurs et systeme pour audit, controle agence et support.',
+    ])
+
+    <div class="grid stats-grid" style="margin-bottom:20px;">
+        <div class="card"><div class="muted">Lignes visibles</div><div class="stat-value">{{ number_format($visibleLogs->count(), 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Actions distinctes</div><div class="stat-value">{{ number_format($distinctActions, 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Utilisateurs visibles</div><div class="stat-value">{{ number_format($distinctUsers, 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">IPs visibles</div><div class="stat-value">{{ number_format($distinctIps, 0, ',', ' ') }}</div></div>
+    </div>
+
     <div class="card" style="margin-bottom: 20px;">
         <form method="GET" class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end;">
             <div style="min-width: 220px;">
@@ -52,7 +72,12 @@
             @forelse ($logs as $log)
                 <tr>
                     <td>{{ $log->created_at?->format('d/m/Y H:i') }}</td>
-                    <td><span class="badge badge-muted">{{ $log->action }}</span></td>
+                    <td>
+                        @include('partials.erp-status-badge', [
+                            'label' => $log->action,
+                            'tone' => 'muted',
+                        ])
+                    </td>
                     <td>{{ $log->description }}</td>
                     <td>
                         <div>{{ $log->user?->name ?? 'Systeme' }}</div>

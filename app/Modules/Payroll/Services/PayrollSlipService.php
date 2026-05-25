@@ -42,9 +42,8 @@ class PayrollSlipService
 
     public function generateSlipNumber(int $companyId): string
     {
-        $sequence = PayrollSlip::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'BUL-'.now()->format('Y').'-'.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'payroll_slip_number');
     }
 
     public function syncDefaultLines(PayrollSlip $slip): void

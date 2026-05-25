@@ -210,6 +210,10 @@
 @endpush
 
 @section('content')
+    @php
+        $currentView = $filters['view'] ?? 'list';
+    @endphp
+
     <div class="premium-page">
         <section class="card purchases-hero">
             <div class="premium-hero__grid">
@@ -270,6 +274,7 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('purchases.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+                <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
                     <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, fournisseur, agence, note...">
@@ -321,7 +326,7 @@
                 </div>
                 <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
                     <button type="submit" class="button button-primary">Filtrer</button>
-                    <a href="{{ route('purchases.index') }}" class="button button-secondary">Reinitialiser</a>
+                    <a href="{{ route('purchases.index', ['view' => $currentView]) }}" class="button button-secondary">Reinitialiser</a>
                 </div>
             </form>
         </section>
@@ -330,118 +335,255 @@
             <div class="table-note">
                 <strong>{{ number_format($bills->count(), 0, ',', ' ') }}</strong>
                 <span>facture(s) visibles sur cette page.</span>
-                <span>Mode d affichage memorise pour la liste des achats.</span>
+                @if ($currentView === 'list')
+                    <span>Mode d affichage memorise pour la liste des achats.</span>
+                @else
+                    <span>Lecture par cartes pour prioriser reglements et validations.</span>
+                @endif
             </div>
-            <div class="mode-switch" data-display-controls="purchases">
-                <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
-                <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                @include('partials.erp-view-switcher', [
+                    'view' => $currentView,
+                    'label' => 'Vue achats',
+                    'listUrl' => route('purchases.index', array_merge(request()->query(), ['view' => 'list'])),
+                    'kanbanUrl' => route('purchases.index', array_merge(request()->query(), ['view' => 'kanban'])),
+                ])
+                @if ($currentView === 'list')
+                    <div class="mode-switch" data-display-controls="purchases">
+                        <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
+                        <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+                    </div>
+                @endif
             </div>
         </div>
 
-        <section class="card table-wrap records-table is-compact" data-display-table="purchases">
-            <table>
-                <thead>
-                <tr>
-                    <th>Numero</th>
-                    <th>Date</th>
-                    <th class="col-optional-md">Echeance</th>
-                    <th>Fournisseur</th>
-                    <th class="col-optional-lg">Agence</th>
-                    <th>Workflow</th>
-                    <th>Total</th>
-                    <th>Reste</th>
-                    <th>Suivi</th>
-                    <th>Action</th>
-                </tr>
-                </thead>
-                <tbody>
+        @if ($currentView === 'kanban')
+            <div class="erp-kanban-grid">
                 @forelse ($bills as $bill)
                     @php
                         $nextStep = $bill->approvalSteps->firstWhere('status', 'pending');
                         $followUpLabel = 'Dans les delais';
-                        $followUpClass = 'badge-success';
+                        $followUpTone = 'success';
 
                         if ($bill->status === 'rejected') {
                             $followUpLabel = 'Rejetee';
-                            $followUpClass = 'badge-danger';
+                            $followUpTone = 'danger';
                         } elseif ($bill->status !== 'validated') {
                             $followUpLabel = 'Workflow';
-                            $followUpClass = 'badge-warning';
+                            $followUpTone = 'warning';
                         } elseif ($bill->payment_status === 'paid') {
                             $followUpLabel = 'A jour';
-                            $followUpClass = 'badge-success';
+                            $followUpTone = 'success';
                         } elseif (! $bill->due_date) {
                             $followUpLabel = 'Sans echeance';
-                            $followUpClass = 'badge-muted';
+                            $followUpTone = 'muted';
                         } elseif ($bill->due_date->lt($today)) {
                             $followUpLabel = 'En retard';
-                            $followUpClass = 'badge-warning';
+                            $followUpTone = 'warning';
                         } elseif ($bill->due_date->lte($soonDate)) {
                             $followUpLabel = 'Echeance proche';
-                            $followUpClass = 'badge-muted';
+                            $followUpTone = 'muted';
                         }
+
+                        $cardTone = $followUpTone === 'danger'
+                            ? 'danger'
+                            : (($followUpTone === 'warning' || $followUpTone === 'muted' || $bill->payment_status !== 'paid') ? 'warning' : 'success');
                     @endphp
-                    <tr>
-                        <td>
-                            <strong>{{ $bill->bill_number }}</strong>
-                            @if ($bill->notes)
-                                <div class="muted row-note">{{ $bill->notes }}</div>
+                    <section class="card erp-kanban-card erp-kanban-card--{{ $cardTone }}">
+                        <div class="erp-kanban-head">
+                            <div class="erp-kanban-copy">
+                                <div class="erp-kanban-code">{{ $bill->bill_number }}</div>
+                                <h3>{{ $bill->supplier?->name ?? 'Fournisseur non renseigne' }}</h3>
+                                <p class="muted">{{ $bill->bill_date?->format('d/m/Y') }} · {{ $bill->branch?->name ?? 'Agence non renseignee' }}</p>
+                            </div>
+                            <div style="display:grid; gap:8px; justify-items:end;">
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'workflow',
+                                    'value' => $bill->status,
+                                ])
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'payment',
+                                    'value' => $bill->payment_status,
+                                ])
+                                @include('partials.erp-status-badge', [
+                                    'label' => $followUpLabel,
+                                    'tone' => $followUpTone,
+                                ])
+                            </div>
+                        </div>
+                        <div class="erp-kanban-stats">
+                            <div class="erp-kanban-stat">
+                                <div class="label">Total</div>
+                                <div class="value">{{ number_format((float) $bill->total, 0, ',', ' ') }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Reste</div>
+                                <div class="value">{{ number_format((float) $bill->balance_due, 0, ',', ' ') }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Echeance</div>
+                                <div class="value">{{ $bill->due_date?->format('d/m') ?? 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="erp-kanban-copy">
+                            <p class="muted">{{ $bill->warehouse?->name ?? 'Depot non renseigne' }}</p>
+                            @if ($bill->purchaseOrder || $bill->goodsReceipt)
+                                <p class="muted">{{ collect([$bill->purchaseOrder?->order_number, $bill->goodsReceipt?->receipt_number])->filter()->implode(' · ') }}</p>
                             @endif
-                        </td>
-                        <td>{{ $bill->bill_date?->format('d/m/Y') }}</td>
-                        <td class="col-optional-md">{{ $bill->due_date?->format('d/m/Y') ?? 'Non renseignee' }}</td>
-                        <td>{{ $bill->supplier?->name }}</td>
-                        <td class="col-optional-lg">{{ $bill->branch?->name }}</td>
-                        <td>
-                            <span class="badge {{ $bill->status === 'validated' ? 'badge-success' : ($bill->status === 'rejected' ? 'badge-danger' : 'badge-warning') }}">
-                                {{ $bill->status === 'validated' ? 'Approuvee' : ($bill->status === 'rejected' ? 'Rejetee' : 'En attente') }}
-                            </span>
                             @if ($bill->status === 'pending_approval' && $nextStep)
-                                <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
+                                <p class="muted">Etape suivante : {{ $nextStep->label }}</p>
                             @elseif ($bill->status === 'rejected')
-                                <div class="muted row-note">Rejetee le {{ $bill->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
+                                <p class="muted">Rejetee le {{ $bill->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</p>
+                            @elseif ($bill->notes)
+                                <p class="muted">{{ $bill->notes }}</p>
+                            @else
+                                <p class="muted">{{ $followUpLabel }} · suivi fournisseur en cours.</p>
                             @endif
-                        </td>
-                        <td>{{ number_format((float) $bill->total, 0, ',', ' ') }} XOF</td>
-                        <td>{{ number_format((float) $bill->balance_due, 0, ',', ' ') }} XOF</td>
-                        <td>
-                            <div class="status-stack">
-                                <span class="badge {{ $bill->payment_status === 'paid' ? 'badge-success' : 'badge-muted' }}">
-                                    {{ $bill->payment_status === 'paid' ? 'Payee' : ($bill->payment_status === 'partial' ? 'Partielle' : 'Impayee') }}
-                                </span>
-                                <span class="badge {{ $followUpClass }}">{{ $followUpLabel }}</span>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="row-actions">
-                                <a href="{{ route('purchases.show', $bill) }}" class="button button-secondary">Voir</a>
-                                @if ($bill->status === 'pending_approval')
-                                    @allowed('purchases.approve')
-                                        <form method="POST" action="{{ route('purchases.approve', $bill) }}">
-                                            @csrf
-                                            <button type="submit" class="button button-primary">Approuver</button>
-                                        </form>
-                                    @endallowed
-                                @elseif ($bill->status === 'validated' && $bill->payment_status !== 'paid')
-                                    @allowed('payments.manage')
-                                        <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Regler</a>
-                                    @endallowed
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
+                        </div>
+                        <div class="erp-kanban-actions">
+                            <a href="{{ route('purchases.show', $bill) }}" class="button button-secondary">Voir la facture</a>
+                            @if ($bill->status === 'pending_approval')
+                                @allowed('purchases.approve')
+                                    <form method="POST" action="{{ route('purchases.approve', $bill) }}">
+                                        @csrf
+                                        <button type="submit" class="button button-primary">Approuver</button>
+                                    </form>
+                                @endallowed
+                            @elseif ($bill->status === 'validated' && $bill->payment_status !== 'paid')
+                                @allowed('payments.manage')
+                                    <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Regler</a>
+                                @endallowed
+                                @allowed('supplier_credit_notes.issue')
+                                    <a href="{{ route('purchase-credit-notes.create', $bill) }}" class="button button-secondary">Avoir</a>
+                                @endallowed
+                            @endif
+                        </div>
+                    </section>
                 @empty
-                    <tr>
-                        <td colspan="10" class="muted">Aucune facture fournisseur ne correspond aux filtres selectionnes.</td>
-                    </tr>
+                    <section class="card empty-state" style="grid-column:1 / -1;">
+                        <h3>Aucune facture fournisseur ne correspond aux filtres selectionnes.</h3>
+                        <p class="muted">Ajuste la recherche, le workflow, le paiement ou l echeance.</p>
+                    </section>
                 @endforelse
-                </tbody>
-            </table>
+            </div>
 
             @if (method_exists($bills, 'links'))
                 <div style="margin-top:18px;">{{ $bills->links() }}</div>
             @endif
-        </section>
+        @else
+            <section class="card table-wrap records-table is-compact" data-display-table="purchases">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Numero</th>
+                        <th>Date</th>
+                        <th class="col-optional-md">Echeance</th>
+                        <th>Fournisseur</th>
+                        <th class="col-optional-lg">Agence</th>
+                        <th>Workflow</th>
+                        <th>Total</th>
+                        <th>Reste</th>
+                        <th>Suivi</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($bills as $bill)
+                        @php
+                            $nextStep = $bill->approvalSteps->firstWhere('status', 'pending');
+                            $followUpLabel = 'Dans les delais';
+                            $followUpTone = 'success';
+
+                            if ($bill->status === 'rejected') {
+                                $followUpLabel = 'Rejetee';
+                                $followUpTone = 'danger';
+                            } elseif ($bill->status !== 'validated') {
+                                $followUpLabel = 'Workflow';
+                                $followUpTone = 'warning';
+                            } elseif ($bill->payment_status === 'paid') {
+                                $followUpLabel = 'A jour';
+                                $followUpTone = 'success';
+                            } elseif (! $bill->due_date) {
+                                $followUpLabel = 'Sans echeance';
+                                $followUpTone = 'muted';
+                            } elseif ($bill->due_date->lt($today)) {
+                                $followUpLabel = 'En retard';
+                                $followUpTone = 'warning';
+                            } elseif ($bill->due_date->lte($soonDate)) {
+                                $followUpLabel = 'Echeance proche';
+                                $followUpTone = 'muted';
+                            }
+                        @endphp
+                        <tr>
+                            <td>
+                                <strong>{{ $bill->bill_number }}</strong>
+                                @if ($bill->notes)
+                                    <div class="muted row-note">{{ $bill->notes }}</div>
+                                @endif
+                            </td>
+                            <td>{{ $bill->bill_date?->format('d/m/Y') }}</td>
+                            <td class="col-optional-md">{{ $bill->due_date?->format('d/m/Y') ?? 'Non renseignee' }}</td>
+                            <td>{{ $bill->supplier?->name }}</td>
+                            <td class="col-optional-lg">{{ $bill->branch?->name }}</td>
+                            <td>
+                                @include('partials.erp-status-badge', [
+                                    'type' => 'workflow',
+                                    'value' => $bill->status,
+                                ])
+                                @if ($bill->status === 'pending_approval' && $nextStep)
+                                    <div class="muted row-note">Etape : {{ $nextStep->label }}</div>
+                                @elseif ($bill->status === 'rejected')
+                                    <div class="muted row-note">Rejetee le {{ $bill->rejected_at?->format('d/m/Y H:i') ?? 'N/A' }}</div>
+                                @endif
+                            </td>
+                            <td>{{ number_format((float) $bill->total, 0, ',', ' ') }} XOF</td>
+                            <td>{{ number_format((float) $bill->balance_due, 0, ',', ' ') }} XOF</td>
+                            <td>
+                                <div class="status-stack">
+                                    @include('partials.erp-status-badge', [
+                                        'type' => 'payment',
+                                        'value' => $bill->payment_status,
+                                    ])
+                                    @include('partials.erp-status-badge', [
+                                        'label' => $followUpLabel,
+                                        'tone' => $followUpTone,
+                                    ])
+                                </div>
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    <a href="{{ route('purchases.show', $bill) }}" class="button button-secondary">Voir</a>
+                                    @if ($bill->status === 'pending_approval')
+                                        @allowed('purchases.approve')
+                                            <form method="POST" action="{{ route('purchases.approve', $bill) }}">
+                                                @csrf
+                                                <button type="submit" class="button button-primary">Approuver</button>
+                                            </form>
+                                        @endallowed
+                                    @elseif ($bill->status === 'validated' && $bill->payment_status !== 'paid')
+                                        @allowed('payments.manage')
+                                            <a href="{{ route('payments.create', ['type' => 'supplier_payment', 'purchase_bill' => $bill->id]) }}" class="button button-primary">Regler</a>
+                                        @endallowed
+                                        @allowed('supplier_credit_notes.issue')
+                                            <a href="{{ route('purchase-credit-notes.create', $bill) }}" class="button button-secondary">Avoir</a>
+                                        @endallowed
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="10" class="muted">Aucune facture fournisseur ne correspond aux filtres selectionnes.</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+
+                @if (method_exists($bills, 'links'))
+                    <div style="margin-top:18px;">{{ $bills->links() }}</div>
+                @endif
+            </section>
+        @endif
     </div>
 
     <script>

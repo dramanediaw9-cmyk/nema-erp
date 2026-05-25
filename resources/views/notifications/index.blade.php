@@ -4,11 +4,13 @@
 @section('page-title', 'Alertes internes')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Centre d alertes</h2>
-            <div class="muted">Retrouve ici les blocages metier, les approbations en attente et les alertes d exploitation.</div>
-        </div>
+    @include('partials.erp-page-head', [
+        'eyebrow' => 'Notifications',
+        'title' => 'Centre d alertes',
+        'description' => 'Retrouve ici les blocages metier, les approbations en attente et les alertes d exploitation.',
+    ])
+
+    <div style="display:flex; justify-content:flex-end; margin-bottom:18px;">
         <form method="POST" action="{{ route('notifications.read-all') }}">
             @csrf
             <button type="submit" class="button button-secondary">Tout marquer comme lu</button>
@@ -67,11 +69,12 @@
                     <div style="max-width:820px;">
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <strong>{{ $notification->title }}</strong>
-                            <span class="badge {{ $notification->resolved_at ? 'badge-success' : ($notification->level === 'danger' || $notification->level === 'warning' ? 'badge-warning' : 'badge-muted') }}">
-                                {{ $notification->resolved_at ? 'Resolue' : ($notification->is_read ? 'Lue' : 'Nouvelle') }}
-                            </span>
+                            @include('partials.erp-status-badge', [
+                                'label' => $notification->resolved_at ? 'Resolue' : ($notification->is_read ? 'Lue' : 'Nouvelle'),
+                                'tone' => $notification->resolved_at ? 'success' : (($notification->level === 'danger' || $notification->level === 'warning') ? 'warning' : 'muted'),
+                            ])
                             @if ($notification->branch)
-                                <span class="badge badge-muted">{{ $notification->branch->name }}</span>
+                                @include('partials.erp-status-badge', ['label' => $notification->branch->name, 'tone' => 'muted'])
                             @endif
                         </div>
                         <div class="muted" style="margin-top:10px;">{{ $notification->message }}</div>
@@ -100,7 +103,7 @@
             </section>
         @empty
             <section class="card empty-state">
-                <span class="badge badge-success">Rien a signaler</span>
+                @include('partials.erp-status-badge', ['label' => 'Rien a signaler', 'tone' => 'success'])
                 <h3>Aucune alerte pour ce filtre</h3>
                 <div class="muted">Le noyau ne remonte actuellement aucun blocage correspondant a ta selection.</div>
                 <div class="empty-actions">

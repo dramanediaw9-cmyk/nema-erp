@@ -12,6 +12,7 @@
 
         if (auth()->user()?->hasPermission('payments.validate')) {
             $headerActions[] = ['label' => 'Nouvel encaissement', 'url' => route('payments.create', ['type' => 'customer_receipt']), 'style' => 'primary'];
+            $headerActions[] = ['label' => 'Nouveau remboursement', 'url' => route('payments.create', ['type' => 'customer_refund']), 'style' => 'secondary'];
             $headerActions[] = ['label' => 'Nouveau reglement', 'url' => route('payments.create', ['type' => 'supplier_payment']), 'style' => 'secondary'];
             $headerActions[] = ['label' => 'Nouveau versement', 'url' => route('payments.create', ['type' => 'internal_transfer']), 'style' => 'secondary'];
         }
@@ -26,7 +27,7 @@
     @include('partials.erp-page-head', [
         'eyebrow' => 'Facturation et tresorerie',
         'title' => 'Historique des paiements',
-        'description' => 'Les encaissements clients, reglements fournisseurs, remboursements POS et versements internes sont centralises ici.',
+        'description' => 'Les encaissements clients, remboursements clients, reglements fournisseurs, remboursements POS et versements internes sont centralises ici.',
         'actions' => $headerActions,
         'chips' => $headerChips,
     ])
@@ -51,6 +52,7 @@
                 <select id="payment_type" name="payment_type">
                     <option value="">Tous les flux</option>
                     <option value="customer_receipt" @selected(($filters['payment_type'] ?? null) === 'customer_receipt')>Encaissements clients</option>
+                    <option value="customer_refund" @selected(($filters['payment_type'] ?? null) === 'customer_refund')>Remboursements clients</option>
                     <option value="supplier_payment" @selected(($filters['payment_type'] ?? null) === 'supplier_payment')>Reglements fournisseurs</option>
                     <option value="pos_refund" @selected(($filters['payment_type'] ?? null) === 'pos_refund')>Remboursements POS</option>
                     <option value="internal_transfer" @selected(($filters['payment_type'] ?? null) === 'internal_transfer')>Versements internes</option>
@@ -393,6 +395,7 @@
                             <div class="label">Type</div>
                             <div class="value">
                                 {{ match ($payment->payment_type) {
+                                    'customer_refund' => 'Remboursement client',
                                     'supplier_payment' => 'Reglement fournisseur',
                                     'pos_refund' => 'Remboursement POS',
                                     'internal_transfer' => $payment->direction === 'in' ? 'Reception de versement' : 'Versement interne',
@@ -473,6 +476,7 @@
                         }
 
                         $paymentTypeLabel = match ($payment->payment_type) {
+                            'customer_refund' => 'Remboursement client',
                             'supplier_payment' => 'Reglement fournisseur',
                             'pos_refund' => 'Remboursement POS',
                             'internal_transfer' => $payment->direction === 'in' ? 'Reception de versement' : 'Versement interne',

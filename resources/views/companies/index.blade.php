@@ -9,9 +9,9 @@
             <h2 style="margin:0;">Liste des entreprises</h2>
             <div class="muted">Base légale du futur ERP multi-entreprise.</div>
         </div>
-        @allowed('companies.manage')
+        @if (auth()->user()?->hasRole('platform_admin'))
             <a href="{{ route('companies.create') }}" class="button button-primary">Nouvelle entreprise</a>
-        @endallowed
+        @endif
     </div>
 
     <div class="card table-wrap">

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\ResolvesApiActor;
+use App\Models\User;
 use App\Modules\Partners\Models\Partner;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -10,19 +13,23 @@ use Illuminate\Validation\Rule;
 
 class PartnerController
 {
+    use ResolvesApiActor;
+
     public function index(Request $request): JsonResponse
     {
         $company = $request->attributes->get('apiCompany');
+        $actor = $this->resolveApiUser($request, $company->id);
         $type = $request->string('type')->trim()->value();
         $search = $request->string('search')->trim()->value();
         $code = $request->string('code')->trim()->value();
 
         $partners = Partner::query()
             ->with(['paymentTerm', 'priceList', 'contacts', 'bankAccounts', 'mobileWallets'])
-            ->where('company_id', $company->id)
-            ->when($type === 'customer', fn ($query) => $query->customers())
-            ->when($type === 'supplier', fn ($query) => $query->suppliers())
-            ->when($type === 'both', fn ($query) => $query->where('type', 'both'))
+            ->where('company_id', $company->id);
+
+        $this->applyReadablePartnerScope($partners, $actor, $type);
+
+        $partners = $partners
             ->when($code !== '', fn ($query) => $query->where('code', $code))
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%'.$search.'%';
@@ -45,6 +52,8 @@ class PartnerController
     {
         $company = $request->attributes->get('apiCompany');
         abort_unless($partner->company_id === $company->id, 404);
+        $actor = $this->resolveApiUser($request, $company->id);
+        $this->authorizePartnerRead($actor, $partner);
 
         return response()->json($this->partnerPayload($partner));
     }
@@ -53,8 +62,10 @@ class PartnerController
     {
         $company = $request->attributes->get('apiCompany');
         $tenantId = (int) $request->attributes->get('apiTenantId');
+        $actor = $this->resolveApiUser($request, $company->id);
 
         $data = $this->validatePartner($request, $company->id);
+        $this->authorizePartnerWrite($actor, $data['type']);
         $data['tenant_id'] = $tenantId ?: $company->tenant_id;
         $data['company_id'] = $company->id;
         $data['code'] = filled($data['code'] ?? null) ? $data['code'] : $this->generateCode($company->id, $data['type']);
@@ -69,8 +80,10 @@ class PartnerController
     {
         $company = $request->attributes->get('apiCompany');
         abort_unless($partner->company_id === $company->id, 404);
+        $actor = $this->resolveApiUser($request, $company->id);
 
         $data = $this->validatePartner($request, $company->id, $partner->id);
+        $this->authorizePartnerWrite($actor, filled($data['type'] ?? null) ? $data['type'] : $partner->type);
         $data['code'] = filled($data['code'] ?? null) ? $data['code'] : $partner->code;
         $data['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : $partner->is_active;
         $data['type'] = filled($data['type'] ?? null) ? $data['type'] : $partner->type;
@@ -113,20 +126,73 @@ class PartnerController
 
     private function generateCode(int $companyId, string $type): string
     {
-        $prefix = match ($type) {
-            'customer' => 'C',
-            'supplier' => 'F',
-            default => 'P',
+        $documentType = match ($type) {
+            'customer' => 'partner_customer_code',
+            'supplier' => 'partner_supplier_code',
+            default => 'partner_generic_code',
         };
 
-        $number = Partner::query()->where('company_id', $companyId)->count() + 1;
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, $documentType);
+    }
 
-        do {
-            $code = sprintf('%s%04d', Str::upper($prefix), $number);
-            $exists = Partner::query()->where('company_id', $companyId)->where('code', $code)->exists();
-            $number++;
-        } while ($exists);
+    private function applyReadablePartnerScope(Builder $query, User $actor, string $type): void
+    {
+        $canViewCustomers = $actor->hasPermission('customers.view');
+        $canViewSuppliers = $actor->hasPermission('suppliers.view');
 
-        return $code;
+        abort_unless($canViewCustomers || $canViewSuppliers, 403);
+
+        if ($type === 'customer') {
+            $this->ensureApiPermission($actor, 'customers.view');
+            $query->whereIn('type', ['customer', 'both']);
+
+            return;
+        }
+
+        if ($type === 'supplier') {
+            $this->ensureApiPermission($actor, 'suppliers.view');
+            $query->whereIn('type', ['supplier', 'both']);
+
+            return;
+        }
+
+        if ($type === 'both') {
+            $this->ensureAnyApiPermission($actor, ['customers.view', 'suppliers.view']);
+            $query->where('type', 'both');
+
+            return;
+        }
+
+        $query->where(function (Builder $partnerQuery) use ($canViewCustomers, $canViewSuppliers): void {
+            if ($canViewCustomers) {
+                $partnerQuery->orWhereIn('type', ['customer', 'both']);
+            }
+
+            if ($canViewSuppliers) {
+                $partnerQuery->orWhereIn('type', ['supplier', 'both']);
+            }
+        });
+    }
+
+    private function authorizePartnerRead(User $actor, Partner $partner): void
+    {
+        match ($partner->type) {
+            'customer' => $this->ensureApiPermission($actor, 'customers.view'),
+            'supplier' => $this->ensureApiPermission($actor, 'suppliers.view'),
+            default => $this->ensureAnyApiPermission($actor, ['customers.view', 'suppliers.view']),
+        };
+    }
+
+    private function authorizePartnerWrite(User $actor, string $type): void
+    {
+        match ($type) {
+            'customer' => $this->ensureApiPermission($actor, 'customers.manage'),
+            'supplier' => $this->ensureApiPermission($actor, 'suppliers.manage'),
+            default => abort_unless(
+                $actor->hasPermission('customers.manage') && $actor->hasPermission('suppliers.manage'),
+                403
+            ),
+        };
     }
 }

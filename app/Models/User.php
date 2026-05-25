@@ -8,7 +8,7 @@ use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Company\Models\Tenant;
-use Database\Factories\UserFactory;
+use App\Modules\Core\Dashboard\Models\UserNavigationFavorite;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -18,7 +18,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, BelongsToTenant;
+    use BelongsToTenant, HasFactory, Notifiable;
 
     protected $fillable = [
         'tenant_id',
@@ -70,6 +70,11 @@ class User extends Authenticatable
     public function activityLogs(): HasMany
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function navigationFavorites(): HasMany
+    {
+        return $this->hasMany(UserNavigationFavorite::class);
     }
 
     public function hasRole(string $slug): bool

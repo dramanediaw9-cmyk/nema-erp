@@ -4,6 +4,35 @@
 @section('page-title', 'Parametres societe')
 
 @section('content')
+    @php
+        $headerActions = [];
+        $headerChips = [
+            ['label' => 'Profil actif : '.$sectorProfile['label'], 'tone' => 'success'],
+            ['label' => 'Pays : '.($general->value['country'] ?? 'Mali'), 'tone' => 'muted'],
+            ['label' => 'Fuseau : '.($general->value['timezone'] ?? 'Africa/Bamako'), 'tone' => 'muted'],
+        ];
+
+        if (auth()->user()?->hasPermission('users.view')) {
+            $headerActions[] = ['label' => 'Utilisateurs', 'url' => route('users.index'), 'style' => 'secondary'];
+        }
+
+        if (auth()->user()?->hasPermission('roles.view')) {
+            $headerActions[] = ['label' => 'Roles', 'url' => route('roles.index'), 'style' => 'secondary'];
+        }
+
+        if (auth()->user()?->hasPermission('imports.manage')) {
+            $headerActions[] = ['label' => 'Imports CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
+        }
+    @endphp
+
+    @include('partials.erp-page-head', [
+        'eyebrow' => 'Parametres',
+        'title' => 'Pilotage parametres',
+        'description' => 'Societe, secteur, workflow, taxes, listes de prix et integrations dans un seul ecran de reglage.',
+        'actions' => $headerActions,
+        'chips' => $headerChips,
+    ])
+
     @if (session('generated_api_token'))
         <div class="alert alert-success">
             <strong>Jeton API genere :</strong>
@@ -12,8 +41,42 @@
         </div>
     @endif
 
+    <section class="card" style="margin-bottom:18px;">
+        <h2 style="margin-top:0;">Raccourcis reglages</h2>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:14px;">
+            <a href="#company-profile" class="summary-box" style="display:block;">
+                <strong>Profil societe</strong>
+                <div class="help" style="margin-top:8px;">Nom, devise, pays, fuseau et adresse.</div>
+            </a>
+            <a href="#document-sequences" class="summary-box" style="display:block;">
+                <strong>Sequences documents</strong>
+                <div class="help" style="margin-top:8px;">Prefixes, numerotation et padding.</div>
+            </a>
+            <a href="#sector-profile" class="summary-box" style="display:block;">
+                <strong>Profil secteur</strong>
+                <div class="help" style="margin-top:8px;">Pack metier actif et modules recommandes.</div>
+            </a>
+            <a href="#approval-workflows" class="summary-box" style="display:block;">
+                <strong>Workflow d approbation</strong>
+                <div class="help" style="margin-top:8px;">Seuils, SLA, affectations et notifications.</div>
+            </a>
+            <a href="#payment-terms" class="summary-box" style="display:block;">
+                <strong>Conditions et taxes</strong>
+                <div class="help" style="margin-top:8px;">Conditions de paiement et regles fiscales.</div>
+            </a>
+            <a href="#price-lists" class="summary-box" style="display:block;">
+                <strong>Listes de prix</strong>
+                <div class="help" style="margin-top:8px;">Tarifs et lignes de prix par produit.</div>
+            </a>
+            <a href="#integrations-api" class="summary-box" style="display:block;">
+                <strong>API et integrations</strong>
+                <div class="help" style="margin-top:8px;">Webhooks, passerelles et jetons API.</div>
+            </a>
+        </div>
+    </section>
+
     <div class="split">
-        <section class="card">
+        <section class="card" id="company-profile">
             <h2 style="margin-top:0;">Profil societe</h2>
             <form method="POST" action="{{ route('settings.company.update') }}">
                 @csrf
@@ -70,7 +133,7 @@
             </form>
         </section>
 
-        <section class="card">
+        <section class="card" id="document-sequences">
             <h2 style="margin-top:0;">Sequences documents</h2>
             <div class="help" style="margin-bottom:16px;">Placeholders disponibles dans les prefixes : <strong>{BRANCH}</strong>, <strong>{YEAR}</strong>, <strong>{YY}</strong>, <strong>{MONTH}</strong>, <strong>{JOURNAL}</strong>.</div>
             <form method="POST" action="{{ route('settings.sequences.update') }}">
@@ -109,13 +172,13 @@
         $selectedSectorKey = old('sector_profile', $sectorProfile['key']);
     @endphp
 
-    <section class="card" style="margin-top:18px;">
+    <section class="card" id="sector-profile" style="margin-top:18px;">
         <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
             <div>
                 <h2 style="margin:0;">Profil secteur</h2>
                 <div class="help" style="margin-top:8px;">Nema ERP reste generaliste, mais ce pack met en avant les usages, modules et reglages qui collent le mieux a ton terrain.</div>
             </div>
-            <span class="badge badge-success">Actif : {{ $sectorProfile['label'] }}</span>
+            @include('partials.erp-status-badge', ['label' => 'Actif : '.$sectorProfile['label'], 'tone' => 'success'])
         </div>
 
         <div class="grid" style="margin-top:18px; margin-bottom:20px;">
@@ -123,7 +186,7 @@
                 <strong>Terrains cibles</strong>
                 <div class="chip-row" style="margin-top:10px;">
                     @foreach ($sectorProfile['use_cases'] as $useCase)
-                        <span class="badge badge-muted">{{ $useCase }}</span>
+                        @include('partials.erp-status-badge', ['label' => $useCase, 'tone' => 'muted'])
                     @endforeach
                 </div>
                 <div class="help" style="margin-top:10px;">{{ $sectorProfile['description'] }}</div>
@@ -132,7 +195,7 @@
                 <strong>Unites conseillees</strong>
                 <div class="chip-row" style="margin-top:10px;">
                     @foreach ($sectorProfile['recommended_units'] as $unit)
-                        <span class="badge badge-muted">{{ $unit }}</span>
+                        @include('partials.erp-status-badge', ['label' => $unit, 'tone' => 'muted'])
                     @endforeach
                 </div>
                 <div class="help" style="margin-top:10px;">Bon point de depart pour configurer le catalogue et les conditionnements.</div>
@@ -141,7 +204,7 @@
                 <strong>Paiements terrain</strong>
                 <div class="chip-row" style="margin-top:10px;">
                     @foreach ($sectorProfile['recommended_payments'] as $payment)
-                        <span class="badge badge-muted">{{ $payment }}</span>
+                        @include('partials.erp-status-badge', ['label' => $payment, 'tone' => 'muted'])
                     @endforeach
                 </div>
                 <div class="help" style="margin-top:10px;">Canaux conseilles pour garder une experience simple au comptoir ou en recouvrement.</div>
@@ -150,7 +213,7 @@
                 <strong>Catalogue de depart</strong>
                 <div class="chip-row" style="margin-top:10px;">
                     @foreach ($sectorProfile['starter_catalog'] as $item)
-                        <span class="badge badge-muted">{{ $item }}</span>
+                        @include('partials.erp-status-badge', ['label' => $item, 'tone' => 'muted'])
                     @endforeach
                 </div>
                 <div class="help" style="margin-top:10px;">Le dashboard utilisera ensuite ce profil pour recommander les bons modules.</div>
@@ -175,13 +238,13 @@
                                 </span>
                             </div>
                             @if ($sectorProfile['key'] === $profile['key'])
-                                <span class="badge badge-success">Actuel</span>
+                                @include('partials.erp-status-badge', ['label' => 'Actuel', 'tone' => 'success'])
                             @endif
                         </div>
                         <div class="help" style="margin-top:12px;">{{ $profile['description'] }}</div>
                         <div class="chip-row" style="margin-top:12px;">
                             @foreach ($profile['use_cases'] as $useCase)
-                                <span class="badge badge-muted">{{ $useCase }}</span>
+                                @include('partials.erp-status-badge', ['label' => $useCase, 'tone' => 'muted'])
                             @endforeach
                         </div>
                         <div class="help" style="margin-top:12px;"><strong>Focus terrain :</strong> {{ implode(' · ', $profile['operational_focus']) }}</div>
@@ -196,7 +259,7 @@
     </section>
 
     <div class="split" style="margin-top:18px;">
-        <section class="card">
+        <section class="card" id="approval-workflows">
             <h2 style="margin-top:0;">Workflow d approbation</h2>
             <div class="help" style="margin-bottom:16px;">Les roles restent fixes : validation operationnelle puis direction. Tu ajustes ici les seuils, les SLA et le routage permanent des etapes par module ou par agence.</div>
             <form method="POST" action="{{ route('settings.approvals.update') }}">
@@ -334,7 +397,7 @@
     </div>
 
     <div class="split" style="margin-top:18px;">
-        <section class="card">
+        <section class="card" id="payment-terms">
             <h2 style="margin-top:0;">Conditions de paiement</h2>
             <div class="grid" style="margin-bottom:16px;">
                 @foreach ($paymentTerms as $term)
@@ -345,7 +408,9 @@
                             <div class="help" style="margin-top:8px;">{{ $term->description }}</div>
                         @endif
                         @if ($term->is_default)
-                            <div class="chip-row"><span class="badge badge-success">Par defaut</span></div>
+                            <div class="chip-row">
+                                @include('partials.erp-status-badge', ['label' => 'Par defaut', 'tone' => 'success'])
+                            </div>
                         @endif
                     </div>
                 @endforeach
@@ -363,7 +428,7 @@
             </form>
         </section>
 
-        <section class="card">
+        <section class="card" id="tax-rules">
             <h2 style="margin-top:0;">Regles fiscales</h2>
             <div class="grid" style="margin-bottom:16px;">
                 @foreach ($taxRules as $taxRule)
@@ -371,8 +436,12 @@
                         <strong>{{ $taxRule->name }}</strong>
                         <div class="muted" style="margin-top:6px;">{{ $taxRule->code }} · {{ number_format((float) $taxRule->rate, 2, ',', ' ') }}% · {{ strtoupper($taxRule->tax_kind) }}</div>
                         <div class="chip-row">
-                            @if ($taxRule->is_default_sales)<span class="badge badge-success">Defaut vente</span>@endif
-                            @if ($taxRule->is_default_purchases)<span class="badge badge-success">Defaut achat</span>@endif
+                            @if ($taxRule->is_default_sales)
+                                @include('partials.erp-status-badge', ['label' => 'Defaut vente', 'tone' => 'success'])
+                            @endif
+                            @if ($taxRule->is_default_purchases)
+                                @include('partials.erp-status-badge', ['label' => 'Defaut achat', 'tone' => 'success'])
+                            @endif
                         </div>
                     </div>
                 @endforeach
@@ -409,7 +478,7 @@
     </div>
 
     <div class="split" style="margin-top:18px;">
-        <section class="card">
+        <section class="card" id="price-lists">
             <h2 style="margin-top:0;">Listes de prix</h2>
             <div class="grid" style="margin-bottom:16px;">
                 @foreach ($priceLists as $priceList)
@@ -420,7 +489,7 @@
                                 <div class="muted" style="margin-top:6px;">{{ $priceList->code }} · {{ $priceList->currency_code }}</div>
                             </div>
                             @if ($priceList->is_default)
-                                <span class="badge badge-success">Par defaut</span>
+                                @include('partials.erp-status-badge', ['label' => 'Par defaut', 'tone' => 'success'])
                             @endif
                         </div>
                         @if ($priceList->items->isNotEmpty())
@@ -481,15 +550,15 @@
             </form>
         </section>
 
-        <section class="card">
+        <section class="card" id="integrations-api">
             <h2 style="margin-top:0;">API et integrations</h2>
             <div class="help" style="margin-bottom:16px;">Les jetons donnent acces a l API v1 securisee par Bearer token. Les evenements metier peuvent maintenant etre publies vers un webhook sortant avec historique des tentatives.</div>
 
             <div class="summary-box" style="margin-bottom:16px;">
                 <strong>Webhook sortant outbox</strong>
                 <div class="chip-row" style="margin-top:10px;">
-                    <span class="badge {{ $integrationWebhook['enabled'] ? 'badge-success' : 'badge-muted' }}">{{ $integrationWebhook['enabled'] ? 'Actif' : 'Inactif' }}</span>
-                    <span class="badge badge-muted">Timeout : {{ $integrationWebhook['timeout'] }}s</span>
+                    @include('partials.erp-status-badge', ['type' => 'activity', 'value' => $integrationWebhook['enabled'] ? 'active' : 'inactive'])
+                    @include('partials.erp-status-badge', ['label' => 'Timeout : '.$integrationWebhook['timeout'].'s', 'tone' => 'muted'])
                 </div>
                 <div class="help" style="margin-top:10px;">Nema ERP enverra un <code>POST</code> JSON avec les en-tetes <code>X-Nema-Event</code>, <code>X-Nema-Event-Id</code> et une signature HMAC <code>X-Nema-Signature</code> si un secret est defini.</div>
             </div>
@@ -521,9 +590,9 @@
                                 <div>
                                     <strong>{{ $channel['label'] }}</strong>
                                     <div class="chip-row" style="margin-top:8px;">
-                                        <span class="badge {{ $channel['callback_ready'] ? 'badge-success' : 'badge-muted' }}">{{ $channel['callback_ready'] ? 'Callback pret' : 'Callback non configure' }}</span>
+                                        @include('partials.erp-status-badge', ['label' => $channel['callback_ready'] ? 'Callback pret' : 'Callback non configure', 'tone' => $channel['callback_ready'] ? 'success' : 'muted'])
                                         @if ($channel['auto_record'])
-                                            <span class="badge badge-success">Encaissement auto</span>
+                                            @include('partials.erp-status-badge', ['label' => 'Encaissement auto', 'tone' => 'success'])
                                         @endif
                                     </div>
                                 </div>

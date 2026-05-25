@@ -4,6 +4,7 @@ namespace App\Modules\Core\Ops\Services;
 
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Platform\Services\CorePulseService;
+use Laravel\Horizon\HorizonServiceProvider;
 
 class PriorityExecutionService
 {
@@ -12,8 +13,7 @@ class PriorityExecutionService
         private readonly ApplicationMonitoringService $applicationMonitoringService,
         private readonly BackupService $backupService,
         private readonly CorePulseService $corePulseService,
-    ) {
-    }
+    ) {}
 
     public function execute(Company $company, bool $apply = false): array
     {
@@ -141,7 +141,7 @@ class PriorityExecutionService
     {
         $queue = (string) config('queue.default', 'database');
         $isRedis = $queue === 'redis';
-        $horizonInstalled = class_exists(\Laravel\Horizon\HorizonServiceProvider::class);
+        $horizonInstalled = class_exists(HorizonServiceProvider::class);
 
         return [
             'key' => 'queue_runtime',

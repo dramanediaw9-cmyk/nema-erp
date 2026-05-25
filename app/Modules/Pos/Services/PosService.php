@@ -36,8 +36,7 @@ class PosService
         private readonly PaymentService $paymentService,
         private readonly StockService $stockService,
         private readonly PosPreparationService $preparationService,
-    ) {
-    }
+    ) {}
 
     public function methodOptions(): array
     {
@@ -393,6 +392,7 @@ class PosService
             ];
         });
     }
+
     public function draftsForSession(PosSession $session, ?int $userId = null): EloquentCollection
     {
         return PosDraft::query()
@@ -560,6 +560,7 @@ class PosService
             'total' => round(max($base - $ticketDiscount, 0), 2),
         ];
     }
+
     private function normalizeDraftPayments(PosSession $session, array $payload, array $paymentsInput, float $draftTotal): array
     {
         $allowedMethods = $this->runtimeMethodOptions($session->company_id, $session->branch_id);
@@ -757,6 +758,7 @@ class PosService
 
         return $index === 0 ? $base : $base.'-'.($index + 1);
     }
+
     public function processReturn(PosSession $session, SalesInvoice $invoice, array $payload, array $itemsInput, array $exchangeItemsInput, User $user): array
     {
         return DB::transaction(function () use ($session, $invoice, $payload, $itemsInput, $exchangeItemsInput, $user) {
@@ -876,6 +878,8 @@ class PosService
                         user: $user,
                         movementDate: $payload['return_date'],
                         warehouseId: $session->warehouse_id,
+                        referenceType: PosReturn::class,
+                        referenceId: $return->id,
                     );
                 }
             }
@@ -957,6 +961,7 @@ class PosService
             ];
         });
     }
+
     public function returnableItems(SalesInvoice $invoice): Collection
     {
         $invoice->loadMissing(['items.product', 'items.posReturnItems', 'posReturns.items']);
@@ -993,6 +998,7 @@ class PosService
             ];
         });
     }
+
     public function summary(PosSession $session): array
     {
         $session->loadMissing(['salesInvoices.posReturns', 'payments', 'returns']);
@@ -1062,13 +1068,19 @@ class PosService
     {
         $date = $filters['date'] ?? now()->toDateString();
 
+        $sessionIds = $this->dailyReportSessionIds($companyId, $branchId, $filters, $date);
+
         $sessionsQuery = PosSession::query()
             ->with(['cashAccount', 'warehouse', 'opener', 'closer'])
             ->where('company_id', $companyId)
             ->where('branch_id', $branchId)
-            ->whereDate('opened_at', $date)
             ->when($filters['warehouse_id'] ?? null, fn (Builder $query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
-            ->when($filters['cash_account_id'] ?? null, fn (Builder $query, $cashAccountId) => $query->where('cash_account_id', $cashAccountId));
+            ->when($filters['cash_account_id'] ?? null, fn (Builder $query, $cashAccountId) => $query->where('cash_account_id', $cashAccountId))
+            ->when(
+                $sessionIds->isNotEmpty(),
+                fn (Builder $query) => $query->whereKey($sessionIds->all()),
+                fn (Builder $query) => $query->whereRaw('1 = 0'),
+            );
 
         $sessions = $sessionsQuery->latest('opened_at')->get();
         $sessionIds = $sessions->pluck('id');
@@ -1162,6 +1174,52 @@ class PosService
             'top_returns' => $topReturns,
             'settlement_watch' => $this->settlementWatch($sessions, $payments),
         ];
+    }
+
+    private function dailyReportSessionIds(int $companyId, int $branchId, array $filters, string $date): Collection
+    {
+        $sessionScope = PosSession::query()
+            ->select('id')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($filters['warehouse_id'] ?? null, fn (Builder $query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($filters['cash_account_id'] ?? null, fn (Builder $query, $cashAccountId) => $query->where('cash_account_id', $cashAccountId));
+
+        $sessionIds = (clone $sessionScope)
+            ->where(function (Builder $query) use ($date): void {
+                $query
+                    ->whereDate('opened_at', $date)
+                    ->orWhereDate('closed_at', $date);
+            })
+            ->pluck('id');
+
+        $activitySessionIds = SalesInvoice::query()
+            ->where('company_id', $companyId)
+            ->where('sale_channel', 'pos')
+            ->whereDate('invoice_date', $date)
+            ->whereNotNull('pos_session_id')
+            ->pluck('pos_session_id')
+            ->merge(
+                PosReturn::query()
+                    ->where('company_id', $companyId)
+                    ->whereDate('return_date', $date)
+                    ->whereNotNull('pos_session_id')
+                    ->pluck('pos_session_id')
+            )
+            ->merge(
+                Payment::query()
+                    ->where('company_id', $companyId)
+                    ->whereDate('payment_date', $date)
+                    ->whereNotNull('pos_session_id')
+                    ->pluck('pos_session_id')
+            );
+
+        return $sessionIds
+            ->merge($activitySessionIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 
     private function expectedMethodBreakdown(PosSession $session): array
@@ -1353,6 +1411,7 @@ class PosService
 
         return $allocations;
     }
+
     private function normalizeCashDenominationCounts(array $values): array
     {
         $normalized = [];
@@ -1409,20 +1468,3 @@ class PosService
         );
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

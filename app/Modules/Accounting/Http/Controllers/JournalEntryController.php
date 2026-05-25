@@ -7,6 +7,7 @@ use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\AccountingService;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Purchases\Models\PurchaseBill;
+use App\Modules\Purchases\Models\PurchaseCreditNote;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\Payment;
 use App\Support\ActivityLogger;
@@ -21,8 +22,7 @@ class JournalEntryController extends Controller
     public function __construct(
         private readonly AccountingService $accountingService,
         private readonly ActivityLogger $activityLogger,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -133,6 +133,7 @@ class JournalEntryController extends Controller
         return [
             'sales' => 'Ventes',
             'purchases' => 'Achats',
+            'purchase_credit_notes' => 'Avoirs fournisseurs',
             'expenses' => 'Depenses',
             'payments' => 'Paiements',
             'reversals' => 'Contrepassations',
@@ -144,6 +145,7 @@ class JournalEntryController extends Controller
         return [
             'sales' => SalesInvoice::class,
             'purchases' => PurchaseBill::class,
+            'purchase_credit_notes' => PurchaseCreditNote::class,
             'expenses' => Expense::class,
             'payments' => Payment::class,
             'reversals' => JournalEntry::class,
@@ -164,6 +166,11 @@ class JournalEntryController extends Controller
                 'label' => 'Facture fournisseur',
                 'number' => $source->bill_number,
                 'url' => route('purchases.show', $source),
+            ],
+            $source instanceof PurchaseCreditNote => [
+                'label' => 'Avoir fournisseur',
+                'number' => $source->credit_note_number,
+                'url' => route('purchase-credit-notes.show', $source),
             ],
             $source instanceof Expense => [
                 'label' => 'Depense',
@@ -189,7 +196,7 @@ class JournalEntryController extends Controller
 
         if ($linkedDocument instanceof SalesInvoice) {
             return [
-                'label' => 'Paiement client',
+                'label' => $payment->payment_type === 'customer_refund' ? 'Remboursement client' : 'Paiement client',
                 'number' => $payment->payment_number,
                 'url' => route('payments.show', $payment),
                 'hint' => 'Lie a la facture '.$linkedDocument->invoice_number,

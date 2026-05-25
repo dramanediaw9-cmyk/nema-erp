@@ -9,8 +9,12 @@ use App\Modules\Core\Company\Models\PriceListItem;
 use App\Modules\Core\Company\Models\Setting;
 use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Models\Warehouse;
+use App\Modules\Inventory\Services\StockService;
 use App\Modules\Partners\Models\Partner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class SectorDemoDataTest extends TestCase
@@ -104,6 +108,63 @@ class SectorDemoDataTest extends TestCase
             ->assertSee('Jus mangue 1L')
             ->assertSee('Vente comptoir en boutique')
             ->assertSee('Controle peremption rayon');
+    }
+
+    public function test_sector_demo_apply_rolls_back_starter_and_demo_changes_when_stock_sync_fails(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $manager->company_id)->firstOrFail();
+
+        Setting::query()->updateOrCreate(
+            ['company_id' => $manager->company_id, 'key' => 'sector_profile'],
+            ['value' => ['profile' => 'food_store']]
+        );
+
+        $this->mock(StockService::class, function (MockInterface $mock) use ($warehouse): void {
+            $mock->shouldReceive('defaultWarehouseId')
+                ->once()
+                ->andReturn($warehouse->id);
+            $mock->shouldReceive('recordOpening')
+                ->once()
+                ->andThrow(new RuntimeException('Simulated sector stock sync failure.'));
+        });
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($manager)
+                ->withSession($this->workspaceSession($manager))
+                ->post(route('onboarding.sector-demo.apply'));
+
+            $this->fail('Expected sector demo apply to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Simulated sector stock sync failure.', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('payment_terms', [
+            'company_id' => $manager->company_id,
+            'code' => 'CPT',
+        ]);
+        $this->assertDatabaseMissing('price_lists', [
+            'company_id' => $manager->company_id,
+            'code' => 'DEMIGROS',
+        ]);
+        $this->assertDatabaseMissing('partners', [
+            'company_id' => $manager->company_id,
+            'code' => 'DEMO-FOU-ALIM-01',
+        ]);
+        $this->assertDatabaseMissing('products', [
+            'company_id' => $manager->company_id,
+            'sku' => 'DEMO-FD-001',
+        ]);
+        $this->assertDatabaseMissing('settings', [
+            'company_id' => $manager->company_id,
+            'key' => 'sector_onboarding',
+        ]);
+        $this->assertDatabaseMissing('settings', [
+            'company_id' => $manager->company_id,
+            'key' => 'sector_demo_data',
+        ]);
     }
 
     private function workspaceSession(User $user): array

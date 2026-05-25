@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\ResolvesApiActor;
 use App\Modules\Core\Integrations\Models\IntegrationEvent;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -9,9 +10,13 @@ use Illuminate\Http\Request;
 
 class IntegrationEventController
 {
+    use ResolvesApiActor;
+
     public function index(Request $request): JsonResponse
     {
         $company = $request->attributes->get('apiCompany');
+        $actor = $this->resolveApiUser($request, $company->id);
+        $this->ensureApiPermission($actor, 'platform.view');
         $status = $request->string('status')->trim()->value();
         $eventName = $request->string('event_name')->trim()->value();
         $search = $request->string('search')->trim()->value();
@@ -41,6 +46,8 @@ class IntegrationEventController
     {
         $company = $request->attributes->get('apiCompany');
         abort_unless($integrationEvent->company_id === $company->id, 404);
+        $actor = $this->resolveApiUser($request, $company->id);
+        $this->ensureApiPermission($actor, 'platform.view');
 
         return response()->json($integrationEvent->load(['company', 'deliveries']));
     }

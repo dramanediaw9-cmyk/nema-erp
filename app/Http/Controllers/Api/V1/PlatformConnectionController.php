@@ -174,8 +174,7 @@ class PlatformConnectionController
 
     private function generateCode(int $companyId): string
     {
-        $number = IntegrationConnection::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'INT-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'integration_connection_code');
     }
 }

@@ -13,6 +13,7 @@ use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Treasury\Models\Payment;
 use App\Support\CurrentWorkspace;
+use App\Support\ErpNavigationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -20,7 +21,7 @@ use Illuminate\View\View;
 
 class GlobalSearchController extends Controller
 {
-    public function __invoke(Request $request, CurrentWorkspace $workspace): View
+    public function __invoke(Request $request, CurrentWorkspace $workspace, ErpNavigationService $navigation): View
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
@@ -28,6 +29,8 @@ class GlobalSearchController extends Controller
         $query = $request->string('q')->trim()->value();
         $user = $request->user();
         $branchScopeId = $user ? $user->resolvedBranchScope(null, $workspace->branchId()) : $workspace->branchId();
+        $recentSearches = collect($request->session()->get($this->recentSearchesSessionKey($user?->id, $companyId), []));
+        $navigationState = $navigation->build($user, $request, false, $companyId);
 
         $definitions = collect([
             [
@@ -108,6 +111,8 @@ class GlobalSearchController extends Controller
                 })
                 ->filter(fn (array $group) => $group['count'] > 0)
                 ->values();
+
+            $recentSearches = $this->storeRecentSearch($request, $user?->id, $companyId, $query);
         }
 
         return view('search.index', [
@@ -115,7 +120,33 @@ class GlobalSearchController extends Controller
             'groups' => $groups,
             'availableScopes' => $definitions->pluck('title')->values(),
             'totalResults' => $groups->sum('count'),
+            'favoriteModules' => collect($navigationState['favorite_modules'] ?? [])->take(6),
+            'favoritesEnabled' => (bool) ($navigationState['favorites_enabled'] ?? false),
+            'suggestedModules' => collect($navigationState['modules'] ?? [])->take(8),
+            'recentSearches' => $recentSearches,
         ]);
+    }
+
+    private function storeRecentSearch(Request $request, ?int $userId, int $companyId, string $query): Collection
+    {
+        $sessionKey = $this->recentSearchesSessionKey($userId, $companyId);
+
+        $recentSearches = collect($request->session()->get($sessionKey, []))
+            ->prepend($query)
+            ->filter(fn ($entry) => filled($entry))
+            ->map(fn ($entry) => trim((string) $entry))
+            ->unique()
+            ->take(6)
+            ->values();
+
+        $request->session()->put($sessionKey, $recentSearches->all());
+
+        return $recentSearches;
+    }
+
+    private function recentSearchesSessionKey(?int $userId, int $companyId): string
+    {
+        return 'erp_recent_searches.'.($userId ?: 'guest').'.'.$companyId;
     }
 
     private function searchCustomers(int $companyId, string $query): Collection
@@ -414,6 +445,3 @@ class GlobalSearchController extends Controller
         return number_format($amount, 0, ',', ' ').' XOF';
     }
 }
-
-
-

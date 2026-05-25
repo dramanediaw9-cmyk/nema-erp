@@ -21,6 +21,7 @@ use App\Modules\Partners\Models\PartnerBankAccount;
 use App\Modules\Partners\Models\PartnerMobileWallet;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class SectorDemoDataService
 {
@@ -67,77 +68,79 @@ class SectorDemoDataService
 
     public function apply(Company $company): array
     {
-        $starter = $this->sectorStarterService->apply($company);
-        $profile = $this->sectorProfileService->profileForCompany($company->id);
-        $blueprint = $this->blueprint($profile['key']);
+        return DB::transaction(function () use ($company) {
+            $starter = $this->sectorStarterService->apply($company);
+            $profile = $this->sectorProfileService->profileForCompany($company->id);
+            $blueprint = $this->blueprint($profile['key']);
 
-        [$branch, $warehouse] = $this->resolveBranchAndWarehouse($company);
-        $paymentTerms = PaymentTerm::query()->where('company_id', $company->id)->get()->keyBy('code');
-        $priceLists = PriceList::query()->where('company_id', $company->id)->get()->keyBy('code');
-        $categories = ProductCategory::query()->where('company_id', $company->id)->get()->keyBy('name');
+            [$branch, $warehouse] = $this->resolveBranchAndWarehouse($company);
+            $paymentTerms = PaymentTerm::query()->where('company_id', $company->id)->get()->keyBy('code');
+            $priceLists = PriceList::query()->where('company_id', $company->id)->get()->keyBy('code');
+            $categories = ProductCategory::query()->where('company_id', $company->id)->get()->keyBy('name');
 
-        $supplierSync = $this->syncPartners(
-            company: $company,
-            definitions: $blueprint['suppliers'],
-            type: 'supplier',
-            paymentTerms: $paymentTerms,
-            priceLists: $priceLists,
-        );
-        $customerSync = $this->syncPartners(
-            company: $company,
-            definitions: $blueprint['customers'],
-            type: 'customer',
-            paymentTerms: $paymentTerms,
-            priceLists: $priceLists,
-        );
-        $productSync = $this->syncProducts($company, $blueprint['products'], $categories);
-        $priceItemCount = $this->syncPriceListItems($company, $blueprint['products'], $productSync['items'], $priceLists);
-        $supplierLinkCount = $this->syncProductSuppliers($company, $blueprint['products'], $productSync['items'], $supplierSync['items']);
-        $stockSync = $this->syncStock($company, $branch, $warehouse, $blueprint['products'], $productSync['items']);
+            $supplierSync = $this->syncPartners(
+                company: $company,
+                definitions: $blueprint['suppliers'],
+                type: 'supplier',
+                paymentTerms: $paymentTerms,
+                priceLists: $priceLists,
+            );
+            $customerSync = $this->syncPartners(
+                company: $company,
+                definitions: $blueprint['customers'],
+                type: 'customer',
+                paymentTerms: $paymentTerms,
+                priceLists: $priceLists,
+            );
+            $productSync = $this->syncProducts($company, $blueprint['products'], $categories);
+            $priceItemCount = $this->syncPriceListItems($company, $blueprint['products'], $productSync['items'], $priceLists);
+            $supplierLinkCount = $this->syncProductSuppliers($company, $blueprint['products'], $productSync['items'], $supplierSync['items']);
+            $stockSync = $this->syncStock($company, $branch, $warehouse, $blueprint['products'], $productSync['items']);
 
-        $created = [
-            'suppliers' => $supplierSync['created'],
-            'customers' => $customerSync['created'],
-            'products' => $productSync['created'],
-            'price_items' => $priceItemCount,
-            'supplier_links' => $supplierLinkCount,
-            'stock_entries' => $stockSync['stock_entries'],
-            'lots' => $stockSync['lots'],
-        ];
+            $created = [
+                'suppliers' => $supplierSync['created'],
+                'customers' => $customerSync['created'],
+                'products' => $productSync['created'],
+                'price_items' => $priceItemCount,
+                'supplier_links' => $supplierLinkCount,
+                'stock_entries' => $stockSync['stock_entries'],
+                'lots' => $stockSync['lots'],
+            ];
 
-        $catalogHighlights = collect($blueprint['products'])
-            ->map(fn (array $product): string => $product['name'])
-            ->take(6)
-            ->values()
-            ->all();
+            $catalogHighlights = collect($blueprint['products'])
+                ->map(fn (array $product): string => $product['name'])
+                ->take(6)
+                ->values()
+                ->all();
 
-        Setting::query()->updateOrCreate(
-            ['company_id' => $company->id, 'key' => 'sector_demo_data'],
-            [
-                'tenant_id' => $company->tenant_id,
-                'value' => [
-                    'applied_at' => now()->toDateTimeString(),
-                    'profile' => $profile['key'],
-                    'profile_label' => $profile['label'],
-                    'branch_id' => $branch->id,
-                    'branch_name' => $branch->name,
-                    'warehouse_id' => $warehouse->id,
-                    'warehouse_name' => $warehouse->name,
-                    'created' => $created,
-                    'catalog_highlights' => $catalogHighlights,
-                    'playbooks' => $this->playbooks($profile['key']),
+            Setting::query()->updateOrCreate(
+                ['company_id' => $company->id, 'key' => 'sector_demo_data'],
+                [
+                    'tenant_id' => $company->tenant_id,
+                    'value' => [
+                        'applied_at' => now()->toDateTimeString(),
+                        'profile' => $profile['key'],
+                        'profile_label' => $profile['label'],
+                        'branch_id' => $branch->id,
+                        'branch_name' => $branch->name,
+                        'warehouse_id' => $warehouse->id,
+                        'warehouse_name' => $warehouse->name,
+                        'created' => $created,
+                        'catalog_highlights' => $catalogHighlights,
+                        'playbooks' => $this->playbooks($profile['key']),
+                    ],
                 ],
-            ]
-        );
+            );
 
-        return [
-            'profile' => $profile,
-            'starter' => $starter,
-            'created' => $created,
-            'branch' => $branch,
-            'warehouse' => $warehouse,
-            'status' => $this->status($company->id),
-        ];
+            return [
+                'profile' => $profile,
+                'starter' => $starter,
+                'created' => $created,
+                'branch' => $branch,
+                'warehouse' => $warehouse,
+                'status' => $this->status($company->id),
+            ];
+        });
     }
 
     private function syncPartners(

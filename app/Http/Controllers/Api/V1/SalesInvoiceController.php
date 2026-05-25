@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Concerns\ResolvesApiActor;
 use App\Models\User;
 use App\Modules\Core\Approvals\Models\ApprovalStep;
 use App\Modules\Core\Approvals\Services\ApprovalFlowService;
@@ -20,6 +21,8 @@ use Illuminate\Validation\ValidationException;
 
 class SalesInvoiceController
 {
+    use ResolvesApiActor;
+
     public function __construct(
         private readonly SalesInvoiceService $salesInvoiceService,
         private readonly ApprovalFlowService $approvalFlowService,
@@ -30,6 +33,8 @@ class SalesInvoiceController
     public function index(Request $request): JsonResponse
     {
         $company = $request->attributes->get('apiCompany');
+        $actor = $this->resolveApiUser($request, $company->id);
+        $this->ensureApiPermission($actor, 'sales.view');
 
         $invoices = $this->indexQuery($company->id, $request)
             ->latest('invoice_date')
@@ -43,6 +48,8 @@ class SalesInvoiceController
     {
         $company = $request->attributes->get('apiCompany');
         abort_unless($salesInvoice->company_id === $company->id, 404);
+        $actor = $this->resolveApiUser($request, $company->id);
+        $this->ensureApiPermission($actor, 'sales.view');
 
         return response()->json($this->invoicePayload($salesInvoice));
     }
@@ -51,6 +58,7 @@ class SalesInvoiceController
     {
         $company = $request->attributes->get('apiCompany');
         $actor = $this->resolveApiUser($request, $company->id);
+        $this->ensureApiPermission($actor, 'sales.manage');
         $payload = $this->validateInvoice($request, $company->id);
         $branchId = $this->resolveBranchId($company->id, $actor, $request->integer('branch_id') ?: null);
         $itemsInput = $this->resolveInputItems($request);
@@ -222,26 +230,6 @@ class SalesInvoiceController
             ->filter(fn (array $item) => filled($item['product_id']))
             ->values()
             ->all();
-    }
-
-    private function resolveApiUser(Request $request, int $companyId): User
-    {
-        $token = $request->attributes->get('apiToken');
-        $userId = (int) ($token?->created_by ?? 0);
-
-        $user = User::query()
-            ->with(['roles.permissions'])
-            ->where('company_id', $companyId)
-            ->where('is_active', true)
-            ->find($userId);
-
-        if (! $user) {
-            throw ValidationException::withMessages([
-                'api_token' => 'Le jeton API n est rattache a aucun utilisateur actif.',
-            ]);
-        }
-
-        return $user;
     }
 
     private function resolveBranchId(int $companyId, User $user, ?int $requestedBranchId = null): int

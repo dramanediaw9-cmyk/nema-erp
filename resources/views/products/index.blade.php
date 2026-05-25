@@ -222,6 +222,7 @@
 @section('content')
     @php
         $canViewProductCosts = auth()->user()?->hasPermission('products.cost.view');
+        $currentView = $filters['view'] ?? 'list';
         $visibleProducts = collect(method_exists($products, 'items') ? $products->items() : $products);
         $visibleStockable = $visibleProducts->where('type', 'stockable');
         $visibleServices = $visibleProducts->where('type', 'service')->count();
@@ -248,7 +249,7 @@
                 </div>
                 <div class="premium-panel">
                     <strong>Qualite de lecture</strong>
-                    <p class="muted">Basculer entre `compact` et `detaille`, filtrer par categorie ou par etat de stock, puis ouvrir directement la bonne fiche sans perdre de temps.</p>
+                    <p class="muted">Passe de `liste` a `kanban`, puis si besoin affine encore la table en mode `compact` ou `detaille`.</p>
                 </div>
             </div>
         </section>
@@ -284,6 +285,7 @@
                 </div>
             </div>
             <form method="GET" action="{{ route('products.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+                <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
                     <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Nom, SKU, code-barres ou categorie...">
@@ -324,7 +326,7 @@
                 </div>
                 <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
                     <button type="submit" class="button button-primary">Filtrer</button>
-                    <a href="{{ route('products.index') }}" class="button button-secondary">Reinitialiser</a>
+                    <a href="{{ route('products.index', ['view' => $currentView]) }}" class="button button-secondary">Reinitialiser</a>
                 </div>
             </form>
         </section>
@@ -333,35 +335,30 @@
             <div class="table-note">
                 <strong>{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</strong>
                 <span>ligne(s) visibles sur cette page.</span>
-                <span>Mode d affichage memorise dans le navigateur.</span>
+                @if ($currentView === 'list')
+                    <span>Mode d affichage memorise dans le navigateur.</span>
+                @else
+                    <span>Lecture par cartes pour un scan plus rapide.</span>
+                @endif
             </div>
-            <div class="mode-switch" data-display-controls="products">
-                <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
-                <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                @include('partials.erp-view-switcher', [
+                    'view' => $currentView,
+                    'label' => 'Vue catalogue',
+                    'listUrl' => route('products.index', array_merge(request()->query(), ['view' => 'list'])),
+                    'kanbanUrl' => route('products.index', array_merge(request()->query(), ['view' => 'kanban'])),
+                ])
+                @if ($currentView === 'list')
+                    <div class="mode-switch" data-display-controls="products">
+                        <button type="button" class="button button-secondary is-active" data-mode="compact">Compact</button>
+                        <button type="button" class="button button-secondary" data-mode="detailed">Detaille</button>
+                    </div>
+                @endif
             </div>
         </div>
 
-        <section class="card table-wrap catalog-table is-compact premium-table-card" data-display-table="products">
-            <table>
-                <thead>
-                <tr>
-                    <th>SKU</th>
-                    <th class="col-optional-lg">Code-barres</th>
-                    <th>Produit</th>
-                    <th class="col-optional-sm">Type</th>
-                    <th class="col-optional-md">Categorie</th>
-                    <th>Stock actuel</th>
-                    <th>PU vente</th>
-                    @if ($canViewProductCosts)
-                        <th class="col-optional-lg">PU achat</th>
-                    @endif
-                    <th class="col-optional-md">Stock mini</th>
-                    <th>Etat stock</th>
-                    <th>Statut</th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody>
+        @if ($currentView === 'kanban')
+            <div class="erp-kanban-grid">
                 @forelse ($products as $product)
                     @php
                         $currentStock = (float) ($product->current_stock ?? 0);
@@ -370,86 +367,189 @@
                         $stockLabel = ! $isStockable
                             ? 'Service'
                             : ($currentStock <= 0 ? 'Rupture' : ($isLowStock ? 'A surveiller' : 'Disponible'));
-                        $stockBadgeClass = ! $isStockable
-                            ? 'badge-warning'
-                            : ($isLowStock ? 'badge-muted' : 'badge-success');
+                        $stockTone = ! $isStockable
+                            ? 'muted'
+                            : ($currentStock <= 0 ? 'danger' : ($isLowStock ? 'warning' : 'success'));
+                        $cardTone = $stockTone === 'danger' ? 'danger' : ($stockTone === 'warning' ? 'warning' : 'success');
                     @endphp
-                    <tr>
-                        <td><strong>{{ $product->sku }}</strong></td>
-                        <td class="col-optional-lg">{{ $product->barcode ?: 'Non renseigne' }}</td>
-                        <td>
-                            @include('partials.product-inline', [
-                                'product' => $product,
-                                'meta' => collect([$product->unit, $product->category?->name])->filter()->implode(' | '),
-                                'size' => 48,
-                            ])
-                        </td>
-                        <td class="col-optional-sm">{{ $isStockable ? 'Stockable' : 'Service' }}</td>
-                        <td class="col-optional-md">{{ $product->category?->name ?? 'Sans categorie' }}</td>
-                        <td>{{ $isStockable ? number_format($currentStock, 3, ',', ' ') : 'Non gere' }}</td>
-                        <td>{{ number_format((float) $product->sale_price, 0, ',', ' ') }} XOF</td>
-                        @if ($canViewProductCosts)
-                            <td class="col-optional-lg">{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</td>
-                        @endif
-                        <td class="col-optional-md">{{ $isStockable ? number_format((float) $product->min_stock, 3, ',', ' ') : 'Non gere' }}</td>
-                        <td><span class="badge {{ $stockBadgeClass }}">{{ $stockLabel }}</span></td>
-                        <td><span class="badge {{ $product->is_active ? 'badge-success' : 'badge-muted' }}">{{ $product->is_active ? 'Actif' : 'Archive' }}</span></td>
-                        <td>
-                            <div class="product-actions">
-                                <a href="{{ route('products.show', $product) }}" class="button button-secondary">Voir</a>
-                                @allowed('products.manage')
-                                    <a href="{{ route('products.edit', $product) }}" class="button button-secondary">Modifier</a>
-                                @endallowed
+                    <section class="card erp-kanban-card erp-kanban-card--{{ $cardTone }}">
+                        <div class="erp-kanban-head">
+                            <div class="erp-kanban-copy">
+                                <div class="erp-kanban-code">{{ $product->sku }}</div>
+                                @include('partials.product-inline', [
+                                    'product' => $product,
+                                    'meta' => collect([$product->unit, $product->category?->name])->filter()->implode(' | '),
+                                    'size' => 52,
+                                ])
                             </div>
-                        </td>
-                    </tr>
+                            <div style="display:grid; gap:8px; justify-items:end;">
+                                @include('partials.erp-status-badge', [
+                                    'label' => $stockLabel,
+                                    'tone' => $stockTone,
+                                ])
+                                @include('partials.erp-status-badge', [
+                                    'label' => $product->is_active ? 'Actif' : 'Archive',
+                                    'tone' => $product->is_active ? 'success' : 'muted',
+                                ])
+                            </div>
+                        </div>
+                        <div class="erp-kanban-stats">
+                            <div class="erp-kanban-stat">
+                                <div class="label">Prix vente</div>
+                                <div class="value">{{ number_format((float) $product->sale_price, 0, ',', ' ') }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Stock</div>
+                                <div class="value">{{ $isStockable ? number_format($currentStock, 0, ',', ' ') : 'N/A' }}</div>
+                            </div>
+                            <div class="erp-kanban-stat">
+                                <div class="label">Minimum</div>
+                                <div class="value">{{ $isStockable ? number_format((float) $product->min_stock, 0, ',', ' ') : 'N/A' }}</div>
+                            </div>
+                        </div>
+                        <div class="erp-kanban-copy">
+                            <p class="muted">{{ $product->barcode ?: 'Code-barres non renseigne' }}</p>
+                            <p class="muted">{{ $isStockable ? 'Article stockable' : 'Service' }} · {{ $product->category?->name ?? 'Sans categorie' }}</p>
+                            @if ($product->variant_label)
+                                <p class="muted">{{ $product->variant_label }}</p>
+                            @endif
+                        </div>
+                        <div class="erp-kanban-actions">
+                            <a href="{{ route('products.show', $product) }}" class="button button-secondary">Ouvrir fiche</a>
+                            @allowed('products.manage')
+                                <a href="{{ route('products.edit', $product) }}" class="button button-secondary">Modifier</a>
+                            @endallowed
+                        </div>
+                    </section>
                 @empty
-                    <tr>
-                        <td colspan="12" class="muted">Aucun produit ne correspond aux filtres selectionnes.</td>
-                    </tr>
+                    <section class="card empty-state" style="grid-column:1 / -1;">
+                        <h3>Aucun produit ne correspond aux filtres selectionnes.</h3>
+                        <p class="muted">Essaie une autre categorie, un autre statut ou un autre etat de stock.</p>
+                    </section>
                 @endforelse
-                </tbody>
-            </table>
-
+            </div>
             @if (method_exists($products, 'links'))
                 <div style="margin-top:18px;">{{ $products->links() }}</div>
             @endif
-        </section>
+        @else
+            <section class="card table-wrap catalog-table is-compact premium-table-card" data-display-table="products">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th class="col-optional-lg">Code-barres</th>
+                        <th>Produit</th>
+                        <th class="col-optional-sm">Type</th>
+                        <th class="col-optional-md">Categorie</th>
+                        <th>Stock actuel</th>
+                        <th>PU vente</th>
+                        @if ($canViewProductCosts)
+                            <th class="col-optional-lg">PU achat</th>
+                        @endif
+                        <th class="col-optional-md">Stock mini</th>
+                        <th>Etat stock</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @forelse ($products as $product)
+                        @php
+                            $currentStock = (float) ($product->current_stock ?? 0);
+                            $isStockable = $product->type === 'stockable';
+                            $isLowStock = $isStockable && $currentStock <= (float) $product->min_stock;
+                            $stockLabel = ! $isStockable
+                                ? 'Service'
+                                : ($currentStock <= 0 ? 'Rupture' : ($isLowStock ? 'A surveiller' : 'Disponible'));
+                            $stockTone = ! $isStockable
+                                ? 'muted'
+                                : ($currentStock <= 0 ? 'danger' : ($isLowStock ? 'warning' : 'success'));
+                        @endphp
+                        <tr>
+                            <td><strong>{{ $product->sku }}</strong></td>
+                            <td class="col-optional-lg">{{ $product->barcode ?: 'Non renseigne' }}</td>
+                            <td>
+                                @include('partials.product-inline', [
+                                    'product' => $product,
+                                    'meta' => collect([$product->unit, $product->category?->name])->filter()->implode(' | '),
+                                    'size' => 48,
+                                ])
+                            </td>
+                            <td class="col-optional-sm">{{ $isStockable ? 'Stockable' : 'Service' }}</td>
+                            <td class="col-optional-md">{{ $product->category?->name ?? 'Sans categorie' }}</td>
+                            <td>{{ $isStockable ? number_format($currentStock, 3, ',', ' ') : 'Non gere' }}</td>
+                            <td>{{ number_format((float) $product->sale_price, 0, ',', ' ') }} XOF</td>
+                            @if ($canViewProductCosts)
+                                <td class="col-optional-lg">{{ number_format((float) $product->purchase_price, 0, ',', ' ') }} XOF</td>
+                            @endif
+                            <td class="col-optional-md">{{ $isStockable ? number_format((float) $product->min_stock, 3, ',', ' ') : 'Non gere' }}</td>
+                            <td>
+                                @include('partials.erp-status-badge', [
+                                    'label' => $stockLabel,
+                                    'tone' => $stockTone,
+                                ])
+                            </td>
+                            <td>
+                                @include('partials.erp-status-badge', [
+                                    'label' => $product->is_active ? 'Actif' : 'Archive',
+                                    'tone' => $product->is_active ? 'success' : 'muted',
+                                ])
+                            </td>
+                            <td>
+                                <div class="product-actions">
+                                    <a href="{{ route('products.show', $product) }}" class="button button-secondary">Voir</a>
+                                    @allowed('products.manage')
+                                        <a href="{{ route('products.edit', $product) }}" class="button button-secondary">Modifier</a>
+                                    @endallowed
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="12" class="muted">Aucun produit ne correspond aux filtres selectionnes.</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+
+                @if (method_exists($products, 'links'))
+                    <div style="margin-top:18px;">{{ $products->links() }}</div>
+                @endif
+            </section>
+        @endif
     </div>
 
-    <script>
-        (() => {
-            const storageKey = 'nema.products.display_mode';
-            const table = document.querySelector('[data-display-table="products"]');
-            const controls = document.querySelector('[data-display-controls="products"]');
-            const buttons = controls ? Array.from(controls.querySelectorAll('[data-mode]')) : [];
+    @if ($currentView === 'list')
+        <script>
+            (() => {
+                const storageKey = 'nema.products.display_mode';
+                const table = document.querySelector('[data-display-table="products"]');
+                const controls = document.querySelector('[data-display-controls="products"]');
+                const buttons = controls ? Array.from(controls.querySelectorAll('[data-mode]')) : [];
 
-            if (!table || !buttons.length) {
-                return;
-            }
+                if (!table || !buttons.length) {
+                    return;
+                }
 
-            const applyMode = (mode) => {
-                const nextMode = mode === 'detailed' ? 'detailed' : 'compact';
-                table.classList.remove('is-compact', 'is-detailed');
-                table.classList.add(nextMode === 'detailed' ? 'is-detailed' : 'is-compact');
+                const applyMode = (mode) => {
+                    const nextMode = mode === 'detailed' ? 'detailed' : 'compact';
+                    table.classList.remove('is-compact', 'is-detailed');
+                    table.classList.add(nextMode === 'detailed' ? 'is-detailed' : 'is-compact');
+                    buttons.forEach((button) => {
+                        button.classList.toggle('is-active', button.dataset.mode === nextMode);
+                    });
+                };
+
+                applyMode(localStorage.getItem(storageKey) || 'compact');
+
                 buttons.forEach((button) => {
-                    button.classList.toggle('is-active', button.dataset.mode === nextMode);
+                    button.addEventListener('click', () => {
+                        const mode = button.dataset.mode === 'detailed' ? 'detailed' : 'compact';
+                        localStorage.setItem(storageKey, mode);
+                        applyMode(mode);
+                    });
                 });
-            };
-
-            applyMode(localStorage.getItem(storageKey) || 'compact');
-
-            buttons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    const mode = button.dataset.mode === 'detailed' ? 'detailed' : 'compact';
-                    localStorage.setItem(storageKey, mode);
-                    applyMode(mode);
-                });
-            });
-        })();
-    </script>
+            })();
+        </script>
+    @endif
 @endsection
-
-
-
-

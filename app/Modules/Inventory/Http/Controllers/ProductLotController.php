@@ -14,6 +14,8 @@ class ProductLotController extends Controller
 {
     private const EXPIRY_HORIZON_DAYS = 30;
 
+    private const ALLOWED_EXPIRY_WINDOWS = [7, 14, 30];
+
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
         $companyId = $workspace->companyId();
@@ -37,7 +39,7 @@ class ProductLotController extends Controller
             ->when($filters['tracking_type'], fn (Builder $builder, string $trackingType) => $builder->where('tracking_type', $trackingType))
             ->when($filters['availability'] === 'available', fn (Builder $builder) => $builder->where('quantity_available', '>', 0))
             ->when($filters['availability'] === 'consumed', fn (Builder $builder) => $builder->where('quantity_available', '<=', 0))
-            ->when($filters['status'], fn (Builder $builder, string $status) => $this->applyStatusFilter($builder, $status))
+            ->when($filters['status'], fn (Builder $builder, string $status) => $this->applyStatusFilter($builder, $status, $filters['expiry_window_days']))
             ->when($filters['search'], fn (Builder $builder, string $search) => $this->applySearchFilter($builder, $search))
             ->orderByRaw('CASE WHEN quantity_available > 0 THEN 0 ELSE 1 END')
             ->orderByRaw('CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END')
@@ -57,13 +59,13 @@ class ProductLotController extends Controller
             'selectedWarehouse' => $filters['warehouse_id']
                 ? $warehouses->firstWhere('id', $filters['warehouse_id'])
                 : null,
-            'expiryHorizonDays' => self::EXPIRY_HORIZON_DAYS,
+            'expiryHorizonDays' => $filters['expiry_window_days'],
             'stats' => [
                 'count' => $statsLots->count(),
                 'tracked_products' => $statsLots->pluck('product_id')->unique()->count(),
                 'available_qty' => $availableLots->sum(fn (ProductLot $lot) => (float) $lot->quantity_available),
                 'expired_count' => $availableLots->filter(fn (ProductLot $lot) => $lot->isExpired())->count(),
-                'expiring_count' => $availableLots->filter(fn (ProductLot $lot) => $lot->isExpiringSoon(self::EXPIRY_HORIZON_DAYS))->count(),
+                'expiring_count' => $availableLots->filter(fn (ProductLot $lot) => $lot->isExpiringSoon($filters['expiry_window_days']))->count(),
             ],
         ]);
     }
@@ -85,12 +87,18 @@ class ProductLotController extends Controller
             $availability = 'available';
         }
 
+        $expiryWindowDays = $request->integer('expiry_window_days') ?: self::EXPIRY_HORIZON_DAYS;
+        if (! in_array($expiryWindowDays, self::ALLOWED_EXPIRY_WINDOWS, true)) {
+            $expiryWindowDays = self::EXPIRY_HORIZON_DAYS;
+        }
+
         return [
             'search' => $request->string('search')->trim()->value() ?: null,
             'warehouse_id' => $request->integer('warehouse_id') ?: null,
             'tracking_type' => $trackingType,
             'status' => $status,
             'availability' => $availability,
+            'expiry_window_days' => $expiryWindowDays,
         ];
     }
 
@@ -114,10 +122,10 @@ class ProductLotController extends Controller
         });
     }
 
-    private function applyStatusFilter(Builder $query, string $status): void
+    private function applyStatusFilter(Builder $query, string $status, int $expiryWindowDays): void
     {
         $today = now()->toDateString();
-        $horizon = now()->addDays(self::EXPIRY_HORIZON_DAYS)->toDateString();
+        $horizon = now()->addDays($expiryWindowDays)->toDateString();
 
         match ($status) {
             'expired' => $query->whereNotNull('expires_at')->whereDate('expires_at', '<=', $today),

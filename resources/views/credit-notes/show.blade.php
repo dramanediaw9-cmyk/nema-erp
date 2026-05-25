@@ -10,6 +10,11 @@
             <div class="muted">Avoir du {{ $creditNote->credit_note_date?->format('d/m/Y') }} · Facture {{ $creditNote->invoice?->invoice_number }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            @allowed('payments.validate')
+                @if ((float) $creditNote->invoice?->balance_due < 0)
+                    <a href="{{ route('payments.create', ['type' => 'customer_refund', 'invoice' => $creditNote->invoice?->id, 'amount' => abs((float) $creditNote->invoice?->balance_due)]) }}" class="button button-primary">Rembourser le client</a>
+                @endif
+            @endallowed
             <a href="{{ route('credit-notes.print', $creditNote) }}" target="_blank" class="button button-secondary">PDF</a>
             <a href="{{ route('sales.show', $creditNote->invoice) }}" class="button button-secondary">Voir la facture</a>
         </div>

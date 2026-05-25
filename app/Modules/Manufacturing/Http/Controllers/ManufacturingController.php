@@ -170,8 +170,7 @@ class ManufacturingController extends Controller
 
     private function generateOrderNumber(int $companyId): string
     {
-        $sequence = ProductionOrder::query()->where('company_id', $companyId)->count() + 1;
-
-        return 'OF-'.now()->format('Y').'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
+            ->nextNumber($companyId, 'production_order_number');
     }
 }
