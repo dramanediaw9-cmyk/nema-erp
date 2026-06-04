@@ -36,6 +36,7 @@ class OnboardingService
 
         return [
             'steps' => $steps,
+            'launch_plan' => $this->launchPlan($steps),
             'completed' => $completed,
             'total' => $total,
             'progress' => $progress,
@@ -69,6 +70,55 @@ class OnboardingService
             ['company_id' => $companyId, 'key' => 'onboarding'],
             ['value' => ['dashboard_dismissed_at' => null]]
         );
+    }
+
+    private function launchPlan(array $steps): array
+    {
+        $byKey = collect($steps)->keyBy('key');
+
+        return [
+            [
+                'minute' => '0-2 min',
+                'title' => 'Entreprise prete',
+                'promise' => 'Le nom, la devise, le pays et les informations legales sont poses.',
+                'step' => $byKey->get('company_profile'),
+            ],
+            [
+                'minute' => '2-4 min',
+                'title' => 'Agence et caisse',
+                'promise' => 'La boutique pilote et les comptes caisse/mobile money sont utilisables.',
+                'step' => $byKey->get('cash_accounts') ?: $byKey->get('branches'),
+            ],
+            [
+                'minute' => '4-7 min',
+                'title' => 'Catalogue vendable',
+                'promise' => 'Les premiers articles, prix et unites sont prets pour la caisse.',
+                'step' => $byKey->get('products'),
+            ],
+            [
+                'minute' => '7-10 min',
+                'title' => 'Stock initial',
+                'promise' => 'Le stock de depart evite les ecarts des la premiere journee.',
+                'step' => $byKey->get('stock'),
+            ],
+            [
+                'minute' => '10-13 min',
+                'title' => 'Premiere operation',
+                'promise' => 'Une vente, un achat ou une depense confirme que le cycle ERP tourne.',
+                'step' => $byKey->get('operations'),
+            ],
+            [
+                'minute' => '13-15 min',
+                'title' => 'Pilotage dirigeant',
+                'promise' => 'Le dashboard et les rapports montrent deja ce qui se passe.',
+                'step' => [
+                    'route' => route('reports.index'),
+                    'action' => 'Voir les rapports',
+                    'completed' => (bool) ($byKey->get('operations')['completed'] ?? false),
+                    'metric' => 'Dashboard, rapports et alertes',
+                ],
+            ],
+        ];
     }
 
     private function steps(int $companyId, array $sectorProfile, array $sectorStarter, array $sectorDemoData, array $pilotReadiness): array
