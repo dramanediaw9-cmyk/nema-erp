@@ -32,6 +32,9 @@
 /vendor
 /backups
 /logs/*.log
+*.tmp
+*.bak
+*.bak-*
 tmp-test.php
 tmp_test.php
 Homestead.json
