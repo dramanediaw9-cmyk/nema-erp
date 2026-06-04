@@ -61,6 +61,7 @@ class PermissionSeeder extends Seeder
             ['module' => 'delivery_notes', 'slug' => 'delivery_notes.manage', 'name' => 'Gerer les bons de livraison'],
             ['module' => 'pos', 'slug' => 'pos.view', 'name' => 'Voir le point de vente'],
             ['module' => 'pos', 'slug' => 'pos.manage', 'name' => 'Gerer le point de vente'],
+            ['module' => 'pos', 'slug' => 'pos.sessions.unlock', 'name' => 'Deverrouiller une caisse fermee'],
             ['module' => 'sales', 'slug' => 'sales.view', 'name' => 'Voir les ventes'],
             ['module' => 'sales', 'slug' => 'sales.manage', 'name' => 'Gerer les ventes'],
             ['module' => 'sales', 'slug' => 'sales.approve', 'name' => 'Approuver les ventes'],

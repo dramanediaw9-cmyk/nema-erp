@@ -12,6 +12,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/stock/export', [StockController::class, 'export'])->middleware('permission:stock.view')->name('stock.export');
     Route::get('/stock/mouvements', [StockController::class, 'movements'])->middleware('permission:stock.view')->name('stock.movements');
     Route::get('/stock/lots', [ProductLotController::class, 'index'])->middleware('permission:stock.view')->name('stock.lots');
+    Route::get('/stock/pertes', [StockController::class, 'createLoss'])->middleware('permission:stock.manage')->name('stock.losses.create');
     Route::get('/stock/produits/{product}', [StockController::class, 'show'])->middleware('permission:stock.view')->name('stock.show');
     Route::get('/stock/initial', [StockController::class, 'createOpening'])->middleware('permission:stock.manage')->name('stock.opening.create');
     Route::post('/stock/initial', [StockController::class, 'storeOpening'])->middleware('permission:stock.manage')->name('stock.opening.store');

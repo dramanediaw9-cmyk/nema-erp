@@ -6,6 +6,7 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Company\Models\TaxRule;
 use App\Modules\Pos\Models\PosPreparationTicketItem;
 use App\Modules\Pos\Models\PosReturnItem;
+use App\Modules\Pos\Services\PosSessionLockService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,6 +44,17 @@ class SalesInvoiceItem extends Model
             'tax_amount' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (SalesInvoiceItem $item): void {
+            app(PosSessionLockService::class)->assertInvoiceItemEditable($item);
+        });
+
+        static::deleting(function (SalesInvoiceItem $item): void {
+            app(PosSessionLockService::class)->assertInvoiceItemEditable($item, 'supprimer une ligne de ce ticket POS');
+        });
     }
 
     public function hasDiscount(): bool

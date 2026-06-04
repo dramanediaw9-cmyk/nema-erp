@@ -84,10 +84,32 @@ if ($RequireProductionSettings -and $appDebug -ne 'false') {
 
 $dbName = Read-EnvValue -Path $envPath -Key 'DB_DATABASE'
 $dbUser = Read-EnvValue -Path $envPath -Key 'DB_USERNAME'
+$dbPassword = Read-EnvValue -Path $envPath -Key 'DB_PASSWORD'
 if ($dbName -and $dbUser) {
     Write-Check 'OK' "Configuration base detectee ($dbName / $dbUser)"
 } else {
     Write-Check 'ERROR' 'Configuration base incomplete dans .env'
+}
+
+if ($RequireProductionSettings) {
+    if ($dbUser -eq 'root') {
+        Write-Check 'ERROR' 'DB_USERNAME ne doit pas etre root pour une mise en service.'
+    } elseif ($dbUser) {
+        Write-Check 'OK' 'Utilisateur base applicatif dedie'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($dbPassword)) {
+        Write-Check 'ERROR' 'DB_PASSWORD doit etre renseigne pour une mise en service.'
+    } else {
+        Write-Check 'OK' 'Mot de passe base renseigne'
+    }
+}
+
+$mailMailer = Read-EnvValue -Path $envPath -Key 'MAIL_MAILER'
+if ($RequireProductionSettings -and $mailMailer -eq 'log') {
+    Write-Check 'WARN' 'MAIL_MAILER=log : les emails ne seront pas envoyes tant qu un SMTP reel n est pas configure.'
+} elseif ($mailMailer) {
+    Write-Check 'OK' "Mailer detecte ($mailMailer)"
 }
 
 Write-Host '-----------------------------------'

@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Core\Audit\Models\ActivityLog;
+use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Pos\Models\PosComboChoice;
 use App\Modules\Pos\Models\PosMenuCategory;
 use App\Modules\Pos\Models\PosNoteTemplate;
@@ -15,8 +17,10 @@ use App\Modules\Pos\Models\PosSession;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Treasury\Models\CashAccount;
+use App\Modules\Treasury\Models\Payment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PosFlowTest extends TestCase
@@ -24,6 +28,185 @@ class PosFlowTest extends TestCase
     use RefreshDatabase;
 
     protected bool $seed = true;
+
+    public function test_cashier_opening_session_records_required_opening_details(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 50000);
+
+        $session = $this->currentSession($user);
+
+        $this->assertEqualsWithDelta(50000, (float) $session->opening_amount, 0.001);
+        $this->assertSame($user->id, $session->opened_by);
+        $this->assertSame('open', $session->status);
+        $this->assertNotNull($session->opened_at);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSeeText('OPEN')
+            ->assertSeeText('50 000')
+            ->assertSeeText($user->name);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.show', $session))
+            ->assertOk()
+            ->assertSeeText('OPEN')
+            ->assertSeeText('Montant initial')
+            ->assertSeeText('50 000 XOF')
+            ->assertSeeText($user->name);
+    }
+
+    public function test_pos_stock_availability_refresh_reflects_stock_adjustments(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+        $session = $this->currentSession($user);
+
+        $before = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->getJson(route('pos.stock-availability', ['session' => $session->id]))
+            ->assertOk();
+
+        $initialQty = (float) collect($before->json('products'))
+            ->firstWhere('id', $product->id)['available_qty'];
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('stock.adjustments.store'), [
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'movement_date' => now()->toDateString(),
+                'direction' => 'in',
+                'quantity' => 7,
+                'unit_cost' => 300,
+                'reason' => 'Reprise stock caisse',
+                'notes' => 'Actualisation test POS',
+            ])
+            ->assertRedirect(route('stock.index'));
+
+        $after = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->getJson(route('pos.stock-availability', ['session' => $session->id]))
+            ->assertOk()
+            ->assertJsonPath('warehouse_id', $warehouse->id);
+
+        $updatedQty = (float) collect($after->json('products'))
+            ->firstWhere('id', $product->id)['available_qty'];
+
+        $this->assertEqualsWithDelta($initialQty + 7, $updatedQty, 0.001);
+    }
+
+    public function test_session_screen_displays_dense_pos_orders_statuses_and_detail_payload(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->create([
+            'company_id' => $user->company_id,
+            'sku' => 'POS-SERVICE-DENSE',
+            'name' => 'Service test liste POS dense',
+            'unit' => 'unite',
+            'type' => 'service',
+            'sale_ok' => true,
+            'purchase_ok' => false,
+            'is_active' => true,
+            'sale_price' => 100,
+            'purchase_price' => 0,
+        ]);
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+        $session = $this->currentSession($user);
+
+        for ($index = 0; $index < 16; $index++) {
+            $payload = [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'DENSE-'.$index,
+                'notes' => 'TEST-POS-DENSE-'.$index,
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ligne POS dense '.$index,
+                        'qty' => 1,
+                        'unit_price' => 100 + $index,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ];
+
+            if ($index === 0) {
+                $payload['cash_received_amount'] = 50;
+                $payload['payments'] = [
+                    ['method' => 'cash', 'amount' => 50, 'cash_account_id' => $cashAccount->id],
+                ];
+            } else {
+                $payload['cash_received_amount'] = 100 + $index;
+            }
+
+            $this->actingAs($user)
+                ->withSession($this->workspaceSession($user))
+                ->post(route('pos.sales.store'), $payload)
+                ->assertRedirect();
+        }
+
+        $invoiceToReturn = SalesInvoice::query()
+            ->with('items')
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('notes', 'TEST-POS-DENSE-1')
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.returns.store', $invoiceToReturn), [
+                'return_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'DENSE-RETURN',
+                'notes' => 'Retour test liste dense',
+                'return_mode' => 'partial',
+                'items' => [
+                    [
+                        'sales_invoice_item_id' => $invoiceToReturn->items->first()->id,
+                        'qty' => 1,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.show', $session));
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.show', $session))
+            ->assertOk()
+            ->assertSee('data-layout-mode="focus"', false)
+            ->assertSee('data-focus-active="true"', false)
+            ->assertSee('data-sidebar-collapse-toggle', false)
+            ->assertSee('data-focus-toggle', false)
+            ->assertSee('pos-command-shell', false)
+            ->assertSee('data-pos-command-search', false)
+            ->assertSee('pos-ticket-detail', false)
+            ->assertSeeText('F2 recherche')
+            ->assertSeeText('Payer')
+            ->assertSeeText('Remboursement')
+            ->assertSeeText('Paye')
+            ->assertSeeText('En attente')
+            ->assertSeeText('Rembourse')
+            ->assertSeeText('Ligne POS dense');
+
+        $this->assertGreaterThanOrEqual(16, substr_count($response->getContent(), 'data-ticket-row'));
+    }
 
     public function test_cashier_can_open_session_sell_and_close_pos_shift_with_breakdown(): void
     {
@@ -129,6 +312,194 @@ class PosFlowTest extends TestCase
         $this->assertSame(11000.0, (float) ($session->counted_breakdown['cash'] ?? 0));
         $this->assertSame(1, (int) ($session->closing_cash_breakdown['10000'] ?? 0));
         $this->assertSame(1, (int) ($session->closing_cash_breakdown['1000'] ?? 0));
+    }
+
+    public function test_closed_pos_session_locks_sales_payments_returns_and_stock_records(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 50000);
+        $session = $this->currentSession($user);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-LOCK-001',
+                'notes' => 'TEST-POS-LOCK',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 500,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket verrouillage',
+                        'qty' => 1,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $invoice = SalesInvoice::query()
+            ->with('items')
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('notes', 'TEST-POS-LOCK')
+            ->firstOrFail();
+        $payment = Payment::query()
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('reference', 'POS-LOCK-001')
+            ->firstOrFail();
+        $movement = StockMovement::query()
+            ->where('company_id', $user->company_id)
+            ->where('reference_type', SalesInvoice::class)
+            ->where('reference_id', $invoice->id)
+            ->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.close', $session), [
+                'counted_methods' => [
+                    'cash' => 50500,
+                    'mobile_money' => 0,
+                    'bank_transfer' => 0,
+                    'other' => 0,
+                ],
+                'variance_notes' => [
+                    'cash' => '',
+                    'mobile_money' => '',
+                    'bank_transfer' => '',
+                    'other' => '',
+                ],
+                'closing_notes' => 'Cloture verrouillage',
+            ])
+            ->assertRedirect(route('pos.show', $session));
+
+        $session->refresh();
+        $this->assertSame('closed', $session->status);
+
+        $this->assertPosLockBlocks(fn () => $invoice->fresh()->update(['notes' => 'Modification interdite']));
+        $this->assertPosLockBlocks(fn () => $invoice->fresh()->delete());
+        $this->assertPosLockBlocks(fn () => $invoice->items()->firstOrFail()->update(['qty' => 2]));
+        $this->assertPosLockBlocks(fn () => $payment->fresh()->update(['amount' => 400]));
+        $this->assertPosLockBlocks(fn () => $payment->allocations()->firstOrFail()->update(['allocated_amount' => 400]));
+        $this->assertPosLockBlocks(fn () => $movement->fresh()->update(['quantity_out' => 2]));
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+        $newSession = $this->currentSession($user);
+        $invoiceItem = $invoice->items()->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->from(route('pos.returns.create', ['sale' => $invoice, 'session' => $newSession->id]))
+            ->post(route('pos.returns.store', $invoice), [
+                'session' => $newSession->id,
+                'return_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'return_mode' => 'partial',
+                'items' => [
+                    [
+                        'sales_invoice_item_id' => $invoiceItem->id,
+                        'qty' => 1,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.returns.create', ['sale' => $invoice, 'session' => $newSession->id]))
+            ->assertSessionHasErrors('sale');
+    }
+
+    public function test_only_supervision_can_unlock_closed_pos_session_with_audit_reason(): void
+    {
+        $cashier = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $director = User::query()->where('email', 'dg@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $cashier->company_id)->where('branch_id', $cashier->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $cashier->company_id)->where('branch_id', $cashier->branch_id)->where('is_default', true)->firstOrFail();
+
+        $this->assertFalse($cashier->hasPermission('pos.sessions.unlock'));
+        $this->assertTrue($manager->hasPermission('pos.sessions.unlock'));
+        $this->assertTrue($director->hasPermission('pos.sessions.unlock'));
+
+        $this->openSession($cashier, $cashAccount, $warehouse, 50000);
+        $session = $this->currentSession($cashier);
+
+        $this->actingAs($cashier)
+            ->withSession($this->workspaceSession($cashier))
+            ->post(route('pos.close', $session), [
+                'counted_methods' => [
+                    'cash' => 50000,
+                    'mobile_money' => 0,
+                    'bank_transfer' => 0,
+                    'other' => 0,
+                ],
+                'variance_notes' => [
+                    'cash' => '',
+                    'mobile_money' => '',
+                    'bank_transfer' => '',
+                    'other' => '',
+                ],
+                'closing_notes' => 'Cloture avant deverrouillage',
+            ])
+            ->assertRedirect(route('pos.show', $session));
+
+        $session->refresh();
+        $this->assertSame('closed', $session->status);
+
+        $this->actingAs($cashier)
+            ->withSession($this->workspaceSession($cashier))
+            ->post(route('pos.unlock', $session), [
+                'unlock_reason' => 'Tentative non autorisee',
+            ])
+            ->assertForbidden();
+
+        $reason = 'Correction controlee apres erreur de saisie validee par superviseur.';
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->post(route('pos.unlock', $session), [
+                'unlock_reason' => $reason,
+            ])
+            ->assertRedirect(route('pos.show', $session));
+
+        $session->refresh();
+        $this->assertSame('open', $session->status);
+        $this->assertSame($manager->id, $session->unlocked_by);
+        $this->assertNotNull($session->unlocked_at);
+        $this->assertSame($reason, $session->unlock_reason);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'company_id' => $session->company_id,
+            'branch_id' => $manager->branch_id,
+            'user_id' => $manager->id,
+            'action' => 'pos.session.unlock',
+            'subject_type' => PosSession::class,
+            'subject_id' => $session->id,
+        ]);
+
+        $activity = ActivityLog::query()
+            ->where('action', 'pos.session.unlock')
+            ->where('subject_id', $session->id)
+            ->firstOrFail();
+        $this->assertSame($reason, $activity->properties['unlock_reason'] ?? null);
+        $this->assertSame('closed', $activity->properties['old_values']['status'] ?? null);
+        $this->assertSame('open', $activity->properties['new_values']['status'] ?? null);
+        $this->assertSame($reason, $activity->properties['reason'] ?? null);
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->get(route('pos.show', $session))
+            ->assertOk()
+            ->assertSeeText('Dernier deverrouillage')
+            ->assertSeeText($manager->name)
+            ->assertSeeText($reason);
     }
 
     public function test_cashier_can_apply_line_discount_global_discount_and_open_thermal_receipt(): void
@@ -384,6 +755,8 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString('const availableProductQty = (productId, currentLineUid = null) => {', $html);
         $this->assertStringContainsString('HTMLFormElement.prototype.submit.call(saleForm);', $html);
         $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
+        $this->assertStringNotContainsString('Modules ERP', $html);
+        $this->assertStringNotContainsString('Modules favoris', $html);
     }
 
     public function test_pos_sale_screen_uses_backoffice_profile_runtime_configuration(): void
@@ -637,6 +1010,98 @@ class PosFlowTest extends TestCase
             ->assertSeeText('Monnaie rendue');
     }
 
+    public function test_cashier_can_record_partial_pos_payment_and_receipt_shows_balance_due(): void
+    {
+        $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
+        $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $this->openSession($user, $cashAccount, $warehouse, 0);
+        $session = $this->currentSession($user);
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.sales.store'), [
+                'sale_date' => now()->format('Y-m-d'),
+                'method' => 'cash',
+                'reference' => 'POS-PARTIAL-001',
+                'notes' => 'TEST-POS-PARTIAL',
+                'discount_type' => 'none',
+                'discount_value' => 0,
+                'cash_received_amount' => 400,
+                'payments' => [
+                    [
+                        'method' => 'cash',
+                        'amount' => 400,
+                        'cash_account_id' => $cashAccount->id,
+                    ],
+                ],
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'description' => 'Ticket paiement partiel',
+                        'qty' => 2,
+                        'unit_price' => 500,
+                        'discount_type' => 'none',
+                        'discount_value' => 0,
+                    ],
+                ],
+            ]);
+
+        $invoice = SalesInvoice::query()
+            ->where('company_id', $user->company_id)
+            ->where('pos_session_id', $session->id)
+            ->where('notes', 'TEST-POS-PARTIAL')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('pos.receipt', $invoice));
+        $this->assertSame('partial', $invoice->payment_status);
+        $this->assertEqualsWithDelta(1000, (float) $invoice->total, 0.001);
+        $this->assertEqualsWithDelta(400, (float) $invoice->amount_paid, 0.001);
+        $this->assertEqualsWithDelta(600, (float) $invoice->balance_due, 0.001);
+
+        $this->assertDatabaseHas('payments', [
+            'company_id' => $user->company_id,
+            'pos_session_id' => $session->id,
+            'method' => 'cash',
+            'amount' => 400,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.receipt', $invoice))
+            ->assertOk()
+            ->assertSeeText('Encaisse')
+            ->assertSeeText('400')
+            ->assertSeeText('Reste')
+            ->assertSeeText('600');
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->post(route('pos.close', $session), [
+                'counted_methods' => [
+                    'cash' => 400,
+                    'mobile_money' => 0,
+                    'bank_transfer' => 0,
+                    'other' => 0,
+                ],
+                'variance_notes' => [
+                    'cash' => '',
+                    'mobile_money' => '',
+                    'bank_transfer' => '',
+                    'other' => '',
+                ],
+                'closing_notes' => 'Cloture avec ticket partiel',
+            ])
+            ->assertRedirect(route('pos.show', $session));
+
+        $session->refresh();
+        $this->assertSame('closed', $session->status);
+        $this->assertEqualsWithDelta(400, (float) $session->expected_amount, 0.001);
+        $this->assertEqualsWithDelta(400, (float) ($session->expected_breakdown['cash'] ?? 0), 0.001);
+    }
+
     public function test_pos_sync_key_prevents_duplicate_ticket_creation_when_resynchronised(): void
     {
         $user = User::query()->where('email', 'caissier@nema-erp.test')->firstOrFail();
@@ -886,6 +1351,19 @@ class PosFlowTest extends TestCase
             'current_company_id' => $user->company_id,
             'current_branch_id' => $user->branch_id,
         ];
+    }
+
+    private function assertPosLockBlocks(callable $operation): void
+    {
+        try {
+            $operation();
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Caisse fermee', collect($exception->errors())->flatten()->implode(' '));
+
+            return;
+        }
+
+        $this->fail('Le verrouillage de caisse fermee aurait du bloquer cette operation.');
     }
 
     private function stockBalance(int $companyId, int $branchId, int $productId, int $warehouseId): float

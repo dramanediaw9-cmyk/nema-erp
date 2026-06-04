@@ -18,7 +18,7 @@ class ApplySecurityHeaders
         }
 
         $headers = $response->headers;
-        $headers->set('Content-Security-Policy', $this->contentSecurityPolicy());
+        $headers->set('Content-Security-Policy', $this->contentSecurityPolicy($request));
         $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
         $headers->set('Origin-Agent-Cluster', '?1');
@@ -29,14 +29,16 @@ class ApplySecurityHeaders
         $headers->set('X-Permitted-Cross-Domain-Policies', 'none');
         $headers->set('X-XSS-Protection', '1; mode=block');
 
-        $headers->set('Strict-Transport-Security', 'max-age=' . (int) config('nema.security_headers.hsts_max_age', 31536000) . '; includeSubDomains');
+        if ($this->shouldEnforceHttps($request)) {
+            $headers->set('Strict-Transport-Security', 'max-age=' . (int) config('nema.security_headers.hsts_max_age', 31536000) . '; includeSubDomains');
+        }
 
         return $response;
     }
 
-    private function contentSecurityPolicy(): string
+    private function contentSecurityPolicy(Request $request): string
     {
-        return implode('; ', [
+        $directives = [
             "default-src 'self'",
             "base-uri 'self'",
             "form-action 'self'",
@@ -49,7 +51,17 @@ class ApplySecurityHeaders
             "script-src 'self' 'unsafe-inline' https:",
             "connect-src 'self' https: wss:",
             "worker-src 'self' blob:",
-            'upgrade-insecure-requests',
-        ]);
+        ];
+
+        if ($this->shouldEnforceHttps($request)) {
+            $directives[] = 'upgrade-insecure-requests';
+        }
+
+        return implode('; ', $directives);
+    }
+
+    private function shouldEnforceHttps(Request $request): bool
+    {
+        return $request->isSecure() || str_starts_with((string) config('app.url'), 'https://');
     }
 }

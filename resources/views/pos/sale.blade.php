@@ -2,6 +2,7 @@
 
 @section('title', 'Point de vente - Caisse detail')
 @section('page-title', 'Point de vente')
+@section('hide-global-shortcuts', '1')
 
 @section('content')
     <style>
@@ -1448,6 +1449,7 @@
                         <div id="pos-sync-last" class="pos-sync-last">La caisse resynchronise automatiquement des que la connexion revient.</div>
                     </div>
                     <button type="button" id="pos-install-app" class="button button-secondary" hidden>Installer la caisse</button>
+                    <button type="button" id="pos-refresh-stock" class="button button-secondary">Actualiser stock</button>
                     <button type="button" id="pos-sync-now" class="button button-secondary">Synchroniser la file</button>
                 </div>
                 <div id="pos-sync-queue" class="pos-sync-queue"></div>
@@ -1721,6 +1723,7 @@
         const syncLast = document.getElementById('pos-sync-last');
         const syncQueueWrap = document.getElementById('pos-sync-queue');
         const syncNowButton = document.getElementById('pos-sync-now');
+        const refreshStockButton = document.getElementById('pos-refresh-stock');
         const installAppButton = document.getElementById('pos-install-app');
         const quickSellButton = document.getElementById('pos-quick-sell');
         const quickCashButton = document.getElementById('pos-quick-cash');
@@ -1733,6 +1736,8 @@
         const serviceWorkerUrl = @json(parse_url(asset('pos-sw.js'), PHP_URL_PATH) ?: '/pos-sw.js');
         let pendingQueue = [];
         let syncInFlight = false;
+        let stockRefreshInFlight = false;
+        let lastStockRefreshAt = 0;
         let deferredInstallPrompt = null;
         let lastSyncMessage = '';
 
@@ -1798,7 +1803,16 @@
                 return fallback;
             }
         };
+        const preserveViewport = (callback) => {
+            const scrollX = window.scrollX;
+            const scrollY = window.scrollY;
+            callback();
+            requestAnimationFrame(() => {
+                window.scrollTo(scrollX, scrollY);
+            });
+        };
         const saleStoreUrl = toAppRelativeUrl(saleForm.getAttribute('action') || saleForm.action, '/point-de-vente/vente');
+        const stockAvailabilityUrl = toAppRelativeUrl(@json(route('pos.stock-availability', ['session' => $session->id], false)), '/point-de-vente/stock-disponible');
         const draftStoreUrl = toAppRelativeUrl(@json(route('pos.drafts.store', [], false)), '/point-de-vente/brouillons');
         const draftDestroyUrlTemplate = toAppRelativeUrl(@json(route('pos.drafts.destroy', ['draft' => '__DRAFT__'], false)), '/point-de-vente/brouillons/__DRAFT__');
         const todayValue = saleDateInput.value || new Date().toISOString().slice(0, 10);
@@ -1927,6 +1941,7 @@
                 uid: seed.uid || `payment-${Date.now()}-${Math.random()}`,
                 method,
                 amount: Number(seed.amount || 0),
+                amount_touched: Boolean(seed.amount_touched || seed.amount !== undefined),
                 cash_account_id: seed.cash_account_id ? Number(seed.cash_account_id) : defaultAccountIdForMethod(method),
                 label: seed.label || '',
             };
@@ -2107,7 +2122,9 @@
             if (payments.length === 1) {
                 payments[0].method = order.method || payments[0].method || defaultMethod;
                 payments[0].cash_account_id = payments[0].cash_account_id || defaultAccountIdForMethod(payments[0].method);
-                payments[0].amount = total;
+                if (!payments[0].amount_touched) {
+                    payments[0].amount = total;
+                }
             }
 
             const paid = payments.reduce((carry, payment) => carry + n(payment.amount, 0), 0);
@@ -2135,6 +2152,7 @@
                 paid,
                 remaining: Math.max(total - paid, 0),
                 overpaid: Math.max(paid - total, 0),
+                hasTouchedPayment: payments.some((payment) => payment.amount_touched),
                 cashAllocated,
                 hasCashLine,
                 cashReceived,
@@ -2221,10 +2239,10 @@
                     remainingInvalid: true,
                 };
             }
-            if (snapshot.payment.remaining > 0.01) {
+            if (snapshot.payment.paid <= 0.01 && snapshot.payment.hasTouchedPayment) {
                 return {
                     valid: false,
-                    message: `Il reste ${money(snapshot.payment.remaining)} a regler sur ce ticket.`,
+                    message: 'Saisis au moins un reglement positif pour ce ticket.',
                     cashInvalid: false,
                     remainingInvalid: true,
                 };
@@ -2610,6 +2628,10 @@
                 syncNowButton.disabled = syncInFlight || !online || !pendingQueue.length;
                 syncNowButton.textContent = syncInFlight ? 'Synchronisation...' : 'Synchroniser la file';
             }
+            if (refreshStockButton) {
+                refreshStockButton.disabled = stockRefreshInFlight || !online;
+                refreshStockButton.textContent = stockRefreshInFlight ? 'Stock...' : 'Actualiser stock';
+            }
             if (installAppButton) {
                 installAppButton.hidden = !deferredInstallPrompt;
                 installAppButton.disabled = !deferredInstallPrompt || syncInFlight;
@@ -2626,6 +2648,51 @@
         const savePendingQueue = () => {
             persistPendingQueue();
             updateOfflineUi();
+        };
+        const refreshStockAvailability = async ({ silent = false } = {}) => {
+            if (stockRefreshInFlight || !window.navigator.onLine) {
+                return;
+            }
+
+            stockRefreshInFlight = true;
+            updateOfflineUi();
+
+            try {
+                const url = `${stockAvailabilityUrl}${stockAvailabilityUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
+                const response = await fetch(url, {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    throw new Error('stock-refresh-failed');
+                }
+
+                const data = await response.json();
+                const products = Array.isArray(data.products) ? data.products : [];
+                products.forEach((row) => {
+                    const product = byId[String(row.id)];
+                    if (product) {
+                        product.available_qty = Number(row.available_qty || 0);
+                    }
+                });
+
+                lastStockRefreshAt = Date.now();
+                renderProducts();
+                renderCart();
+                if (!silent) {
+                    feedback.textContent = `Stock actualise pour ${data.warehouse_name || sessionWarehouseName}.`;
+                }
+            } catch (error) {
+                if (!silent) {
+                    feedback.textContent = 'Impossible d actualiser le stock maintenant. Recharge la caisse si besoin.';
+                }
+            } finally {
+                stockRefreshInFlight = false;
+                updateOfflineUi();
+            }
         };
         const dropQueuedSale = (syncKey) => {
             pendingQueue = pendingQueue.filter((queued) => queued.sync_key !== syncKey);
@@ -3001,6 +3068,7 @@
             }
             if (key === 'amount') {
                 payment.amount = paymentAmount(value, 0);
+                payment.amount_touched = true;
                 refreshPaymentAmounts(order);
                 return;
             }
@@ -3178,8 +3246,9 @@
         const addProduct = (product) => {
             if (product.type === 'stockable' && availableProductQty(product.id) <= 0.0001) {
                 feedback.textContent = `${product.name} est en rupture sur ${sessionWarehouseName}.`;
-                renderProducts();
-                searchInput.focus();
+                preserveViewport(() => {
+                    renderProducts();
+                });
 
                 return;
             }
@@ -3207,10 +3276,11 @@
                 feedback.textContent = `${product.name} ajoute au panier.`;
             }
             resetBuffer();
-            renderCart();
-            renderProducts();
+            preserveViewport(() => {
+                renderCart();
+                renderProducts();
+            });
             searchInput.value = '';
-            searchInput.focus();
         };
 
         const updateLine = (uid, key, value) => {
@@ -3606,6 +3676,11 @@
                 await syncPendingSales();
             });
         }
+        if (refreshStockButton) {
+            refreshStockButton.addEventListener('click', async () => {
+                await refreshStockAvailability();
+            });
+        }
         if (installAppButton) {
             installAppButton.addEventListener('click', async () => {
                 if (!deferredInstallPrompt) {
@@ -3662,6 +3737,11 @@
             }
             loadPendingQueue();
             updateOfflineUi();
+        });
+        window.addEventListener('focus', () => {
+            if (Date.now() - lastStockRefreshAt > 30000) {
+                void refreshStockAvailability({ silent: true });
+            }
         });
 
         if ('serviceWorker' in navigator) {
@@ -3991,9 +4071,3 @@
         searchInput.focus();
     </script>
 @endsection
-
-
-
-
-
-

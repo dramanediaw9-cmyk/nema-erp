@@ -55,6 +55,7 @@ class DemoRoleSeeder extends Seeder
             'orders.view',
             'delivery_notes.view',
             'pos.view',
+            'pos.sessions.unlock',
             'sales.view',
             'sales.approve',
             'sales.cancel',

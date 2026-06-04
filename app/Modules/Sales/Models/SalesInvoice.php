@@ -13,6 +13,7 @@ use App\Modules\Core\Company\Models\PaymentTerm;
 use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Partners\Models\Partner;
+use App\Modules\Pos\Services\PosSessionLockService;
 use App\Modules\Pos\Models\PosPreparationTicket;
 use App\Modules\Pos\Models\PosReturn;
 use App\Modules\Pos\Models\PosSession;
@@ -94,6 +95,40 @@ class SalesInvoice extends Model
             'pos_change_due' => 'decimal:2',
             'stock_posted' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (SalesInvoice $invoice): void {
+            $protectedFields = [
+                'customer_id',
+                'warehouse_id',
+                'invoice_date',
+                'status',
+                'subtotal',
+                'discount_type',
+                'discount_value',
+                'discount_total',
+                'net_total',
+                'tax_total',
+                'total',
+                'amount_paid',
+                'balance_due',
+                'payment_status',
+                'pos_cash_received',
+                'pos_change_due',
+                'stock_posted',
+                'notes',
+            ];
+
+            if ($invoice->isDirty($protectedFields)) {
+                app(PosSessionLockService::class)->assertInvoiceEditable($invoice);
+            }
+        });
+
+        static::deleting(function (SalesInvoice $invoice): void {
+            app(PosSessionLockService::class)->assertInvoiceEditable($invoice, 'supprimer cette facture POS');
+        });
     }
 
     public function company(): BelongsTo

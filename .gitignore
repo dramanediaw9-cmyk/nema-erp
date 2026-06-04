@@ -24,6 +24,10 @@
 /storage/phpstan
 /storage/framework/views/*.php
 /storage/framework/testing/disks/**
+/storage/app/backups/
+/storage/app/*.png
+/storage/app/redis/
+/storage/app/runtime/
 /storage/app/public/products/*.png
 /storage/app/public/products/*.jpg
 /storage/app/public/products/*.jpeg

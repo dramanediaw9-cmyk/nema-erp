@@ -9,6 +9,7 @@ use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Pos\Models\PosSession;
+use App\Modules\Pos\Services\PosSessionLockService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -45,6 +46,23 @@ class Payment extends Model
             'payment_date' => 'date',
             'amount' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Payment $payment): void {
+            app(PosSessionLockService::class)->assertPaymentEditable($payment);
+        });
+
+        static::updating(function (Payment $payment): void {
+            if ($payment->isDirty(['cash_account_id', 'payment_date', 'amount', 'method', 'reference', 'notes'])) {
+                app(PosSessionLockService::class)->assertPaymentEditable($payment);
+            }
+        });
+
+        static::deleting(function (Payment $payment): void {
+            app(PosSessionLockService::class)->assertPaymentEditable($payment);
+        });
     }
 
     public function company(): BelongsTo

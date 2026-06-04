@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Pos\Services\PosSessionLockService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,21 @@ class StockMovement extends Model
             'unit_cost' => 'decimal:2',
             'movement_date' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (StockMovement $movement): void {
+            app(PosSessionLockService::class)->assertStockMovementEditable($movement);
+        });
+
+        static::updating(function (StockMovement $movement): void {
+            app(PosSessionLockService::class)->assertStockMovementEditable($movement);
+        });
+
+        static::deleting(function (StockMovement $movement): void {
+            app(PosSessionLockService::class)->assertStockMovementEditable($movement);
+        });
     }
 
     public function company(): BelongsTo

@@ -8,6 +8,7 @@ use App\Modules\Accounting\Services\PeriodLockService;
 use App\Modules\Core\Company\Services\DocumentNumberService;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Pos\Models\PosReturn;
+use App\Modules\Pos\Services\PosSessionLockService;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Treasury\Models\CashAccount;
@@ -23,12 +24,14 @@ class PaymentService
         private readonly AccountingService $accountingService,
         private readonly PeriodLockService $periodLockService,
         private readonly IntegrationOutboxService $integrationOutboxService,
+        private readonly PosSessionLockService $posSessionLockService,
     ) {}
 
     public function recordCustomerReceipt(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, array $payload, User $user): Payment
     {
         return DB::transaction(function () use ($companyId, $branchId, $invoice, $cashAccount, $payload, $user) {
-            $invoice = SalesInvoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $invoice = SalesInvoice::query()->with('posSession')->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $this->posSessionLockService->assertInvoiceEditable($invoice, 'changer un paiement lie a ce ticket POS');
 
             if ($invoice->status !== 'validated') {
                 throw ValidationException::withMessages([
@@ -98,7 +101,8 @@ class PaymentService
     public function recordCustomerRefund(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, array $payload, User $user): Payment
     {
         return DB::transaction(function () use ($companyId, $branchId, $invoice, $cashAccount, $payload, $user) {
-            $invoice = SalesInvoice::query()->with('creditNotes')->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $invoice = SalesInvoice::query()->with(['creditNotes', 'posSession'])->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $this->posSessionLockService->assertInvoiceEditable($invoice, 'changer un paiement lie a ce ticket POS');
 
             if ($invoice->status !== 'validated') {
                 throw ValidationException::withMessages([
@@ -176,7 +180,8 @@ class PaymentService
     public function recordPosRefund(int $companyId, int $branchId, SalesInvoice $invoice, CashAccount $cashAccount, PosReturn $return, array $payload, User $user): Payment
     {
         return DB::transaction(function () use ($companyId, $branchId, $invoice, $cashAccount, $return, $payload, $user) {
-            $invoice = SalesInvoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $invoice = SalesInvoice::query()->with('posSession')->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $this->posSessionLockService->assertInvoiceEditable($invoice, 'changer un paiement lie a ce ticket POS');
 
             if ($invoice->status !== 'validated' || $invoice->sale_channel !== 'pos') {
                 throw ValidationException::withMessages([

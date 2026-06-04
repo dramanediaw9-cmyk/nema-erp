@@ -4,6 +4,7 @@ namespace App\Modules\Pos\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockMovement;
@@ -84,7 +85,8 @@ class PosController extends Controller
     {
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
-        abort_if(! $companyId || ! $branchId, 403);
+        $user = $request->user();
+        abort_if(! $companyId || ! $branchId || ! $user, 403);
 
         $data = $request->validate([
             'cash_account_id' => ['required', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId)->where('branch_id', $branchId))],
@@ -97,7 +99,7 @@ class PosController extends Controller
 
         $cashAccount = CashAccount::query()->where('company_id', $companyId)->findOrFail($data['cash_account_id']);
         $warehouse = Warehouse::query()->where('company_id', $companyId)->findOrFail($data['warehouse_id']);
-        $session = $this->posService->openSession($companyId, $branchId, $warehouse, $cashAccount, $data, $request->user());
+        $session = $this->posService->openSession($companyId, $branchId, $warehouse, $cashAccount, $data, $user);
 
         $this->activityLogger->log('pos.session.open', 'Ouverture session de caisse', $session, [
             'session_number' => $session->session_number,
@@ -114,19 +116,34 @@ class PosController extends Controller
     {
         abort_if($workspace->companyId() !== $session->company_id, 403);
 
-        $session->load(['branch', 'cashAccount', 'warehouse', 'opener', 'closer', 'salesInvoices.customer', 'payments.cashAccount', 'returns.invoice', 'returns.exchangeInvoice', 'returns.payment.cashAccount']);
+        $session->load(['branch', 'cashAccount', 'warehouse', 'opener', 'closer', 'unlocker', 'salesInvoices.customer', 'payments.cashAccount', 'returns.invoice', 'returns.exchangeInvoice', 'returns.payment.cashAccount']);
+        $ticketRows = $this->posService->sessionTicketRows($session);
+        $auditLogs = ActivityLog::query()
+            ->with('user')
+            ->where('company_id', $session->company_id)
+            ->where('branch_id', $session->branch_id)
+            ->where('action', 'like', 'pos.%')
+            ->latest('id')
+            ->limit(80)
+            ->get()
+            ->filter(fn (ActivityLog $log): bool => ($log->properties['session_number'] ?? null) === $session->session_number
+                || ($log->subject_type === PosSession::class && (int) $log->subject_id === (int) $session->id))
+            ->take(12)
+            ->values();
 
         return view('pos.show', [
             'session' => $session,
             'summary' => $this->posService->summary($session),
             'pendingDrafts' => $this->posService->draftsForSession($session),
             'recentInvoices' => $this->posService->recentInvoices($session),
+            'ticketRows' => $ticketRows,
             'recentReturns' => $session->returns()->with(['invoice', 'exchangeInvoice', 'payment.cashAccount'])->latest('return_date')->latest('id')->limit(10)->get(),
+            'auditLogs' => $auditLogs,
             'methodOptions' => $this->posService->methodOptions(),
             'cashDenominations' => $this->posService->cashDenominations(),
         ]);
     }
-        public function createSale(CurrentWorkspace $workspace, Request $request): RedirectResponse|View
+    public function createSale(CurrentWorkspace $workspace, Request $request): RedirectResponse|View
     {
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
@@ -332,6 +349,42 @@ class PosController extends Controller
             'activeDraftId' => old('source_draft_id') ?: ($request->integer('draft') ?: null),
             'hasOldPosForm' => $request->session()->hasOldInput(),
         ]);
+    }
+
+    public function stockAvailability(CurrentWorkspace $workspace, Request $request): JsonResponse
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        $user = $request->user();
+        abort_if(! $companyId || ! $branchId || ! $user, 403);
+
+        $session = $this->resolveAccessibleOpenSession($companyId, $branchId, $user->id, $this->requestedSessionId($request));
+        if (! $session) {
+            return response()->json([
+                'message' => 'Aucune session de caisse ouverte n est accessible pour actualiser le stock.',
+            ], 422);
+        }
+
+        $products = Product::query()
+            ->where('company_id', $companyId)
+            ->where('type', 'stockable')
+            ->saleable()
+            ->get(['id', 'company_id', 'type', 'tracking_type']);
+        $saleableByProduct = $this->saleableQtyByProduct($products, $companyId, $branchId, $session->warehouse_id);
+
+        return response()
+            ->json([
+                'session_id' => $session->id,
+                'warehouse_id' => $session->warehouse_id,
+                'warehouse_name' => $session->warehouse?->name,
+                'products' => $products
+                    ->map(fn (Product $product) => [
+                        'id' => $product->id,
+                        'available_qty' => round((float) ($saleableByProduct[$product->id] ?? 0), 3),
+                    ])
+                    ->values(),
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function storeSale(Request $request, CurrentWorkspace $workspace): RedirectResponse|JsonResponse
@@ -693,9 +746,18 @@ class PosController extends Controller
             ]
         )->validate();
 
+        $oldValues = [
+            'invoice_number' => $sale->invoice_number,
+            'payment_status' => $sale->payment_status,
+            'amount_paid' => (float) $sale->amount_paid,
+            'balance_due' => (float) $sale->balance_due,
+            'returned_total' => (float) $sale->posReturns()->where('status', 'processed')->sum('total'),
+        ];
+
         $result = $this->posService->processReturn($session, $sale, $payload, $itemsInput, $exchangeItemsInput, $user);
         $return = $result['return'];
         $exchangeInvoice = $result['exchange_invoice'];
+        $updatedInvoice = $result['invoice'];
 
         $this->activityLogger->log('pos.sale.return', 'Retour ticket POS', $return, [
             'session_number' => $session->session_number,
@@ -704,6 +766,16 @@ class PosController extends Controller
             'total' => $return->total,
             'mode' => $payload['return_mode'] ?? 'partial',
             'exchange_invoice_number' => $exchangeInvoice?->invoice_number,
+            'reason' => $payload['notes'] ?? null,
+            'old_values' => $oldValues,
+            'new_values' => [
+                'invoice_number' => $updatedInvoice->invoice_number,
+                'payment_status' => $updatedInvoice->payment_status,
+                'amount_paid' => (float) $updatedInvoice->amount_paid,
+                'balance_due' => (float) $updatedInvoice->balance_due,
+                'returned_total' => (float) $updatedInvoice->posReturns->sum('total'),
+            ],
+            'returned_items' => collect($itemsInput)->values()->all(),
         ]);
 
         $message = ($payload['return_mode'] ?? 'partial') === 'cancel_all'
@@ -784,6 +856,13 @@ class PosController extends Controller
         $data['counted_methods'] = $data['counted_methods'] ?? [];
         $data['variance_notes'] = $data['variance_notes'] ?? [];
 
+        $oldValues = [
+            'status' => $session->status,
+            'expected_amount' => (float) ($session->expected_amount ?? 0),
+            'closing_amount' => (float) ($session->closing_amount ?? 0),
+            'variance_amount' => (float) ($session->variance_amount ?? 0),
+        ];
+
         $session = $this->posService->closeSession($session, $data, $request->user());
 
         $this->activityLogger->log('pos.session.close', 'Cloture session de caisse', $session, [
@@ -796,9 +875,50 @@ class PosController extends Controller
             'closing_cash_breakdown' => $session->closing_cash_breakdown,
             'variance_breakdown' => $session->variance_breakdown,
             'variance_notes' => $session->variance_notes,
+            'reason' => $session->closing_notes,
+            'old_values' => $oldValues,
+            'new_values' => [
+                'status' => $session->status,
+                'expected_amount' => (float) $session->expected_amount,
+                'closing_amount' => (float) $session->closing_amount,
+                'variance_amount' => (float) $session->variance_amount,
+            ],
         ]);
 
         return redirect()->route('pos.show', $session)->with('success', 'Session de caisse cloturee avec succes.');
+    }
+
+    public function unlock(Request $request, PosSession $session, CurrentWorkspace $workspace): RedirectResponse
+    {
+        abort_if($workspace->companyId() !== $session->company_id, 403);
+
+        $data = $request->validate([
+            'unlock_reason' => ['required', 'string', 'min:8', 'max:1000'],
+        ]);
+
+        $oldValues = [
+            'status' => $session->status,
+            'closed_at' => $session->closed_at?->toIso8601String(),
+            'closed_by' => $session->closed_by,
+        ];
+
+        $session = $this->posService->unlockSession($session, $data['unlock_reason'], $request->user());
+
+        $this->activityLogger->log('pos.session.unlock', 'Deverrouillage session de caisse', $session, [
+            'session_number' => $session->session_number,
+            'unlocked_by' => $session->unlocked_by,
+            'unlocked_at' => $session->unlocked_at?->toIso8601String(),
+            'unlock_reason' => $session->unlock_reason,
+            'reason' => $session->unlock_reason,
+            'old_values' => $oldValues,
+            'new_values' => [
+                'status' => $session->status,
+                'unlocked_by' => $session->unlocked_by,
+                'unlocked_at' => $session->unlocked_at?->toIso8601String(),
+            ],
+        ]);
+
+        return redirect()->route('pos.show', $session)->with('success', 'Session de caisse deverrouillee avec trace d audit.');
     }
 
     private function requestedSessionId(Request $request, ?int $fallback = null): ?int
@@ -937,11 +1057,6 @@ class PosController extends Controller
         ];
     }
 }
-
-
-
-
-
 
 
 

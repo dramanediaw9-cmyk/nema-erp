@@ -320,11 +320,22 @@ class StockController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
-        return view('stock.adjustments', [
-            'products' => $this->stockableProducts($companyId),
-            'warehouses' => $this->branchWarehouses($companyId, $branchId),
-            'branch' => $workspace->branch(),
-        ]);
+        return view('stock.adjustments', $this->adjustmentFormData($workspace, $companyId, $branchId));
+    }
+
+    public function createLoss(CurrentWorkspace $workspace): View
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
+
+        return view('stock.adjustments', $this->adjustmentFormData($workspace, $companyId, $branchId, [
+            'modeTitle' => 'Declarer une perte stock',
+            'modeHelp' => 'Cette action sort la quantite perdue du stock et garde une trace dans les mouvements.',
+            'defaultDirection' => 'out',
+            'defaultReason' => 'Perte stock',
+            'submitLabel' => 'Enregistrer la perte',
+        ]));
     }
 
     public function storeAdjustment(Request $request, CurrentWorkspace $workspace): RedirectResponse
@@ -541,6 +552,20 @@ class StockController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
+    }
+
+    private function adjustmentFormData(CurrentWorkspace $workspace, int $companyId, int $branchId, array $overrides = []): array
+    {
+        return array_merge([
+            'products' => $this->stockableProducts($companyId),
+            'warehouses' => $this->branchWarehouses($companyId, $branchId),
+            'branch' => $workspace->branch(),
+            'modeTitle' => 'Ajuster le stock',
+            'modeHelp' => 'Saisir une entree ou une sortie interne avec motif obligatoire.',
+            'defaultDirection' => null,
+            'defaultReason' => null,
+            'submitLabel' => "Enregistrer l'ajustement",
+        ], $overrides);
     }
 
     private function branchWarehouses(int $companyId, int $branchId)

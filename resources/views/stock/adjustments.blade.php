@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Ajustement stock - Nema ERP')
-@section('page-title', 'Ajuster le stock')
+@section('title', ($modeTitle ?? 'Ajustement stock').' - Nema ERP')
+@section('page-title', $modeTitle ?? 'Ajuster le stock')
 
 @section('content')
     <form method="POST" action="{{ route('stock.adjustments.store') }}">
@@ -10,6 +10,9 @@
             <div class="form-grid">
                 <div class="full">
                     <div class="help">Agence active : <strong>{{ $branch?->name }}</strong></div>
+                    @if (! empty($modeHelp))
+                        <div class="help" style="margin-top:6px;">{{ $modeHelp }}</div>
+                    @endif
                 </div>
                 <div>
                     <label for="warehouse_id">Entrepot</label>
@@ -36,9 +39,10 @@
                 </div>
                 <div>
                     <label for="direction">Direction</label>
+                    @php($selectedDirection = old('direction', $defaultDirection ?? null))
                     <select id="direction" name="direction" required>
-                        <option value="in" @selected(old('direction') === 'in')>Entree</option>
-                        <option value="out" @selected(old('direction') === 'out')>Sortie</option>
+                        <option value="in" @selected($selectedDirection === 'in')>Entree</option>
+                        <option value="out" @selected($selectedDirection === 'out')>Sortie</option>
                     </select>
                 </div>
                 <div>
@@ -51,7 +55,7 @@
                 </div>
                 <div class="full">
                     <label for="reason">Motif</label>
-                    <input id="reason" type="text" name="reason" value="{{ old('reason') }}" required>
+                    <input id="reason" type="text" name="reason" value="{{ old('reason', $defaultReason ?? '') }}" required>
                 </div>
                 <div class="full">
                     <label for="notes">Notes</label>
@@ -60,7 +64,7 @@
             </div>
             <div class="actions">
                 <a href="{{ route('stock.index') }}" class="button button-secondary">Annuler</a>
-                <button type="submit" class="button button-primary">Enregistrer l'ajustement</button>
+                <button type="submit" class="button button-primary">{{ $submitLabel ?? "Enregistrer l'ajustement" }}</button>
             </div>
         </div>
     </form>

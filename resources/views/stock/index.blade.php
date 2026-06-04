@@ -244,6 +244,9 @@
                             <a href="{{ route('stock.index', ['stock_state' => 'zero']) }}" class="button button-secondary">Ruptures</a>
                             <a href="{{ route('stock.index', ['stock_state' => 'low']) }}" class="button button-secondary">A surveiller</a>
                             <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
+                            @allowed('stock.manage')
+                                <a href="{{ route('stock.losses.create') }}" class="button button-secondary">Pertes stock</a>
+                            @endallowed
                         @else
                             <a href="{{ route('stock.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
                             <a href="{{ route('stock.movements') }}" class="button button-secondary">Voir les mouvements</a>
@@ -254,6 +257,7 @@
                                 <a href="{{ route('transfers.index') }}" class="button button-secondary">Transferts</a>
                             @endallowed
                             @allowed('stock.manage')
+                                <a href="{{ route('stock.losses.create') }}" class="button button-secondary">Pertes stock</a>
                                 <a href="{{ route('stock.adjustments.create') }}" class="button button-primary">Ajuster le stock</a>
                             @endallowed
                         @endif

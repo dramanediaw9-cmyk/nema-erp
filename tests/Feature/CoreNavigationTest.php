@@ -98,6 +98,28 @@ class CoreNavigationTest extends TestCase
             ->assertSee('Dettes fournisseurs ouvertes');
     }
 
+    public function test_business_pages_use_compact_layout_with_focus_controls(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->actingAs($user)->withSession([
+            'current_company_id' => $user->company_id,
+            'current_branch_id' => $user->branch_id,
+        ]);
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-layout-mode="normal"', false)
+            ->assertSee('data-focus-available="false"', false);
+
+        $this->get(route('stock.index'))
+            ->assertOk()
+            ->assertSee('data-layout-mode="compact"', false)
+            ->assertSee('data-focus-available="true"', false)
+            ->assertSee('data-sidebar-collapse-toggle', false)
+            ->assertSee('data-focus-toggle', false);
+    }
+
     public function test_director_cannot_access_sales_creation_page(): void
     {
         $user = User::query()->where('email', 'dg@nema-erp.test')->firstOrFail();

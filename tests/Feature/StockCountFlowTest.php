@@ -57,6 +57,52 @@ class StockCountFlowTest extends TestCase
         $this->assertEqualsWithDelta($counted, $finalBalance, 0.001);
     }
 
+    public function test_manager_can_record_stock_loss_from_dedicated_screen(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $warehouse = Warehouse::query()->where('company_id', $manager->company_id)->where('branch_id', $manager->branch_id)->where('is_default', true)->firstOrFail();
+        $product = Product::query()->where('company_id', $manager->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+
+        $initialBalance = $this->stockBalance($manager->company_id, $manager->branch_id, $warehouse->id, $product->id);
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->get(route('stock.losses.create'))
+            ->assertOk()
+            ->assertSee('Declarer une perte stock')
+            ->assertSee('Perte stock');
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->post(route('stock.adjustments.store'), [
+                'warehouse_id' => $warehouse->id,
+                'product_id' => $product->id,
+                'movement_date' => now()->toDateString(),
+                'direction' => 'out',
+                'quantity' => 2,
+                'unit_cost' => 300,
+                'reason' => 'Perte stock',
+                'notes' => 'Article casse pendant manutention',
+            ])
+            ->assertRedirect(route('stock.index'));
+
+        $this->assertEqualsWithDelta(
+            $initialBalance - 2,
+            $this->stockBalance($manager->company_id, $manager->branch_id, $warehouse->id, $product->id),
+            0.001
+        );
+
+        $this->assertDatabaseHas('stock_movements', [
+            'company_id' => $manager->company_id,
+            'branch_id' => $manager->branch_id,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+            'movement_type' => 'adjustment_out',
+            'quantity_out' => 2,
+            'reason' => 'Perte stock',
+        ]);
+    }
+
     private function stockBalance(int $companyId, int $branchId, int $warehouseId, int $productId): float
     {
         return (float) DB::table('stock_movements')

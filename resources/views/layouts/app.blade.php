@@ -92,12 +92,13 @@
             a { color: inherit; text-decoration: none; }
             .shell {
                 display: grid;
-                grid-template-columns: minmax(248px, 286px) minmax(0, 1fr);
+                grid-template-columns: 260px minmax(0, 1fr);
                 gap: 20px;
                 min-height: 100vh;
                 padding: 18px;
                 position: relative;
                 z-index: 1;
+                transition: grid-template-columns .18s ease, gap .18s ease, padding .18s ease;
             }
             .sidebar {
                 position: relative;
@@ -109,6 +110,8 @@
                 border-radius: 28px;
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 box-shadow: var(--shadow-strong);
+                min-width: 0;
+                transition: width .18s ease, padding .18s ease, border-radius .18s ease, transform .2s ease;
             }
             .sidebar::after {
                 content: "";
@@ -198,6 +201,7 @@
                 border-radius: 28px;
                 backdrop-filter: blur(14px);
                 box-shadow: var(--shadow-soft);
+                transition: padding .18s ease, margin .18s ease, border-radius .18s ease;
             }
             .topbar-leading { display: grid; gap: 8px; }
             .topbar-label {
@@ -564,6 +568,164 @@
             }
             .identity-card strong { font-size: 13px; }
             .identity-card span { color: var(--muted); font-size: 12px; }
+            .layout-control-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .layout-icon-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 42px;
+                min-width: 42px;
+                height: 42px;
+                padding: 0;
+                border-radius: 14px;
+                font-weight: 900;
+                line-height: 1;
+            }
+            .layout-focus-button[data-focus-active="true"] {
+                background: var(--brand);
+                color: #fff;
+                border-color: rgba(15, 118, 110, .38);
+            }
+            .sidebar-toggle-desktop {
+                position: sticky;
+                top: 10px;
+                z-index: 3;
+                display: inline-flex;
+                width: 34px;
+                height: 34px;
+                align-items: center;
+                justify-content: center;
+                margin: 0 0 12px auto;
+                border: 1px solid rgba(255,255,255,.12);
+                border-radius: 12px;
+                color: #f8fafc;
+                background: rgba(255,255,255,.08);
+                cursor: pointer;
+            }
+            .shell[data-sidebar-state="collapsed"] {
+                grid-template-columns: 64px minmax(0, 1fr);
+                gap: 14px;
+            }
+            .shell[data-sidebar-state="collapsed"] .sidebar {
+                width: 64px;
+                padding: 14px 8px;
+                border-radius: 22px;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand {
+                padding: 0 0 12px;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand-kicker,
+            .shell[data-sidebar-state="collapsed"] .brand-mark__copy,
+            .shell[data-sidebar-state="collapsed"] .sidebar-overview,
+            .shell[data-sidebar-state="collapsed"] .nav-title,
+            .shell[data-sidebar-state="collapsed"] .nav-link strong,
+            .shell[data-sidebar-state="collapsed"] .nav-link small {
+                display: none !important;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand-mark {
+                justify-content: center;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand-mark__glyph {
+                width: 38px;
+                height: 38px;
+                font-size: 20px;
+            }
+            .shell[data-sidebar-state="collapsed"] .sidebar-toggle-desktop {
+                margin-right: auto;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-link {
+                justify-content: center;
+                width: 46px;
+                min-height: 46px;
+                padding: 8px;
+                margin: 0 auto 8px;
+                gap: 0;
+                border-radius: 15px;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-link::before {
+                display: none;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-link > span:first-child {
+                width: 32px !important;
+                height: 32px !important;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-section {
+                margin: 0 0 12px;
+            }
+            .shell[data-layout-mode="compact"] .topbar,
+            .shell[data-focus-active="true"] .topbar {
+                min-height: 56px;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 14px;
+                padding: 8px 12px;
+                border-radius: 18px;
+            }
+            .shell[data-layout-mode="compact"] .topbar-leading,
+            .shell[data-focus-active="true"] .topbar-leading {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-width: 0;
+            }
+            .shell[data-layout-mode="compact"] .topbar-label,
+            .shell[data-layout-mode="compact"] .workspace,
+            .shell[data-layout-mode="compact"] .topbar-leading > div[style*="flex-wrap"],
+            .shell[data-focus-active="true"] .topbar-label,
+            .shell[data-focus-active="true"] .workspace,
+            .shell[data-focus-active="true"] .topbar-leading > div[style*="flex-wrap"] {
+                display: none !important;
+            }
+            .shell[data-layout-mode="compact"] .topbar-title,
+            .shell[data-focus-active="true"] .topbar-title {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 18px;
+                line-height: 1.1;
+            }
+            .shell[data-layout-mode="compact"] .topbar-actions,
+            .shell[data-focus-active="true"] .topbar-actions {
+                gap: 8px;
+                flex-wrap: nowrap;
+            }
+            .shell[data-layout-mode="compact"] .topbar-search,
+            .shell[data-focus-active="true"] .topbar-search {
+                display: none;
+            }
+            .shell[data-layout-mode="compact"] .identity-card,
+            .shell[data-focus-active="true"] .identity-card {
+                min-width: auto;
+                padding: 8px 10px;
+            }
+            .shell[data-layout-mode="compact"] .identity-card span,
+            .shell[data-focus-active="true"] .identity-card span,
+            .shell[data-layout-mode="compact"] .notification-pill span:first-child,
+            .shell[data-focus-active="true"] .notification-pill span:first-child {
+                display: none;
+            }
+            .shell[data-focus-active="true"] {
+                grid-template-columns: 64px minmax(0, 1fr);
+                gap: 10px;
+                padding: 10px;
+            }
+            .shell[data-focus-active="true"] .main {
+                padding-right: 0;
+            }
+            .shell[data-focus-active="true"][data-sidebar-state="hidden"] {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .shell[data-focus-active="true"][data-sidebar-state="hidden"] .sidebar {
+                display: none;
+            }
             @media (max-width: 980px) {
                 .shell { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
                 .sidebar { padding: 18px; border-radius: 22px; }
@@ -670,6 +832,202 @@
             border-radius: 999px;
             background: currentColor;
         }
+        .shell {
+            grid-template-columns: 260px minmax(0, 1fr);
+            transition: grid-template-columns .18s ease, gap .18s ease, padding .18s ease;
+        }
+        .sidebar,
+        .topbar {
+            transition: width .18s ease, min-height .18s ease, padding .18s ease, transform .2s ease;
+        }
+        .layout-control-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+        .layout-icon-button {
+            width: 42px;
+            min-width: 42px;
+            height: 42px;
+            padding: 0;
+            justify-content: center;
+            border-radius: 14px;
+        }
+        .layout-menu-glyph {
+            display: inline-grid;
+            gap: 4px;
+        }
+        .layout-menu-glyph span {
+            display: block;
+            width: 17px;
+            height: 2px;
+            border-radius: 999px;
+            background: currentColor;
+        }
+        .layout-focus-button[data-focus-active="true"] {
+            background: rgba(14, 115, 115, 0.14);
+            border-color: rgba(14, 115, 115, 0.28);
+            color: #075e5e;
+        }
+        .sidebar-toggle-desktop {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 2;
+        }
+        .shell[data-sidebar-state="collapsed"] {
+            grid-template-columns: 64px minmax(0, 1fr);
+            gap: 14px;
+        }
+        .shell[data-sidebar-state="collapsed"] .sidebar {
+            width: 64px;
+            min-width: 64px;
+            padding: 14px 8px;
+        }
+        .shell[data-sidebar-state="collapsed"] .brand {
+            padding: 0;
+            min-height: 50px;
+            align-items: center;
+        }
+        .shell[data-sidebar-state="collapsed"] .brand-kicker,
+        .shell[data-sidebar-state="collapsed"] .brand-mark__copy,
+        .shell[data-sidebar-state="collapsed"] .sidebar-overview,
+        .shell[data-sidebar-state="collapsed"] .nav-title,
+        .shell[data-sidebar-state="collapsed"] .nav-link strong,
+        .shell[data-sidebar-state="collapsed"] .nav-link small {
+            display: none !important;
+        }
+        .shell[data-sidebar-state="collapsed"] .brand-mark {
+            justify-content: center;
+        }
+        .shell[data-sidebar-state="collapsed"] .brand-mark__glyph {
+            width: 42px;
+            height: 42px;
+            font-size: 18px;
+        }
+        .shell[data-sidebar-state="collapsed"] .sidebar-toggle-desktop {
+            position: static;
+            margin: 0 auto 10px;
+        }
+        .shell[data-sidebar-state="collapsed"] .nav-link {
+            width: 46px;
+            height: 46px;
+            min-height: 46px;
+            padding: 0;
+            justify-content: center;
+            gap: 0;
+        }
+        .shell[data-sidebar-state="collapsed"] .nav-link::before {
+            display: none;
+        }
+        .shell[data-sidebar-state="collapsed"] .nav-link > span:first-child {
+            width: 18px;
+            text-align: center;
+        }
+        .shell[data-sidebar-state="collapsed"] .nav-section {
+            gap: 8px;
+        }
+        .shell[data-layout-mode="compact"] .topbar,
+        .shell[data-focus-active="true"] .topbar {
+            min-height: 50px;
+            padding: 5px 10px;
+            border-radius: 14px;
+            align-items: center;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .shell[data-layout-mode="compact"] .topbar-leading,
+        .shell[data-focus-active="true"] .topbar-leading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .shell[data-layout-mode="compact"] .layout-icon-button,
+        .shell[data-focus-active="true"] .layout-icon-button {
+            width: 34px;
+            min-width: 34px;
+            height: 34px;
+            border-radius: 11px;
+        }
+        .shell[data-layout-mode="compact"] .layout-menu-glyph,
+        .shell[data-focus-active="true"] .layout-menu-glyph {
+            gap: 3px;
+        }
+        .shell[data-layout-mode="compact"] .layout-menu-glyph span,
+        .shell[data-focus-active="true"] .layout-menu-glyph span {
+            width: 15px;
+        }
+        .shell[data-layout-mode="compact"] .topbar-label,
+        .shell[data-layout-mode="compact"] .workspace,
+        .shell[data-layout-mode="compact"] .topbar-leading > div[style*="flex-wrap"],
+        .shell[data-focus-active="true"] .topbar-label,
+        .shell[data-focus-active="true"] .workspace,
+        .shell[data-focus-active="true"] .topbar-leading > div[style*="flex-wrap"] {
+            display: none !important;
+        }
+        .shell[data-layout-mode="compact"] .topbar-title,
+        .shell[data-focus-active="true"] .topbar-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 16px;
+            line-height: 1.1;
+        }
+        .shell[data-layout-mode="compact"] .topbar-actions,
+        .shell[data-focus-active="true"] .topbar-actions {
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+        .shell[data-layout-mode="compact"] .topbar-actions .button,
+        .shell[data-focus-active="true"] .topbar-actions .button,
+        .shell[data-layout-mode="compact"] .notification-pill,
+        .shell[data-focus-active="true"] .notification-pill,
+        .shell[data-layout-mode="compact"] .identity-card,
+        .shell[data-focus-active="true"] .identity-card {
+            min-height: 34px;
+            padding: 6px 9px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .shell[data-focus-active="true"] .topbar-actions {
+            display: none;
+        }
+        .shell[data-layout-mode="compact"] .layout-mode-switch,
+        .shell[data-layout-mode="compact"] .identity-card {
+            display: none;
+        }
+        .shell[data-layout-mode="compact"] .topbar-search,
+        .shell[data-focus-active="true"] .topbar-search {
+            display: none;
+        }
+        .shell[data-layout-mode="compact"] .identity-card,
+        .shell[data-focus-active="true"] .identity-card {
+            min-width: auto;
+            padding: 8px 10px;
+        }
+        .shell[data-layout-mode="compact"] .identity-card span,
+        .shell[data-focus-active="true"] .identity-card span,
+        .shell[data-layout-mode="compact"] .notification-pill span:first-child,
+        .shell[data-focus-active="true"] .notification-pill span:first-child {
+            display: none;
+        }
+        .shell[data-focus-active="true"] {
+            grid-template-columns: 64px minmax(0, 1fr);
+            gap: 10px;
+            padding: 10px;
+        }
+        .shell[data-focus-active="true"] .main {
+            padding-right: 0;
+        }
+        .shell[data-focus-active="true"][data-sidebar-state="hidden"] {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .shell[data-focus-active="true"][data-sidebar-state="hidden"] .sidebar {
+            display: none;
+        }
         .no-js-warning {
             margin-bottom: 16px;
             padding: 14px 16px;
@@ -688,6 +1046,66 @@
             .mobile-menu-button {
                 display: inline-flex;
             }
+            .sidebar-toggle-desktop {
+                display: none;
+            }
+            .shell[data-sidebar-state="collapsed"],
+            .shell[data-focus-active="true"],
+            .shell[data-focus-active="true"][data-sidebar-state="hidden"] {
+                grid-template-columns: 1fr;
+                padding: 12px;
+                gap: 14px;
+            }
+            .shell[data-sidebar-state="collapsed"] .sidebar,
+            .shell[data-focus-active="true"] .sidebar,
+            .shell[data-focus-active="true"][data-sidebar-state="hidden"] .sidebar {
+                display: block;
+                width: min(330px, calc(100vw - 24px));
+                min-width: 0;
+                padding: 18px;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand-kicker,
+            .shell[data-sidebar-state="collapsed"] .brand-mark__copy,
+            .shell[data-sidebar-state="collapsed"] .sidebar-overview,
+            .shell[data-sidebar-state="collapsed"] .nav-title,
+            .shell[data-sidebar-state="collapsed"] .nav-link strong,
+            .shell[data-sidebar-state="collapsed"] .nav-link small {
+                display: initial !important;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-title,
+            .shell[data-sidebar-state="collapsed"] .nav-link strong,
+            .shell[data-sidebar-state="collapsed"] .nav-link small,
+            .shell[data-sidebar-state="collapsed"] .brand-kicker {
+                display: block !important;
+            }
+            .shell[data-sidebar-state="collapsed"] .brand-mark__copy,
+            .shell[data-sidebar-state="collapsed"] .sidebar-overview {
+                display: grid !important;
+            }
+            .shell[data-sidebar-state="collapsed"] .nav-link {
+                width: auto;
+                height: auto;
+                min-height: 0;
+                padding: 12px 14px;
+                justify-content: flex-start;
+                gap: 12px;
+            }
+            .shell[data-layout-mode="compact"] .topbar,
+            .shell[data-focus-active="true"] .topbar {
+                grid-template-columns: 1fr;
+                align-items: start;
+            }
+            .shell[data-layout-mode="compact"] .topbar-leading,
+            .shell[data-focus-active="true"] .topbar-leading {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .shell[data-layout-mode="compact"] .topbar-actions,
+            .shell[data-focus-active="true"] .topbar-actions {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+            }
             .shell-backdrop {
                 position: fixed;
                 inset: 0;
@@ -697,7 +1115,7 @@
                 transition: opacity .18s ease;
                 z-index: 10;
             }
-            body.js-ready {
+            body.js-ready.sidebar-overlay-open {
                 overflow: hidden;
             }
             body.js-ready .shell {
@@ -736,7 +1154,26 @@
     $sectorProfile = $workspace->companyId() ? $sectorProfileService->profileForCompany($workspace->companyId()) : $sectorProfileService->defaultProfile();
     $uiMode = session('ui_mode', 'full');
     $isMerchantMode = $uiMode === 'merchant';
+    $hideGlobalShortcuts = trim($__env->yieldContent('hide-global-shortcuts')) === '1';
     $pageTitle = trim($__env->yieldContent('page-title', 'Tableau de bord'));
+    $declaredLayoutMode = trim($__env->yieldContent('layout-mode', ''));
+    $focusRoutePatterns = [
+        'pos.*',
+        'orders.*',
+        'stock.*',
+        'stock-counts.*',
+        'warehouse-transfers.*',
+        'inventory.*',
+        'purchases.*',
+        'purchase-requests.*',
+        'purchase-orders.*',
+        'sales.*',
+        'reports.*',
+    ];
+    $layoutMode = in_array($declaredLayoutMode, ['normal', 'compact', 'focus'], true)
+        ? $declaredLayoutMode
+        : (request()->routeIs(...$focusRoutePatterns) ? 'compact' : 'normal');
+    $focusAvailable = $layoutMode !== 'normal' || request()->routeIs(...$focusRoutePatterns);
     $globalSearchPlaceholder = $isMerchantMode
         ? 'Recherche simple : produit, client, ticket, paiement...'
         : 'Recherche globale : client, produit, vente, achat, paiement...';
@@ -745,9 +1182,31 @@
         $layoutBreadcrumbs[] = ['label' => $pageTitle, 'url' => null];
     }
 @endphp
-<div class="shell" data-layout-shell data-sidebar-open="false">
+<div
+    class="shell"
+    data-layout-shell
+    data-layout-mode="{{ $layoutMode }}"
+    data-focus-available="{{ $focusAvailable ? 'true' : 'false' }}"
+    data-focus-active="{{ $layoutMode === 'focus' ? 'true' : 'false' }}"
+    data-sidebar-state="expanded"
+    data-sidebar-open="false"
+>
     <div class="shell-backdrop" data-sidebar-backdrop hidden></div>
     <aside class="sidebar" id="app-sidebar" aria-label="Navigation principale">
+        <button
+            type="button"
+            class="button button-secondary layout-icon-button sidebar-toggle-desktop"
+            data-sidebar-collapse-toggle
+            aria-controls="app-sidebar"
+            aria-label="Reduire le menu lateral"
+            title="Reduire le menu lateral"
+        >
+            <span class="layout-menu-glyph" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+        </button>
         <div class="brand">
             <div class="brand-kicker">Nema Suite</div>
             <div class="brand-mark">
@@ -794,21 +1253,50 @@
         </noscript>
         <div class="topbar">
             <div class="topbar-leading">
-                <button
-                    type="button"
-                    class="button button-secondary mobile-menu-button"
-                    data-sidebar-toggle
-                    aria-controls="app-sidebar"
-                    aria-expanded="false"
-                    aria-label="Ouvrir le menu principal"
-                >
-                    <span class="lines" aria-hidden="true">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </span>
-                    <span>Menu</span>
-                </button>
+                <div class="layout-control-row">
+                    <button
+                        type="button"
+                        class="button button-secondary mobile-menu-button"
+                        data-sidebar-toggle
+                        aria-controls="app-sidebar"
+                        aria-expanded="false"
+                        aria-label="Ouvrir le menu principal"
+                    >
+                        <span class="lines" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                        <span>Menu</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="button button-secondary layout-icon-button"
+                        data-sidebar-collapse-toggle
+                        aria-controls="app-sidebar"
+                        aria-label="Reduire le menu lateral"
+                        title="Menu"
+                    >
+                        <span class="layout-menu-glyph" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                    </button>
+                    @if ($focusAvailable)
+                        <button
+                            type="button"
+                            class="button button-secondary layout-icon-button layout-focus-button"
+                            data-focus-toggle
+                            data-focus-active="{{ $layoutMode === 'focus' ? 'true' : 'false' }}"
+                            aria-pressed="{{ $layoutMode === 'focus' ? 'true' : 'false' }}"
+                            aria-label="Activer le mode focus"
+                            title="Mode focus"
+                        >
+                            F
+                        </button>
+                    @endif
+                </div>
                 <div class="topbar-label">{{ $isMerchantMode ? 'Routine commerce' : 'Pilotage en temps reel' }}</div>
                 @if (! $isMerchantMode && ! empty($layoutBreadcrumbs))
                     <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:12px;">
@@ -867,7 +1355,7 @@
                         @endif
                     </a>
                 @endallowed
-                <form method="POST" action="{{ route('ui-mode.update') }}">
+                <form method="POST" action="{{ route('ui-mode.update') }}" class="layout-mode-switch">
                     @csrf
                     <input type="hidden" name="mode" value="{{ $isMerchantMode ? 'full' : 'merchant' }}">
                     <button class="button button-secondary" type="submit">{{ $isMerchantMode ? 'Mode complet' : 'Mode commercant' }}</button>
@@ -876,7 +1364,7 @@
                     <strong>{{ auth()->user()?->name }}</strong>
                     <span>{{ auth()->user()?->email }}</span>
                 </div>
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}" class="layout-logout">
                     @csrf
                     <button class="button button-secondary" type="submit">Deconnexion</button>
                 </form>
@@ -885,7 +1373,7 @@
 
         @include('partials.flash')
 
-        @if (! $isMerchantMode && ! empty($erpNavigation['modules'] ?? []))
+        @if (! $hideGlobalShortcuts && ! $isMerchantMode && ! empty($erpNavigation['modules'] ?? []))
             <section class="card" style="margin-bottom:20px; padding:18px 20px;">
                 <div style="display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; align-items:flex-start;">
                     <div style="display:grid; gap:10px; min-width:0;">
@@ -963,7 +1451,9 @@
             </section>
         @endif
 
-        @include('layouts.partials.merchant-quick-actions')
+        @if (! $hideGlobalShortcuts)
+            @include('layouts.partials.merchant-quick-actions')
+        @endif
 
         @yield('content')
     </main>
@@ -979,35 +1469,146 @@
     const boot = () => {
         const shell = document.querySelector('[data-layout-shell]');
         const sidebar = document.getElementById('app-sidebar');
-        const toggle = document.querySelector('[data-sidebar-toggle]');
+        const mobileToggle = document.querySelector('[data-sidebar-toggle]');
+        const collapseToggles = Array.from(document.querySelectorAll('[data-sidebar-collapse-toggle]'));
+        const focusToggle = document.querySelector('[data-focus-toggle]');
         const backdrop = document.querySelector('[data-sidebar-backdrop]');
 
-        if (!shell || !sidebar || !toggle || !backdrop) {
+        if (!shell || !sidebar || !mobileToggle || !backdrop) {
             return;
         }
 
         const mobileQuery = window.matchMedia('(max-width: 980px)');
+        const sidebarStorageKey = 'nema.erp.sidebar.state';
+        const focusStorageKey = 'nema.erp.layout.focus';
+        const layoutMode = shell.dataset.layoutMode || 'normal';
+        const focusAvailable = shell.dataset.focusAvailable === 'true';
+        const storedSidebarState = (() => {
+            try {
+                const value = window.localStorage.getItem(sidebarStorageKey);
+                return ['expanded', 'collapsed', 'hidden'].includes(value) ? value : null;
+            } catch (error) {
+                return null;
+            }
+        }());
+
+        let sidebarState = storedSidebarState || (layoutMode === 'normal' ? 'expanded' : 'collapsed');
+        let focusActive = shell.dataset.focusActive === 'true';
+
+        try {
+            const storedFocus = window.localStorage.getItem(focusStorageKey);
+            if (focusAvailable && storedFocus !== null && layoutMode !== 'focus') {
+                focusActive = storedFocus === 'true';
+            }
+        } catch (error) {
+            focusActive = shell.dataset.focusActive === 'true';
+        }
+
+        if (focusActive && sidebarState === 'expanded') {
+            sidebarState = 'collapsed';
+        } else if (!focusActive && sidebarState === 'hidden') {
+            sidebarState = 'collapsed';
+        }
+
+        const saveSidebarState = () => {
+            try {
+                window.localStorage.setItem(sidebarStorageKey, sidebarState);
+            } catch (error) {
+                // localStorage can be unavailable in private or restricted contexts.
+            }
+        };
+
+        const saveFocusState = () => {
+            try {
+                window.localStorage.setItem(focusStorageKey, focusActive ? 'true' : 'false');
+            } catch (error) {
+                // localStorage can be unavailable in private or restricted contexts.
+            }
+        };
+
+        const updateControls = () => {
+            const isMobile = mobileQuery.matches;
+            const visibleSidebarState = isMobile ? 'expanded' : sidebarState;
+
+            shell.dataset.sidebarState = visibleSidebarState;
+            shell.dataset.focusActive = focusActive && focusAvailable ? 'true' : 'false';
+
+            collapseToggles.forEach((button) => {
+                const opensHiddenSidebar = focusActive && sidebarState === 'hidden';
+                button.setAttribute('aria-expanded', visibleSidebarState === 'expanded' ? 'true' : 'false');
+                button.setAttribute(
+                    'aria-label',
+                    isMobile || opensHiddenSidebar ? 'Ouvrir le menu lateral' : (visibleSidebarState === 'expanded' ? 'Reduire le menu lateral' : 'Ouvrir le menu lateral')
+                );
+                button.title = isMobile || opensHiddenSidebar ? 'Menu' : (visibleSidebarState === 'expanded' ? 'Reduire le menu' : 'Ouvrir le menu');
+            });
+
+            if (focusToggle) {
+                focusToggle.dataset.focusActive = focusActive && focusAvailable ? 'true' : 'false';
+                focusToggle.setAttribute('aria-pressed', focusActive && focusAvailable ? 'true' : 'false');
+                focusToggle.setAttribute('aria-label', focusActive && focusAvailable ? 'Desactiver le mode focus' : 'Activer le mode focus');
+                focusToggle.title = focusActive && focusAvailable ? 'Quitter le mode focus' : 'Mode focus';
+            }
+        };
+
         const setOpen = (open) => {
             if (!mobileQuery.matches) {
                 shell.dataset.sidebarOpen = 'false';
-                toggle.setAttribute('aria-expanded', 'false');
-                toggle.setAttribute('aria-label', 'Ouvrir le menu principal');
+                mobileToggle.setAttribute('aria-expanded', 'false');
+                mobileToggle.setAttribute('aria-label', 'Ouvrir le menu principal');
                 document.body.classList.remove('js-ready');
+                document.body.classList.remove('sidebar-overlay-open');
                 backdrop.hidden = true;
+                updateControls();
                 return;
             }
 
             document.body.classList.add('js-ready');
+            document.body.classList.toggle('sidebar-overlay-open', open);
             shell.dataset.sidebarOpen = open ? 'true' : 'false';
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            toggle.setAttribute('aria-label', open ? 'Fermer le menu principal' : 'Ouvrir le menu principal');
+            mobileToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            mobileToggle.setAttribute('aria-label', open ? 'Fermer le menu principal' : 'Ouvrir le menu principal');
             backdrop.hidden = !open;
+            updateControls();
         };
 
         const toggleSidebar = () => setOpen(shell.dataset.sidebarOpen !== 'true');
         const closeSidebar = () => setOpen(false);
+        const cycleDesktopSidebar = () => {
+            if (mobileQuery.matches) {
+                toggleSidebar();
+                return;
+            }
 
-        toggle.addEventListener('click', toggleSidebar);
+            if (focusActive && sidebarState === 'collapsed') {
+                sidebarState = 'hidden';
+            } else if (sidebarState === 'hidden') {
+                sidebarState = 'expanded';
+            } else if (sidebarState === 'expanded') {
+                sidebarState = 'collapsed';
+            } else {
+                sidebarState = 'expanded';
+            }
+
+            saveSidebarState();
+            closeSidebar();
+            updateControls();
+        };
+
+        mobileToggle.addEventListener('click', toggleSidebar);
+        collapseToggles.forEach((button) => button.addEventListener('click', cycleDesktopSidebar));
+        if (focusToggle) {
+            focusToggle.addEventListener('click', () => {
+                focusActive = !focusActive;
+                if (focusActive && sidebarState === 'expanded') {
+                    sidebarState = 'collapsed';
+                    saveSidebarState();
+                }
+
+                saveFocusState();
+                updateControls();
+            });
+        }
         backdrop.addEventListener('click', closeSidebar);
         sidebar.querySelectorAll('a').forEach((link) => {
             link.addEventListener('click', () => {
@@ -1031,6 +1632,7 @@
             }
 
             closeSidebar();
+            updateControls();
         };
 
         if (typeof mobileQuery.addEventListener === 'function') {
@@ -1040,6 +1642,7 @@
         }
 
         handleViewportChange();
+        updateControls();
     };
 
     if (document.readyState === 'loading') {

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Pos\Models\PosReturn;
 use App\Modules\Pos\Models\PosSession;
@@ -98,6 +99,13 @@ class PosReturnFlowTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^RET-BKO-\d{4}-\d{5}$/', $return->return_number);
         $this->assertEqualsWithDelta(475, (float) $return->total, 0.001);
+        $activity = ActivityLog::query()
+            ->where('action', 'pos.sale.return')
+            ->where('subject_id', $return->id)
+            ->firstOrFail();
+        $this->assertSame('RETOUR-TEST', $activity->properties['reason'] ?? null);
+        $this->assertSame($invoice->invoice_number, $activity->properties['old_values']['invoice_number'] ?? null);
+        $this->assertEqualsWithDelta(475, (float) ($activity->properties['new_values']['returned_total'] ?? 0), 0.001);
 
         $this->assertDatabaseHas('payments', [
             'company_id' => $user->company_id,

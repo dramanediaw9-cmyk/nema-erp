@@ -264,16 +264,16 @@
                             <div class="full">
                                 <div class="pos-kpi-row">
                                     <div class="pos-kpi">
-                                        <div class="label">Comptes disponibles</div>
-                                        <div class="value">{{ $cashAccounts->count() }}</div>
+                                        <div class="label">Caissier connecte</div>
+                                        <div class="value">{{ auth()->user()?->name }}</div>
                                     </div>
                                     <div class="pos-kpi">
-                                        <div class="label">Entrepots actifs</div>
-                                        <div class="value">{{ $warehouses->count() }}</div>
+                                        <div class="label">Heure d ouverture</div>
+                                        <div class="value">{{ now()->format('H:i') }}</div>
                                     </div>
                                     <div class="pos-kpi">
-                                        <div class="label">Coupures gerees</div>
-                                        <div class="value">{{ count($cashDenominations) }}</div>
+                                        <div class="label">Statut apres ouverture</div>
+                                        <div class="value">OPEN</div>
                                     </div>
                                 </div>
                             </div>
@@ -351,6 +351,10 @@
         @else
             <div class="pos-summary-cards">
                 <div class="pos-stat-card"><div class="label">Session ouverte</div><div class="value">{{ $currentSession->session_number }}</div></div>
+                <div class="pos-stat-card"><div class="label">Statut</div><div class="value">{{ $currentSession->status === 'open' ? 'OPEN' : 'CLOSED' }}</div></div>
+                <div class="pos-stat-card"><div class="label">Montant initial</div><div class="value">{{ number_format((float) $currentSession->opening_amount, 0, ',', ' ') }}</div></div>
+                <div class="pos-stat-card"><div class="label">Caissier</div><div class="value">{{ $currentSession->opener?->name }}</div></div>
+                <div class="pos-stat-card"><div class="label">Ouverture</div><div class="value">{{ $currentSession->opened_at?->format('d/m H:i') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Brut articles</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Remises</div><div class="value">{{ number_format($summary['discount_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Ventes nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
@@ -380,6 +384,10 @@
                             <div class="pos-kpi">
                                 <div class="label">Ouverte le</div>
                                 <div class="value">{{ $currentSession->opened_at?->format('d/m H:i') }}</div>
+                            </div>
+                            <div class="pos-kpi">
+                                <div class="label">Statut</div>
+                                <div class="value">{{ $currentSession->status === 'open' ? 'OPEN' : 'CLOSED' }}</div>
                             </div>
                         </div>
 
@@ -480,7 +488,7 @@
                                 <td>{{ $session->opened_at?->format('d/m/Y H:i') }}</td>
                                 <td>
                                     @include('partials.erp-status-badge', [
-                                        'label' => $session->status === 'open' ? 'Ouverte' : 'Cloturee',
+                                        'label' => $session->status === 'open' ? 'OPEN' : 'CLOSED',
                                         'tone' => $session->status === 'open' ? 'warning' : 'success',
                                     ])
                                 </td>

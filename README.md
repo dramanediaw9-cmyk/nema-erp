@@ -202,6 +202,65 @@ Pour arreter le serveur local :
 powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-erp.ps1
 ```
 
+Pour une utilisation locale avec plusieurs utilisateurs, lancer aussi les workers applicatifs :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-workers.ps1
+```
+
+Ils demarrent la file de taches Laravel et le scheduler. Pour les arreter :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-workers.ps1
+```
+
+Pour verifier les services utiles a une exploitation multi-utilisateurs :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check-nema-services.ps1
+```
+
+Redis peut etre demarre et arrete separement si necessaire :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-redis.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\stop-nema-redis.ps1
+```
+
+Par defaut, les workers demarrent Redis automatiquement quand `CACHE_STORE`, `QUEUE_CONNECTION` ou `SESSION_DRIVER` utilisent `redis`.
+
+Pour installer les taches Windows qui relancent les workers a l'ouverture de session et executent la maintenance quotidienne :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-nema-windows-tasks.ps1
+```
+
+La maintenance lance migrations, sauvegarde, verification, health-check et core pulse. Pour supprimer ces taches :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\uninstall-nema-windows-tasks.ps1
+```
+
+## Acces reseau local
+
+L'application peut etre exposee sur le reseau local avec :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-nema-erp.ps1 -SkipBrowser
+```
+
+URL LAN actuelle :
+
+```text
+http://172.20.10.3:8000/login
+```
+
+Pour autoriser les autres appareils du meme reseau a se connecter, lancer PowerShell en administrateur puis executer :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\enable-nema-lan-access.ps1 -Port 8000
+```
+
 ## Comptes de demonstration
 
 - `admin@nema-erp.test` / `password`

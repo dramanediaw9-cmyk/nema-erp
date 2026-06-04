@@ -60,6 +60,13 @@ return [
             'report' => false,
         ],
 
+        'offsite' => [
+            'driver' => 'local',
+            'root' => env('OPS_BACKUP_OFFSITE_PATH', storage_path('app/offsite-backups')),
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

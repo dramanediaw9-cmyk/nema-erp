@@ -41,6 +41,9 @@ class PosSession extends Model
         'closed_at',
         'opened_by',
         'closed_by',
+        'unlocked_at',
+        'unlocked_by',
+        'unlock_reason',
     ];
 
     protected function casts(): array
@@ -58,6 +61,7 @@ class PosSession extends Model
             'variance_notes' => 'array',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'unlocked_at' => 'datetime',
         ];
     }
 
@@ -91,6 +95,11 @@ class PosSession extends Model
         return $this->belongsTo(User::class, 'closed_by');
     }
 
+    public function unlocker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'unlocked_by');
+    }
+
     public function salesInvoices(): HasMany
     {
         return $this->hasMany(SalesInvoice::class, 'pos_session_id');
@@ -114,5 +123,25 @@ class PosSession extends Model
     public function isOpen(): bool
     {
         return $this->status === 'open';
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->status === 'closed';
+    }
+
+    public function isLocked(): bool
+    {
+        return ! $this->isOpen();
+    }
+
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'open' => 'Ouverte',
+            'closed' => 'Fermee / verrouillee',
+            'locked' => 'Verrouillee',
+            default => strtoupper((string) $this->status),
+        };
     }
 }

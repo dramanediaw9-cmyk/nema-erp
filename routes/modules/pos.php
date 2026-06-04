@@ -34,7 +34,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/point-de-vente/sessions/{session}', [PosController::class, 'show'])->middleware('permission:pos.view')->name('pos.show');
     Route::get('/point-de-vente/sessions/{session}/comptage', [PosController::class, 'countSheet'])->middleware('permission:pos.view')->name('pos.count-sheet');
     Route::post('/point-de-vente/sessions/{session}/cloturer', [PosController::class, 'close'])->middleware('permission:pos.manage')->name('pos.close');
+    Route::post('/point-de-vente/sessions/{session}/deverrouiller', [PosController::class, 'unlock'])->middleware('permission:pos.sessions.unlock')->name('pos.unlock');
     Route::get('/point-de-vente/rapport-journalier', [PosController::class, 'report'])->middleware('permission:pos.view')->name('pos.report');
+    Route::get('/point-de-vente/stock-disponible', [PosController::class, 'stockAvailability'])->middleware('permission:pos.manage')->name('pos.stock-availability');
     Route::get('/point-de-vente/vente', [PosController::class, 'createSale'])->middleware('permission:pos.manage')->name('pos.sales.create');
     Route::post('/point-de-vente/vente', [PosController::class, 'storeSale'])->middleware('permission:pos.manage')->name('pos.sales.store');
     Route::post('/point-de-vente/brouillons', [PosController::class, 'storeDraft'])->middleware('permission:pos.manage')->name('pos.drafts.store');

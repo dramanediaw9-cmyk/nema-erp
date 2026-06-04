@@ -275,6 +275,38 @@ class PosService
         });
     }
 
+    public function unlockSession(PosSession $session, string $reason, User $user): PosSession
+    {
+        return DB::transaction(function () use ($session, $reason, $user) {
+            $session = PosSession::query()
+                ->whereKey($session->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($session->isOpen()) {
+                throw ValidationException::withMessages([
+                    'session' => 'Cette session de caisse est deja ouverte.',
+                ]);
+            }
+
+            $cleanReason = trim($reason);
+            if ($cleanReason === '') {
+                throw ValidationException::withMessages([
+                    'unlock_reason' => 'Le motif de deverrouillage est obligatoire.',
+                ]);
+            }
+
+            $session->update([
+                'status' => 'open',
+                'unlocked_at' => now(),
+                'unlocked_by' => $user->id,
+                'unlock_reason' => $cleanReason,
+            ]);
+
+            return $session->fresh(['cashAccount', 'warehouse', 'opener', 'closer', 'unlocker', 'payments', 'returns']);
+        });
+    }
+
     public function processSale(PosSession $session, array $payload, array $itemsInput, array $paymentsInput, User $user): array
     {
         return DB::transaction(function () use ($session, $payload, $itemsInput, $paymentsInput, $user) {
@@ -612,6 +644,7 @@ class PosService
     private function normalizeSalePayments(PosSession $session, array $payload, array $paymentsInput, float $invoiceTotal): array
     {
         $allowedMethods = $this->runtimeMethodOptions($session->company_id, $session->branch_id);
+        $hasExplicitPayments = collect($paymentsInput)->isNotEmpty();
 
         $payments = collect($paymentsInput)
             ->map(function (array $payment) use ($session, $allowedMethods): ?array {
@@ -640,6 +673,12 @@ class PosService
             ->values();
 
         if ($payments->isEmpty()) {
+            if ($hasExplicitPayments) {
+                throw ValidationException::withMessages([
+                    'payments' => 'Saisis au moins un reglement positif pour ce ticket.',
+                ]);
+            }
+
             $method = $payload['method'] ?? 'cash';
             if (! array_key_exists($method, $allowedMethods)) {
                 throw ValidationException::withMessages([
@@ -655,9 +694,9 @@ class PosService
         }
 
         $allocatedTotal = round((float) $payments->sum('amount'), 2);
-        if (abs($allocatedTotal - round($invoiceTotal, 2)) > 0.01) {
+        if ($allocatedTotal - round($invoiceTotal, 2) > 0.01) {
             throw ValidationException::withMessages([
-                'payments' => 'Le total des reglements doit couvrir exactement le ticket.',
+                'payments' => 'Le total des reglements ne doit pas depasser le ticket.',
             ]);
         }
 
@@ -763,7 +802,7 @@ class PosService
     {
         return DB::transaction(function () use ($session, $invoice, $payload, $itemsInput, $exchangeItemsInput, $user) {
             $session = PosSession::query()->with(['cashAccount', 'warehouse'])->whereKey($session->id)->lockForUpdate()->firstOrFail();
-            $invoice = SalesInvoice::query()->with(['customer', 'items.product', 'items.posReturnItems', 'posReturns.items'])->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $invoice = SalesInvoice::query()->with(['customer', 'posSession', 'items.product', 'items.posReturnItems', 'posReturns.items'])->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
 
             if (! $session->isOpen()) {
                 throw ValidationException::withMessages([
@@ -774,6 +813,12 @@ class PosService
             if ($invoice->sale_channel !== 'pos' || $invoice->status !== 'validated') {
                 throw ValidationException::withMessages([
                     'sale' => 'Seuls les tickets POS valides peuvent etre retournes.',
+                ]);
+            }
+
+            if ($invoice->posSession && ! $invoice->posSession->isOpen()) {
+                throw ValidationException::withMessages([
+                    'sale' => 'Caisse fermee : impossible de modifier, annuler ou retourner ce ticket POS.',
                 ]);
             }
 
@@ -1054,14 +1099,172 @@ class PosService
         ];
     }
 
-    public function recentInvoices(PosSession $session, int $limit = 12): EloquentCollection
+    public function recentInvoices(PosSession $session, int $limit = 25): EloquentCollection
     {
         return $session->salesInvoices()
-            ->with(['customer', 'paymentAllocations.payment.cashAccount', 'posReturns'])
+            ->with([
+                'customer',
+                'creator',
+                'items.product',
+                'paymentAllocations.payment.cashAccount',
+                'posReturns.items.product',
+                'posReturns.payment.cashAccount',
+                'posReturns.exchangeInvoice',
+                'posReturns.creator',
+            ])
             ->latest('invoice_date')
             ->latest('id')
             ->limit($limit)
             ->get();
+    }
+
+    public function sessionTicketRows(PosSession $session, int $limit = 25): Collection
+    {
+        $methods = $this->methodOptions();
+
+        return $this->recentInvoices($session, $limit)
+            ->map(function (SalesInvoice $invoice) use ($session, $methods): array {
+                $payments = $invoice->paymentAllocations
+                    ->pluck('payment')
+                    ->filter(fn ($payment) => $payment instanceof Payment)
+                    ->unique('id')
+                    ->sortBy('payment_date')
+                    ->values();
+                $returns = $invoice->posReturns
+                    ->where('status', 'processed')
+                    ->values();
+                $returnedAmount = round((float) $returns->sum('total'), 2);
+                $status = $this->ticketStatus($invoice, $returnedAmount);
+                $ticketReference = $payments->first()?->reference
+                    ?: $invoice->pos_sync_key
+                    ?: $invoice->invoice_number;
+                $productText = $invoice->items
+                    ->map(fn (SalesInvoiceItem $item) => trim((string) ($item->description ?: $item->product?->name)))
+                    ->filter()
+                    ->implode(' ');
+                $searchText = collect([
+                    $invoice->invoice_number,
+                    $ticketReference,
+                    $invoice->customer?->name,
+                    $invoice->invoice_date?->format('d/m/Y'),
+                    $invoice->created_at?->format('H:i'),
+                    $productText,
+                    $status['label'],
+                ])->filter()->implode(' ');
+
+                return [
+                    'id' => $invoice->id,
+                    'date' => $invoice->invoice_date?->format('d/m/Y') ?? $invoice->created_at?->format('d/m/Y'),
+                    'time' => $invoice->created_at?->format('H:i:s') ?? $invoice->invoice_date?->format('H:i:s'),
+                    'invoice_number' => $invoice->invoice_number,
+                    'ticket_reference' => $ticketReference,
+                    'customer' => $invoice->customer?->name ?? 'Client comptoir',
+                    'cashier' => $invoice->creator?->name ?? $session->opener?->name ?? 'Operateur',
+                    'amount' => round((float) $invoice->total, 2),
+                    'amount_paid' => round((float) $invoice->amount_paid, 2),
+                    'balance_due' => round((float) $invoice->balance_due, 2),
+                    'discount_total' => round((float) $invoice->discount_total, 2),
+                    'returned_amount' => $returnedAmount,
+                    'status' => $status,
+                    'is_locked' => ! $session->isOpen(),
+                    'can_refund' => $session->isOpen() && $status['key'] !== 'cancelled',
+                    'can_pay' => $session->isOpen() && (float) $invoice->balance_due > 0.009,
+                    'receipt_url' => route('pos.receipt', $invoice),
+                    'thermal_url' => route('pos.receipt.thermal', $invoice),
+                    'return_url' => route('pos.returns.create', ['sale' => $invoice, 'session' => $session->id]),
+                    'payment_url' => route('payments.create', ['type' => 'customer_receipt', 'invoice' => $invoice->id, 'amount' => (float) $invoice->balance_due]),
+                    'search' => str($searchText)->lower()->ascii()->value(),
+                    'items' => $invoice->items->map(fn (SalesInvoiceItem $item): array => [
+                        'description' => $item->description ?: $item->product?->name ?? 'Article',
+                        'code' => $item->product?->barcode ?: $item->product?->sku,
+                        'qty' => round((float) $item->qty, 3),
+                        'unit_price' => round((float) $item->unit_price, 2),
+                        'discount_total' => round((float) $item->discount_total, 2),
+                        'line_total' => round((float) $item->line_total, 2),
+                    ])->values()->all(),
+                    'payments' => $payments->map(fn (Payment $payment): array => [
+                        'date' => $payment->payment_date?->format('d/m/Y') ?? $payment->created_at?->format('d/m/Y'),
+                        'method' => $methods[$payment->method] ?? $payment->method,
+                        'amount' => round((float) $payment->amount, 2),
+                        'direction' => $payment->direction,
+                        'reference' => $payment->reference,
+                        'cash_account' => $payment->cashAccount?->name,
+                    ])->values()->all(),
+                    'returns' => $returns->map(fn (PosReturn $return): array => [
+                        'number' => $return->return_number,
+                        'date' => $return->return_date?->format('d/m/Y'),
+                        'amount' => round((float) $return->total, 2),
+                        'method' => $methods[$return->method] ?? $return->method,
+                        'reason' => $return->notes,
+                        'cashier' => $return->creator?->name,
+                        'items' => $return->items->map(fn (PosReturnItem $item): array => [
+                            'description' => $item->description ?: $item->product?->name ?? 'Article',
+                            'qty' => round((float) $item->qty, 3),
+                            'line_total' => round((float) $item->line_total, 2),
+                        ])->values()->all(),
+                    ])->values()->all(),
+                    'history' => $this->ticketHistory($invoice, $payments, $returns),
+                ];
+            })
+            ->values();
+    }
+
+    private function ticketStatus(SalesInvoice $invoice, float $returnedAmount): array
+    {
+        if ($invoice->status === 'cancelled') {
+            return ['key' => 'cancelled', 'label' => 'Annule', 'tone' => 'danger'];
+        }
+
+        if ($returnedAmount > 0) {
+            return ['key' => 'refunded', 'label' => $returnedAmount >= (float) $invoice->total ? 'Rembourse' : 'Rembourse partiel', 'tone' => 'purple'];
+        }
+
+        if ($invoice->payment_status === 'paid' && (float) $invoice->balance_due <= 0.009) {
+            return ['key' => 'paid', 'label' => 'Paye', 'tone' => 'success'];
+        }
+
+        return ['key' => 'pending', 'label' => 'En attente', 'tone' => 'warning'];
+    }
+
+    private function ticketHistory(SalesInvoice $invoice, Collection $payments, Collection $returns): array
+    {
+        $events = collect([
+            [
+                'date' => $invoice->created_at?->format('d/m/Y H:i'),
+                'label' => 'Ticket cree',
+                'detail' => $invoice->creator?->name ?? 'Operateur',
+            ],
+        ]);
+
+        foreach ($payments as $payment) {
+            if (! $payment instanceof Payment) {
+                continue;
+            }
+
+            $events->push([
+                'date' => $payment->created_at?->format('d/m/Y H:i'),
+                'label' => $payment->direction === 'out' ? 'Remboursement' : 'Paiement',
+                'detail' => number_format((float) $payment->amount, 0, ',', ' ').' XOF',
+            ]);
+        }
+
+        foreach ($returns as $return) {
+            if (! $return instanceof PosReturn) {
+                continue;
+            }
+
+            $events->push([
+                'date' => $return->created_at?->format('d/m/Y H:i'),
+                'label' => 'Retour '.$return->return_number,
+                'detail' => number_format((float) $return->total, 0, ',', ' ').' XOF'.($return->notes ? ' · '.$return->notes : ''),
+            ]);
+        }
+
+        return $events
+            ->filter(fn (array $event) => filled($event['label']))
+            ->sortByDesc('date')
+            ->values()
+            ->all();
     }
 
     public function dailyReport(int $companyId, int $branchId, array $filters): array

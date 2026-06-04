@@ -3,8 +3,12 @@
         'Point de Vente' => [
             ['label' => 'Tableau de bord', 'route' => 'pos.index'],
             ['label' => 'Commandes', 'route' => 'pos.orders.index'],
+            ['label' => 'Tickets / historique', 'route' => 'pos.orders.index'],
             ['label' => 'Sessions', 'route' => 'pos.sessions.index'],
+            ['label' => 'Verrouillage caisse', 'route' => 'pos.sessions.index'],
             ['label' => 'Paiements', 'route' => 'pos.payments.index'],
+            ['label' => 'Paiements partiels', 'route' => 'pos.payments.index'],
+            ['label' => 'Remboursements', 'route' => 'pos.orders.index'],
             ['label' => 'Clients', 'route' => 'pos.customers.index'],
             ['label' => 'Produits', 'route' => 'pos.products.index'],
             ['label' => 'Preparation', 'route' => 'pos.preparation.index'],
@@ -18,6 +22,7 @@
             ['label' => 'Commandes', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'orders']],
             ['label' => 'Details des ventes', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'sales']],
             ['label' => 'Rapport de session', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'sessions']],
+            ['label' => 'Journal caisse', 'route' => 'accounting.journal-entries.index', 'params' => ['journal_code' => 'TRE', 'source_type' => 'payments']],
             ['label' => 'Temps de preparation', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'prep']],
         ],
         'Configuration' => [
