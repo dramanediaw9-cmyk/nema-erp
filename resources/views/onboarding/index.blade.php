@@ -49,6 +49,43 @@
         </div>
     </section>
 
+    <section class="card" style="margin-bottom:20px; border-color:#a9d5c9; background:linear-gradient(135deg, rgba(239, 250, 248, 0.98) 0%, rgba(255, 250, 241, 0.96) 100%);">
+        <div style="display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-bottom:18px;">
+            <div style="max-width:780px;">
+                <div class="badge badge-success">Objectif 15 minutes</div>
+                <h2 style="margin:12px 0 8px;">Demarrer plus vite qu un ERP classique</h2>
+                <div class="muted">Le but est simple : configurer l entreprise, ouvrir une caisse, ajouter les premiers produits, vendre et voir les chiffres sans formation longue.</div>
+            </div>
+            <div style="display:grid; gap:8px; min-width:230px;">
+                <div class="summary-box" style="background:rgba(255,255,255,.72);">
+                    <strong>{{ $summary['progress'] }}% pret</strong>
+                    <div class="help" style="margin-top:8px;">{{ $summary['completed'] }} etape(s) terminee(s) sur {{ $summary['total'] }}.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            @foreach ($summary['launch_plan'] as $item)
+                @php
+                    $step = $item['step'] ?? [];
+                    $done = (bool) ($step['completed'] ?? false);
+                @endphp
+                <div class="card" style="padding:16px; border-color:{{ $done ? '#b8d8d0' : '#efc28c' }}; background:{{ $done ? 'rgba(247, 252, 251, .9)' : 'rgba(255, 249, 240, .92)' }};">
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+                        <span class="badge badge-muted">{{ $item['minute'] }}</span>
+                        <span class="badge {{ $done ? 'badge-success' : 'badge-warning' }}">{{ $done ? 'Pret' : 'A faire' }}</span>
+                    </div>
+                    <strong style="display:block; margin-top:12px;">{{ $item['title'] }}</strong>
+                    <div class="muted" style="margin-top:8px;">{{ $item['promise'] }}</div>
+                    <div class="help" style="margin-top:10px;">Etat : {{ $step['metric'] ?? 'A verifier' }}</div>
+                    <div style="margin-top:12px;">
+                        <a href="{{ $step['route'] ?? route('onboarding.index') }}" class="button {{ $done ? 'button-secondary' : 'button-primary' }}">{{ $step['action'] ?? 'Continuer' }}</a>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </section>
+
     <section id="starter-pack" class="card" style="margin-bottom:20px; border-color:#b8d8d0; background:linear-gradient(135deg, rgba(239, 250, 248, 0.98) 0%, rgba(255, 249, 240, 0.94) 100%);">
         <div style="display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-bottom:18px;">
             <div style="max-width:760px;">
