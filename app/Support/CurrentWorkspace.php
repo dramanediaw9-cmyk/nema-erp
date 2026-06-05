@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Auth;
 
 class CurrentWorkspace
 {
+    public function __construct(private ?WorkspaceAccess $access = null)
+    {
+        $this->access ??= app(WorkspaceAccess::class);
+    }
+
     public function user(): ?User
     {
         return Auth::user();
@@ -23,17 +28,10 @@ class CurrentWorkspace
             return null;
         }
 
-        $tenantId = (int) session('current_tenant_id', $user->tenant_id ?? 0);
-
-        if ($tenantId > 0) {
-            return Tenant::query()->find($tenantId);
-        }
-
-        if ($user->company?->tenant_id) {
-            return $user->company->tenant;
-        }
-
-        return Tenant::query()->first();
+        return $this->access->tenantFor(
+            $user,
+            (int) session('current_tenant_id', $user->tenant_id ?? 0) ?: null
+        );
     }
 
     public function company(): ?Company
@@ -44,9 +42,11 @@ class CurrentWorkspace
             return null;
         }
 
-        $companyId = (int) session('current_company_id', $user->company_id ?? 0);
-
-        return $companyId ? Company::query()->find($companyId) : $user->company;
+        return $this->access->companyFor(
+            $user,
+            $this->tenantId(),
+            (int) session('current_company_id', $user->company_id ?? 0) ?: null
+        );
     }
 
     public function branch(): ?Branch
@@ -57,9 +57,11 @@ class CurrentWorkspace
             return null;
         }
 
-        $branchId = (int) session('current_branch_id', $user->branch_id ?? 0);
-
-        return $branchId ? Branch::query()->find($branchId) : $user->branch;
+        return $this->access->branchFor(
+            $user,
+            $this->companyId(),
+            (int) session('current_branch_id', $user->branch_id ?? 0) ?: null
+        );
     }
 
     public function tenantId(): ?int
