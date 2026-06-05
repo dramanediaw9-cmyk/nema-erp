@@ -8,13 +8,18 @@ use Illuminate\Support\Facades\Auth;
 
 class ActivityLogger
 {
+    public function __construct(private ?CurrentWorkspace $workspace = null)
+    {
+        $this->workspace ??= app(CurrentWorkspace::class);
+    }
+
     public function log(string $action, string $description, ?Model $subject = null, array $properties = []): void
     {
         $user = Auth::user();
 
         ActivityLog::query()->create([
-            'company_id' => session('current_company_id', $user?->company_id),
-            'branch_id' => session('current_branch_id', $user?->branch_id),
+            'company_id' => $this->workspace->companyId() ?? $user?->company_id,
+            'branch_id' => $this->workspace->branchId() ?? $user?->branch_id,
             'user_id' => $user?->id,
             'action' => $action,
             'description' => $description,
