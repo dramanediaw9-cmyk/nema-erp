@@ -17,6 +17,7 @@ use App\Modules\Core\Dashboard\Http\Controllers\GlobalSearchController;
 use App\Modules\Core\Dashboard\Http\Controllers\MerchantRoutineController;
 use App\Modules\Core\Dashboard\Http\Controllers\NavigationFavoriteController;
 use App\Modules\Core\Dashboard\Http\Controllers\UiModeController;
+use App\Modules\Core\Help\Http\Controllers\HelpController;
 use App\Modules\Core\Notifications\Http\Controllers\NotificationController;
 use App\Modules\Core\Notifications\Http\Controllers\OutboundNotificationController;
 use App\Modules\Core\Onboarding\Http\Controllers\OnboardingController;
@@ -51,6 +52,10 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/interface/mode', [UiModeController::class, 'update'])
         ->middleware('permission:dashboard.view')
         ->name('ui-mode.update');
+
+    Route::get('/aide/travail', [HelpController::class, 'work'])
+        ->middleware('permission:dashboard.view')
+        ->name('help.work');
 
     Route::get('/demarrage', [OnboardingController::class, 'index'])
         ->middleware('permission:dashboard.view')
