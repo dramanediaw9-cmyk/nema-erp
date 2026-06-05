@@ -3,18 +3,17 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Nema ERP - ERP et CRM pour entreprises ambitieuses</title>
+    <title>Nema Technologies - ERP de gestion d entreprise</title>
     <style>
         :root {
-            --ink: #111827;
-            --muted: #5f6673;
-            --soft: #f6f7fb;
-            --line: #e5e7eb;
-            --brand: #1f8a83;
-            --brand-dark: #12625d;
-            --accent: #ffb12b;
-            --purple: #765070;
-            --blue: #20aeea;
+            --ink: #10201f;
+            --muted: #667370;
+            --line: #dce6e2;
+            --soft: #f3f8f6;
+            --brand: #0f766e;
+            --brand-dark: #0b4f4a;
+            --gold: #f2b84b;
+            --blue: #2f80ed;
             --white: #ffffff;
         }
 
@@ -38,221 +37,215 @@
         }
 
         .nav {
-            width: min(1680px, calc(100% - 44px));
+            width: min(1240px, calc(100% - 40px));
             margin: 0 auto;
-            min-height: 88px;
+            min-height: 82px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 28px;
+            gap: 24px;
         }
 
         .brand {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             text-decoration: none;
-            font-size: 32px;
+            font-size: 20px;
             font-weight: 900;
-            color: #7b7f86;
-            letter-spacing: -1px;
+            letter-spacing: 0;
         }
 
-        .brand-dot {
-            width: 24px;
-            height: 24px;
-            border: 6px solid var(--purple);
-            border-radius: 50%;
-            display: inline-block;
+        .mark {
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            background: var(--brand);
+            color: var(--white);
+            font-weight: 900;
         }
 
         .nav-links {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: clamp(18px, 3vw, 48px);
-            flex: 1;
-            font-size: 20px;
-            font-weight: 760;
+            gap: clamp(18px, 3vw, 38px);
             color: #374151;
+            font-weight: 760;
         }
 
-        .nav-links a,
-        .nav-actions a {
+        .nav a {
             text-decoration: none;
         }
 
         .nav-actions {
             display: flex;
             align-items: center;
-            gap: 18px;
-            font-size: 19px;
-            font-weight: 780;
+            gap: 12px;
+            font-weight: 820;
+        }
+
+        .login {
+            color: var(--brand-dark);
         }
 
         .trial {
-            background: var(--purple);
             color: var(--white);
-            padding: 16px 24px;
-            border-radius: 6px;
+            background: var(--brand);
+            border-radius: 8px;
+            padding: 13px 16px;
         }
 
         .hero {
-            min-height: calc(100vh - 88px);
-            position: relative;
-            overflow: hidden;
+            min-height: calc(100vh - 82px);
             display: grid;
             place-items: center;
-            padding: 70px 22px 160px;
+            position: relative;
+            overflow: hidden;
+            border-top: 1px solid var(--line);
+            background:
+                linear-gradient(135deg, rgba(15, 118, 110, .12), rgba(47, 128, 237, .06) 52%, rgba(242, 184, 75, .12)),
+                #fbfdfc;
         }
 
         .hero::after {
             content: "";
             position: absolute;
             left: 50%;
-            bottom: -160px;
-            width: min(1500px, 120vw);
-            height: 250px;
+            bottom: -170px;
+            width: min(1400px, 120vw);
+            height: 260px;
             transform: translateX(-50%);
             border-radius: 50% 50% 0 0;
-            background: #f1f2f5;
-            z-index: 0;
+            background: #eef3f1;
         }
 
         .hero-inner {
-            width: min(1100px, 100%);
+            width: min(1120px, calc(100% - 40px));
+            margin: 0 auto;
+            padding: 70px 0 130px;
             position: relative;
             z-index: 1;
             text-align: center;
         }
 
-        h1 {
-            margin: 0;
-            color: #111827;
-            font-family: "Segoe Print", "Bradley Hand ITC", "Comic Sans MS", cursive;
-            font-size: clamp(58px, 8vw, 116px);
-            line-height: .98;
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #b8d9d4;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .76);
+            color: var(--brand-dark);
+            padding: 9px 14px;
+            font-size: 14px;
             font-weight: 900;
+        }
+
+        h1 {
+            margin: 22px auto 0;
+            max-width: 1050px;
+            color: var(--ink);
+            font-size: clamp(42px, 7vw, 94px);
+            line-height: .98;
             letter-spacing: 0;
         }
 
-        .highlight {
+        .accent {
             position: relative;
             display: inline-block;
-            padding: 0 .14em .04em;
-            z-index: 1;
+            padding: 0 .08em .06em;
         }
 
-        .highlight::before {
+        .accent::after {
             content: "";
             position: absolute;
-            left: -.02em;
-            right: -.02em;
-            top: 48%;
-            height: .62em;
-            background: var(--accent);
-            border-radius: 18px;
-            transform: rotate(-1.8deg);
+            left: 0;
+            right: 0;
+            bottom: .06em;
+            height: .22em;
+            border-radius: 999px;
+            background: rgba(242, 184, 75, .75);
             z-index: -1;
         }
 
-        .subline {
-            display: inline-block;
-            position: relative;
-            margin-top: 22px;
-            color: #111827;
-            font-family: "Segoe Print", "Bradley Hand ITC", "Comic Sans MS", cursive;
-            font-size: clamp(34px, 4.2vw, 66px);
-            line-height: 1.1;
-            font-weight: 900;
-        }
-
-        .subline::after {
-            content: "";
-            position: absolute;
-            right: 4%;
-            bottom: -10px;
-            width: 32%;
-            height: 9px;
-            background: var(--blue);
-            border-radius: 999px;
-            transform: rotate(-2deg);
-        }
-
-        .hero-copy {
+        .lead {
             max-width: 760px;
-            margin: 30px auto 0;
+            margin: 26px auto 0;
             color: var(--muted);
-            font-size: 20px;
-            line-height: 1.65;
+            font-size: 21px;
+            line-height: 1.62;
         }
 
         .actions {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 22px;
+            gap: 14px;
             flex-wrap: wrap;
-            margin-top: 38px;
+            margin-top: 34px;
         }
 
         .button {
+            min-height: 54px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 72px;
-            padding: 20px 34px;
-            border-radius: 6px;
+            border-radius: 8px;
+            padding: 15px 22px;
             text-decoration: none;
-            font-size: 24px;
             font-weight: 900;
+            border: 1px solid transparent;
         }
 
         .button-primary {
-            background: var(--purple);
+            background: var(--brand);
             color: var(--white);
         }
 
         .button-secondary {
-            background: #f5f5f7;
-            color: var(--purple);
+            background: var(--white);
+            border-color: var(--line);
+            color: var(--brand-dark);
         }
 
-        .note {
-            position: absolute;
-            right: 8%;
-            bottom: 62px;
-            color: var(--purple);
-            font-family: "Segoe Print", "Bradley Hand ITC", "Comic Sans MS", cursive;
-            font-size: clamp(22px, 2.5vw, 36px);
-            font-weight: 900;
-            line-height: 1.18;
-            transform: rotate(-8deg);
+        .proof {
+            margin: 34px auto 0;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            max-width: 920px;
             text-align: left;
         }
 
-        .note::before {
-            content: "";
-            position: absolute;
-            left: -70px;
-            top: -58px;
-            width: 66px;
-            height: 70px;
-            border-right: 5px solid var(--purple);
-            border-bottom: 5px solid var(--purple);
-            border-radius: 0 0 56px 0;
-            transform: rotate(-22deg);
-            opacity: .95;
+        .proof-item {
+            border: 1px solid rgba(220, 230, 226, .95);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .82);
+            padding: 14px;
+            font-weight: 850;
+            color: var(--brand-dark);
+        }
+
+        .proof-item span {
+            display: block;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 680;
+            margin-top: 5px;
+            line-height: 1.42;
         }
 
         .foundations {
             background: var(--soft);
             border-top: 1px solid var(--line);
-            padding: 76px 22px 84px;
+            padding: 72px 20px 86px;
         }
 
         .section-inner {
-            width: min(1180px, 100%);
+            width: min(1160px, 100%);
             margin: 0 auto;
         }
 
@@ -260,15 +253,15 @@
             display: flex;
             align-items: end;
             justify-content: space-between;
-            gap: 24px;
+            gap: 22px;
             flex-wrap: wrap;
             margin-bottom: 24px;
         }
 
         h2 {
             margin: 0 0 8px;
-            font-size: clamp(32px, 4vw, 52px);
-            line-height: 1.05;
+            font-size: clamp(30px, 4vw, 48px);
+            line-height: 1.08;
             letter-spacing: 0;
         }
 
@@ -281,10 +274,10 @@
         .pill {
             display: inline-flex;
             align-items: center;
-            background: #e7f5f2;
-            color: var(--brand-dark);
-            border: 1px solid #bfe0da;
             border-radius: 999px;
+            background: #e4f4f1;
+            border: 1px solid #b7dcd6;
+            color: var(--brand-dark);
             padding: 10px 14px;
             font-weight: 900;
         }
@@ -296,22 +289,22 @@
         }
 
         .card {
-            min-height: 270px;
+            min-height: 268px;
             border: 1px solid var(--line);
             border-radius: 8px;
             background: var(--white);
             padding: 22px;
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            box-shadow: 0 18px 36px rgba(17, 24, 39, .05);
+            gap: 13px;
+            box-shadow: 0 18px 36px rgba(16, 32, 31, .05);
         }
 
         .number {
             width: fit-content;
             border-radius: 999px;
-            background: #fff3d8;
-            color: #9a610d;
+            background: #fff2d3;
+            color: #93610f;
             padding: 7px 11px;
             font-size: 13px;
             font-weight: 900;
@@ -319,17 +312,17 @@
 
         .card h3 {
             margin: 0;
-            font-size: 23px;
+            font-size: 22px;
             letter-spacing: 0;
         }
 
         .result {
             margin-top: auto;
             border-top: 1px solid var(--line);
-            padding-top: 14px;
+            padding-top: 13px;
             color: var(--brand-dark);
             font-weight: 900;
-            line-height: 1.5;
+            line-height: 1.48;
         }
 
         .notice {
@@ -343,90 +336,60 @@
             line-height: 1.6;
         }
 
-        @media (max-width: 1120px) {
+        @media (max-width: 960px) {
             .nav {
                 flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .brand {
-                margin-right: auto;
             }
 
             .nav-links {
                 order: 3;
                 width: 100%;
-                overflow-x: auto;
                 justify-content: flex-start;
+                overflow-x: auto;
                 padding-bottom: 4px;
             }
 
-            .note {
-                position: relative;
-                right: auto;
-                bottom: auto;
-                width: fit-content;
-                margin: 34px auto 0;
-            }
-        }
-
-        @media (max-width: 900px) {
+            .proof,
             .grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
-
-            .button {
-                min-height: 58px;
-                font-size: 19px;
-                padding: 16px 22px;
-            }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 620px) {
             .nav {
-                width: min(100% - 28px, 1680px);
+                width: min(100% - 28px, 1240px);
                 align-items: flex-start;
             }
 
             .nav-actions {
                 width: 100%;
                 justify-content: space-between;
-                font-size: 16px;
             }
 
-            .trial {
-                padding: 12px 14px;
+            .nav-links {
+                gap: 18px;
+                font-size: 15px;
             }
 
-            .hero {
-                padding-top: 44px;
-                padding-bottom: 118px;
+            .hero-inner {
+                width: min(100% - 28px, 1120px);
+                padding-top: 46px;
+                padding-bottom: 112px;
             }
 
             h1 {
-                font-size: clamp(46px, 14vw, 72px);
+                font-size: clamp(38px, 12vw, 58px);
             }
 
-            .subline {
-                font-size: clamp(30px, 9vw, 48px);
-            }
-
-            .hero-copy {
+            .lead {
                 font-size: 17px;
-            }
-
-            .actions {
-                align-items: stretch;
             }
 
             .button {
                 width: 100%;
             }
 
-            .note {
-                font-size: 24px;
-            }
-
+            .proof,
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -439,46 +402,51 @@
 </head>
 <body>
     <header class="nav">
-        <a class="brand" href="{{ route('entry.index') }}" aria-label="Nema ERP">
-            <span class="brand-dot"></span>
-            <span>nema</span>
+        <a class="brand" href="{{ route('entry.index') }}" aria-label="Nema Technologies">
+            <span class="mark">N</span>
+            <span>Nema Technologies</span>
         </a>
 
         <nav class="nav-links" aria-label="Navigation principale">
             <a href="#fondations">Applications</a>
-            <a href="#fondations">Industries</a>
-            <a href="#fondations">Communaute</a>
-            <a href="#fondations">Tarification</a>
+            <a href="#fondations">Secteurs</a>
+            <a href="#fondations">Methode</a>
+            <a href="#fondations">Tarifs</a>
             <a href="#fondations">Aide</a>
         </nav>
 
         <div class="nav-actions">
-            <a href="{{ route('login') }}">Se connecter</a>
-            <a class="trial" href="#fondations">Essai gratuit</a>
+            <a class="login" href="{{ route('login') }}">Se connecter</a>
+            <a class="trial" href="#fondations">Demarrer</a>
         </div>
     </header>
 
     <main>
         <section class="hero" aria-label="Presentation Nema ERP">
             <div class="hero-inner">
+                <div class="eyebrow">ERP, CRM, caisse et stock pour PME ambitieuses</div>
+
                 <h1>
-                    Tout votre business sur<br>
-                    <span class="highlight">une plateforme.</span>
+                    Pilotez toute votre entreprise
+                    <span class="accent">depuis Nema.</span>
                 </h1>
 
-                <div class="subline">Simple, efficace, et abordable !</div>
-
-                <p class="hero-copy">
-                    Avant la premiere vente, Nema prepare le compte, la base entreprise,
-                    la comptabilite et les donnees essentielles. L ERP devient propre des le depart.
+                <p class="lead">
+                    Nema ne commence pas par une vente. La plateforme prepare d abord le compte,
+                    l entreprise, la comptabilite et les donnees de base pour que chaque operation soit fiable.
                 </p>
 
                 <div class="actions">
-                    <a class="button button-primary" href="#fondations">Lancez-vous - c est gratuit</a>
+                    <a class="button button-primary" href="#fondations">Voir les 4 fondations</a>
                     <a class="button button-secondary" href="{{ route('login') }}">J ai deja un espace</a>
                 </div>
 
-                <div class="note">ERP + CRM + Caisse + Stock<br>dans un seul espace</div>
+                <div class="proof" aria-label="Modules Nema">
+                    <div class="proof-item">ERP complet<span>Ventes, achats, stock, caisse et rapports.</span></div>
+                    <div class="proof-item">CRM terrain<span>Clients, fournisseurs, relances et opportunites.</span></div>
+                    <div class="proof-item">Compta propre<span>Taxes, caisse, banque et mobile money.</span></div>
+                    <div class="proof-item">Base maitrisee<span>Donnees fiables avant la premiere vente.</span></div>
+                </div>
             </div>
         </section>
 
@@ -486,8 +454,8 @@
             <div class="section-inner">
                 <div class="section-head">
                     <div>
-                        <h2>Les 4 fondations avant Nema</h2>
-                        <div class="muted">Comme dans un ERP solide, on cree d abord la base. La vente vient apres.</div>
+                        <h2>Les 4 fondations avant d entrer dans Nema</h2>
+                        <div class="muted">Une entreprise solide ne vend pas avant d avoir pose sa base.</div>
                     </div>
                     <div class="pill">Avant connexion</div>
                 </div>
@@ -505,7 +473,7 @@
 
                 <div class="notice">
                     Pour Nema Technologies, l espace existe deja. Cette page pose maintenant la bonne entree :
-                    on ne va pas directement vendre, on comprend d abord les bases qui rendent l ERP fiable.
+                    on comprend les bases avant d utiliser l ERP au quotidien.
                 </div>
             </div>
         </section>
