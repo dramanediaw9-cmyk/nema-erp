@@ -1,8 +1,9 @@
 <?php
 
+use App\Modules\Core\Entry\Http\Controllers\PublicEntryController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
+Route::get('/', PublicEntryController::class)->name('entry.index');
 
 require __DIR__.'/modules/core.php';
 require __DIR__.'/modules/platform.php';
