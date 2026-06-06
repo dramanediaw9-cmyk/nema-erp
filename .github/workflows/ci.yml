@@ -67,7 +67,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start Laravel server
-        run: php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-serve.log 2>&1 &
+        run: |
+          mkdir -p storage/logs
+          php artisan serve --host=127.0.0.1 --port=8000 > storage/logs/ci-serve.log 2>&1 &
 
       - name: Wait for Laravel server
         run: |
