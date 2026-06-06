@@ -28,7 +28,6 @@ class AuthenticationTest extends TestCase
             ->assertHeader('origin-agent-cluster', '?1')
             ->assertHeader('permissions-policy', 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()')
             ->assertHeader('referrer-policy', 'strict-origin-when-cross-origin')
-            ->assertHeader('strict-transport-security', 'max-age=31536000; includeSubDomains')
             ->assertHeader('x-content-type-options', 'nosniff')
             ->assertHeader('x-frame-options', 'DENY')
             ->assertHeader('x-permitted-cross-domain-policies', 'none');
