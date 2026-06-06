@@ -62,4 +62,13 @@
             @endforeach
         </section>
     @endif
+
+    <section class="nav-section">
+        <div class="nav-title">Compte</div>
+        <a class="nav-link {{ request()->routeIs('account.profile.*') ? 'active' : '' }}" href="{{ route('account.profile.edit') }}">
+            <span style="display:grid; gap:2px; min-width:0;">
+                <strong style="font-size:13px; font-weight:800; line-height:1.2;">Mon compte</strong>
+            </span>
+        </a>
+    </section>
 </nav>
