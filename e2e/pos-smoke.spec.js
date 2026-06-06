@@ -9,7 +9,6 @@ test('cashier can open POS session, validate a sale, print the thermal ticket, a
 
     await page.goto('/point-de-vente');
 
-    const currentSessionLink = page.getByRole('link', { name: 'Nouvelle vente comptoir' });
     const openCashButton = page.getByRole('button', { name: 'Ouvrir la caisse' });
 
     if (await openCashButton.isVisible()) {
@@ -20,11 +19,9 @@ test('cashier can open POS session, validate a sale, print the thermal ticket, a
         await expect(page).toHaveURL(/\/point-de-vente\/sessions\/\d+/);
     }
 
-    if (await currentSessionLink.isVisible()) {
-        await currentSessionLink.click();
-    } else {
-        await page.getByRole('link', { name: 'Nouvelle vente comptoir' }).click();
-    }
+    const saleLink = page.locator('a[href*="/point-de-vente/vente"]');
+    await expect(saleLink.first()).toBeVisible();
+    await saleLink.first().click();
 
     await expect(page).toHaveURL(/\/point-de-vente\/vente/);
     await expect(page.locator('[data-product-id]').first()).toBeVisible();
