@@ -41,7 +41,7 @@ class PosSettlementWatchTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'cash_account_id' => $cashAccount->id,
             'session_number' => 'POS-SETTLEMENT-001',
-            'status' => 'closed',
+            'status' => 'open',
             'opening_amount' => 10000,
             'expected_amount' => 10600,
             'expected_breakdown' => [
@@ -85,6 +85,8 @@ class PosSettlementWatchTest extends TestCase
             'notes' => 'Test rapprochement Wave',
             'created_by' => $admin->id,
         ]);
+
+        $session->forceFill(['status' => 'closed'])->saveQuietly();
 
         $sessionData = $this->workspaceSession($admin) + ['ui_mode' => 'merchant'];
 
@@ -136,7 +138,7 @@ class PosSettlementWatchTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'cash_account_id' => $cashAccount->id,
             'session_number' => 'POS-OVERNIGHT-001',
-            'status' => 'closed',
+            'status' => 'open',
             'opening_amount' => 5000,
             'expected_amount' => 5800,
             'expected_breakdown' => [
@@ -180,6 +182,8 @@ class PosSettlementWatchTest extends TestCase
             'notes' => 'Flux wave sur cloture de nuit',
             'created_by' => $admin->id,
         ]);
+
+        $session->forceFill(['status' => 'closed'])->saveQuietly();
 
         $sessionData = $this->workspaceSession($admin) + ['ui_mode' => 'merchant'];
 
