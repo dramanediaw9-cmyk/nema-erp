@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Validation\Rule;
-use Illuminate\Support\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class AccountProfileController extends Controller
