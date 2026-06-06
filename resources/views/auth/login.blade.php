@@ -70,6 +70,7 @@
             color: #17643a;
         }
         .auth-link { display:block; margin:-6px 0 16px; color:#005f73; font-size:14px; font-weight:700; text-decoration:none; }
+        .register-link { display:flex; align-items:center; justify-content:center; margin-top:16px; padding-top:16px; border-top:1px solid #e4d8c8; color:#005f73; font-size:14px; font-weight:800; text-decoration:none; }
         .hint { margin-top: 18px; font-size: 13px; color: #746556; }
     </style>
 </head>
@@ -106,6 +107,8 @@
 
             <button type="submit">Se connecter</button>
         </form>
+
+        <a class="register-link" href="{{ route('saas.register.account') }}">Créer mon espace Nema</a>
 
         @if (config('nema.expose_demo_credentials'))
             <div class="hint">Compte démo administrateur : <strong>admin@nema-erp.test</strong> / <strong>password</strong></div>
