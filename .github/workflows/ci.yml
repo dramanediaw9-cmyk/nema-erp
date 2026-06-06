@@ -34,7 +34,7 @@ jobs:
           cp .env.example .env
           mkdir -p database
           touch database/ci.sqlite
-          php -r "file_exists('.env') || exit(1); \$env = file_get_contents('.env'); \$overrides = ['APP_URL' => 'http://127.0.0.1:8000', 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => 'database/ci.sqlite', 'SESSION_DRIVER' => 'database', 'CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database']; foreach (\$overrides as \$key => \$value) { \$pattern = '/^'.preg_quote(\$key, '/').'=.*$/m'; \$line = \$key.'='.\$value; \$env = preg_match(\$pattern, \$env) ? preg_replace(\$pattern, \$line, \$env) : \$env.PHP_EOL.\$line; } file_put_contents('.env', \$env);"
+          php -r "file_exists('.env') || exit(1); \$env = file_get_contents('.env'); \$overrides = ['APP_URL' => 'http://127.0.0.1:8000', 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => 'database/ci.sqlite', 'SESSION_DRIVER' => 'database', 'CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database', 'NEMA_ALLOW_DEMO_LOGIN' => 'true']; foreach (\$overrides as \$key => \$value) { \$pattern = '/^'.preg_quote(\$key, '/').'=.*$/m'; \$line = \$key.'='.\$value; \$env = preg_match(\$pattern, \$env) ? preg_replace(\$pattern, \$line, \$env) : \$env.PHP_EOL.\$line; } file_put_contents('.env', \$env);"
           php artisan key:generate
           php artisan migrate --seed --force
           php artisan storage:link
