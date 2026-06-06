@@ -59,4 +59,9 @@
             <a class="nav-link {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">Reglages</a>
         @endallowed
     </section>
+
+    <section class="nav-section">
+        <div class="nav-title">Compte</div>
+        <a class="nav-link {{ request()->routeIs('account.profile.*') ? 'active' : '' }}" href="{{ route('account.profile.edit') }}">Mon compte</a>
+    </section>
 </nav>
