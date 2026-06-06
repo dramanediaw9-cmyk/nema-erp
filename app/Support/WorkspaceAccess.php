@@ -123,7 +123,11 @@ class WorkspaceAccess
         if ($branchId) {
             $branch = Branch::query()->with('company')->find($branchId);
 
-            if ($branch && $this->canAccessBranch($user, $branch)) {
+            if (
+                $branch
+                && (! $companyId || (int) $branch->company_id === (int) $companyId)
+                && $this->canAccessBranch($user, $branch)
+            ) {
                 return $branch;
             }
         }
