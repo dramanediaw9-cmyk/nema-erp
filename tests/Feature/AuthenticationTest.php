@@ -3,7 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -92,5 +96,32 @@ class AuthenticationTest extends TestCase
         ])->assertSessionHasErrors('email');
 
         $this->assertGuest();
+    }
+
+    public function test_user_can_request_a_password_reset_link(): void
+    {
+        Notification::fake();
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        $this->post(route('password.email'), [
+            'email' => $user->email,
+        ])->assertSessionHas('status');
+
+        Notification::assertSentTo($user, ResetPassword::class);
+    }
+
+    public function test_user_can_reset_password_with_a_valid_token(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $token = Password::createToken($user);
+
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'Nema-Securite-2026!',
+            'password_confirmation' => 'Nema-Securite-2026!',
+        ])->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check('Nema-Securite-2026!', $user->fresh()->password));
     }
 }
