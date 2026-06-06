@@ -61,6 +61,15 @@
             border: 1px solid #f4c7c3;
             color: #9a2c22;
         }
+        .success {
+            padding: 14px 16px;
+            border-radius: 14px;
+            margin-bottom: 18px;
+            background: #e8f6ee;
+            border: 1px solid #b9dfc8;
+            color: #17643a;
+        }
+        .auth-link { display:block; margin:-6px 0 16px; color:#005f73; font-size:14px; font-weight:700; text-decoration:none; }
         .hint { margin-top: 18px; font-size: 13px; color: #746556; }
     </style>
 </head>
@@ -68,6 +77,10 @@
     <div class="panel">
         <h1>Nema ERP</h1>
         <p>Connectez-vous pour accéder au noyau de gestion de votre entreprise.</p>
+
+        @if (session('status'))
+            <div class="success">{{ session('status') }}</div>
+        @endif
 
         @if ($errors->any())
             <div class="alert">
@@ -84,6 +97,7 @@
 
             <label for="password">Mot de passe</label>
             <input id="password" type="password" name="password" required autocomplete="current-password" enterkeyhint="go">
+            <a class="auth-link" href="{{ route('password.request') }}">Mot de passe oublié ?</a>
 
             <label class="remember" for="remember">
                 <input id="remember" type="checkbox" name="remember" value="1">
