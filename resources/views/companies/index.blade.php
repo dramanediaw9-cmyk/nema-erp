@@ -50,6 +50,14 @@
                         </span>
                     </td>
                     <td>
+                        @if ($workspace->companyId() === $company->id)
+                            <span class="badge badge-success">Entreprise active</span>
+                        @elseif ($company->is_active && auth()->user()?->hasRole('platform_admin'))
+                            <form method="POST" action="{{ route('companies.switch', $company) }}" style="display:inline-block;">
+                                @csrf
+                                <button type="submit" class="button button-primary">Ouvrir</button>
+                            </form>
+                        @endif
                         @allowed('companies.manage')
                             <a href="{{ route('companies.edit', $company) }}" class="button button-secondary">Modifier</a>
                         @endallowed
