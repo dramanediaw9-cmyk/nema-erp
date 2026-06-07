@@ -3,7 +3,10 @@
 namespace App\Modules\Core\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Core\Platform\Models\SaasSubscription;
+use App\Modules\Core\Registration\Services\SaasRegistrationService;
 use App\Support\ActivityLogger;
+use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,10 +17,43 @@ class AccountProfileController extends Controller
 {
     public function __construct(private readonly ActivityLogger $activityLogger) {}
 
-    public function edit(Request $request): View
+    public function edit(
+        Request $request,
+        CurrentWorkspace $workspace,
+        SaasRegistrationService $registrations
+    ): View
     {
+        $user = $request->user()->load(['company', 'branch', 'roles']);
+        $company = $workspace->company();
+        $branch = $workspace->branch();
+        $canViewSubscription = $user->hasRole('company_admin') || $user->hasRole('platform_admin');
+        $subscription = $canViewSubscription && $company
+            ? SaasSubscription::query()->where('company_id', $company->id)->first()
+            : null;
+
         return view('account.profile', [
-            'accountUser' => $request->user()->load(['company', 'branch', 'roles']),
+            'accountUser' => $user,
+            'activeCompany' => $company,
+            'activeBranch' => $branch,
+            'subscriptionInfo' => $subscription ? [
+                'plan' => $registrations->plans()[$subscription->plan]['label'] ?? ucfirst($subscription->plan),
+                'status' => match ($subscription->status) {
+                    'trialing' => 'Essai en cours',
+                    'active' => 'Actif',
+                    'past_due' => 'Paiement en attente',
+                    'suspended' => 'Suspendu',
+                    'cancelled' => 'Résilié',
+                    default => ucfirst($subscription->status),
+                },
+                'trial_ends_at' => $subscription->trial_ends_at,
+                'trial_days_left' => $subscription->trial_ends_at
+                    ? max(0, now()->startOfDay()->diffInDays($subscription->trial_ends_at->startOfDay(), false))
+                    : null,
+                'user_limit' => $subscription->user_limit,
+                'user_count' => $company->users()->count(),
+                'branch_limit' => $subscription->branch_limit,
+                'branch_count' => $company->branches()->count(),
+            ] : null,
         ]);
     }
 
