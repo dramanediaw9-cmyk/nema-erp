@@ -203,8 +203,6 @@ import './bootstrap';
             return;
         }
 
-        const mobileQuery = window.matchMedia('(max-width: 760px)');
-
         const setCollapsed = (item, collapsed) => {
             const button = item.querySelector('[data-dashboard-collapsible-toggle]');
             const body = item.querySelector('[data-dashboard-collapsible-body]');
@@ -229,11 +227,6 @@ import './bootstrap';
             const defaultOpen = item.dataset.dashboardDefaultOpen === 'true';
 
             const sync = (reset = false) => {
-                if (!mobileQuery.matches) {
-                    setCollapsed(item, false);
-                    return;
-                }
-
                 if (reset || item.dataset.dashboardTouched !== 'true') {
                     setCollapsed(item, !defaultOpen);
                     return;
@@ -243,31 +236,11 @@ import './bootstrap';
             };
 
             button.addEventListener('click', () => {
-                if (!mobileQuery.matches) {
-                    return;
-                }
-
                 item.dataset.dashboardTouched = 'true';
                 setCollapsed(item, item.dataset.dashboardCollapsed !== 'true');
             });
 
             sync(true);
-
-            const handleViewportChange = () => {
-                if (!mobileQuery.matches) {
-                    item.dataset.dashboardTouched = 'false';
-                    setCollapsed(item, false);
-                    return;
-                }
-
-                sync(true);
-            };
-
-            if (typeof mobileQuery.addEventListener === 'function') {
-                mobileQuery.addEventListener('change', handleViewportChange);
-            } else if (typeof mobileQuery.addListener === 'function') {
-                mobileQuery.addListener(handleViewportChange);
-            }
         });
     };
 
