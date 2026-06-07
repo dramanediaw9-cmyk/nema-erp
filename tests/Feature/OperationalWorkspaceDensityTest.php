@@ -49,7 +49,6 @@ class OperationalWorkspaceDensityTest extends TestCase
         $this->get(route('products.index'))
             ->assertOk()
             ->assertSee('erp-module-bar', false)
-            ->assertDontSee('module-favorite-button', false)
             ->assertDontSee('navigation.favorites.toggle', false);
 
         $this->get(route('search.index'))

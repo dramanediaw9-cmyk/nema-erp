@@ -24,12 +24,17 @@ test('cashier can open POS session, validate a sale, print the thermal ticket, a
     await saleLink.first().click();
 
     await expect(page).toHaveURL(/\/point-de-vente\/vente/);
-    await expect(page.locator('[data-product-id]').first()).toBeVisible();
+    const availableProduct = page.locator('.pos-product[data-product-id]:not(:disabled)').first();
+    await expect(availableProduct).toBeVisible();
+    await expect(availableProduct).toBeEnabled();
 
-    await page.locator('[data-product-id]').first().click();
+    await availableProduct.click();
+    await expect(page.locator('[data-line-card]').first()).toBeVisible();
     await page.locator('#cash_received_amount').fill('999999');
 
-    await page.getByRole('button', { name: 'Valider et encaisser' }).click();
+    const submitButton = page.getByRole('button', { name: 'Valider et encaisser' });
+    await expect(submitButton).toHaveAttribute('aria-disabled', 'false');
+    await submitButton.click();
     await page.waitForURL(/\/point-de-vente\/(tickets\/\d+\/thermique|vente)/);
 
     if (/\/point-de-vente\/tickets\/\d+\/thermique/.test(page.url())) {

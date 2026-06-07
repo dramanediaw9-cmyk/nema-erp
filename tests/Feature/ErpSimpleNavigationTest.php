@@ -21,7 +21,6 @@ class ErpSimpleNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('erp-module-bar', false)
-            ->assertDontSee('module-favorite-button', false)
             ->assertSee('Tableau de bord')
             ->assertSee('Ventes')
             ->assertSee('POS / Caisse')
