@@ -1,187 +1,183 @@
 @php
-    $catalog = collect($appCatalog ?? []);
-    $families = $catalog
-        ->groupBy(fn (array $item) => $item['app_family'] ?? 'Applications')
-        ->map(fn ($items, $label) => [
-            'label' => $label,
-            'count' => $items->count(),
-            'accent' => $items->first()['app_accent'] ?? '#4fd1c5',
-            'border' => $items->first()['app_border'] ?? 'rgba(255,255,255,.12)',
-        ])
-        ->values();
-
-    $resolveAppUrl = static function (string $permission) use ($catalog): string {
-        return $catalog->firstWhere('permission', $permission)['url'] ?? route('dashboard');
-    };
-
-    $counterCards = array_values(array_filter([
+    $user = auth()->user();
+    $metricCards = collect([
         [
-            'label' => 'Alertes',
-            'value' => (int) ($stats['alertes_non_lues'] ?? 0),
-            'icon' => 'alert',
-            'url' => $resolveAppUrl('notifications.view'),
+            'permission' => 'stock.view',
+            'label' => 'References disponibles',
+            'value' => number_format((int) ($stats['references_disponibles'] ?? 0), 0, ',', ' '),
+            'detail' => 'avec un solde positif',
+            'icon' => 'stock',
+            'tone' => 'success',
+            'url' => route('stock.index', ['stock_state' => 'available']),
         ],
         [
-            'label' => 'Approbations',
-            'value' => (int) ($stats['approbations_en_attente_total'] ?? 0),
-            'icon' => 'approval',
-            'url' => $resolveAppUrl('approvals.view'),
-        ],
-    ], static fn (array $item): bool => $item['value'] > 0));
-
-    $statusCards = [
-        [
-            'label' => 'Modules visibles',
-            'value' => number_format($catalog->count(), 0, ',', ' '),
-            'meta' => number_format($families->count(), 0, ',', ' ').' univers metier',
-            'url' => null,
-        ],
-        [
-            'label' => 'Alertes actives',
-            'value' => number_format((int) ($stats['alertes_non_lues'] ?? 0), 0, ',', ' '),
-            'meta' => 'A traiter dans le centre d alertes',
-            'url' => $resolveAppUrl('notifications.view'),
-        ],
-        [
-            'label' => 'Ventes du jour',
-            'value' => number_format((int) ($stats['ventes_jour_count'] ?? 0), 0, ',', ' '),
-            'meta' => 'facture(s) deja validee(s)',
-            'url' => $resolveAppUrl('sales.view'),
-        ],
-        [
-            'label' => 'Stock a surveiller',
+            'permission' => 'stock.view',
+            'label' => 'Ruptures et seuil mini',
             'value' => number_format((int) ($stats['alertes_stock'] ?? 0), 0, ',', ' '),
-            'meta' => 'produit(s) au mini ou en dessous',
-            'url' => $resolveAppUrl('stock.view'),
+            'detail' => 'references a traiter',
+            'icon' => 'alert',
+            'tone' => ((int) ($stats['alertes_stock'] ?? 0)) > 0 ? 'danger' : 'success',
+            'url' => route('stock.index', ['stock_state' => 'low']),
         ],
+        [
+            'permission' => 'stock.view',
+            'label' => 'Mouvements aujourd hui',
+            'value' => number_format((int) ($stats['mouvements_stock_jour'] ?? 0), 0, ',', ' '),
+            'detail' => 'entrees et sorties',
+            'icon' => 'pulse',
+            'tone' => 'neutral',
+            'url' => route('stock.movements'),
+        ],
+        [
+            'permission' => 'stock_counts.view',
+            'label' => 'Inventaires ouverts',
+            'value' => number_format((int) ($stats['inventaires_ouverts'] ?? 0), 0, ',', ' '),
+            'detail' => 'comptages a valider',
+            'icon' => 'gauge',
+            'tone' => ((int) ($stats['inventaires_ouverts'] ?? 0)) > 0 ? 'warning' : 'neutral',
+            'url' => route('stock-counts.index'),
+        ],
+        [
+            'permission' => 'transfers.view',
+            'label' => 'Transferts du jour',
+            'value' => number_format((int) ($stats['transferts_jour'] ?? 0), 0, ',', ' '),
+            'detail' => 'entre depots',
+            'icon' => 'truck',
+            'tone' => 'neutral',
+            'url' => route('transfers.index'),
+        ],
+        [
+            'permission' => 'sales.view',
+            'label' => 'Ventes du jour',
+            'value' => number_format((float) ($stats['ventes_jour'] ?? 0), 0, ',', ' ').' FCFA',
+            'detail' => number_format((int) ($stats['ventes_jour_count'] ?? 0), 0, ',', ' ').' facture(s)',
+            'icon' => 'sell',
+            'tone' => 'neutral',
+            'url' => route('sales.index'),
+        ],
+        [
+            'permission' => 'payments.view',
+            'label' => 'Encaissements du jour',
+            'value' => number_format((float) ($stats['encaissements_jour'] ?? 0), 0, ',', ' ').' FCFA',
+            'detail' => number_format((int) ($stats['encaissements_jour_count'] ?? 0), 0, ',', ' ').' operation(s)',
+            'icon' => 'wallet',
+            'tone' => 'neutral',
+            'url' => route('payments.index'),
+        ],
+    ])->filter(fn (array $item) => $user?->hasPermission($item['permission']));
+
+    $quickActions = collect([
+        ['permission' => 'sales.manage', 'label' => 'Nouvelle vente', 'icon' => 'sell', 'url' => route('sales.create')],
+        ['permission' => 'payments.validate', 'label' => 'Encaisser', 'icon' => 'wallet', 'url' => route('payments.create')],
+        ['permission' => 'stock_counts.manage', 'label' => 'Nouvel inventaire', 'icon' => 'gauge', 'url' => route('stock-counts.create')],
+        ['permission' => 'transfers.manage', 'label' => 'Nouveau transfert', 'icon' => 'truck', 'url' => route('transfers.create')],
+    ])->filter(fn (array $item) => $user?->hasPermission($item['permission']));
+
+    $movementLabels = [
+        'opening' => 'Stock initial',
+        'purchase' => 'Reception',
+        'sale' => 'Vente',
+        'adjustment_in' => 'Ajustement +',
+        'adjustment_out' => 'Ajustement -',
+        'transfer_in' => 'Transfert entrant',
+        'transfer_out' => 'Transfert sortant',
+        'return_in' => 'Retour entrant',
+        'return_out' => 'Retour sortant',
     ];
-
-    $launcherHighlights = collect($premiumActionCenter ?? [])->take(3);
-    if ($launcherHighlights->isEmpty()) {
-        $launcherHighlights = collect($roleSpotlight ?? [])->take(3);
-    }
-
-    $badgeForApp = static function (array $item) use ($stats): ?string {
-        $count = match ((string) ($item['permission'] ?? '')) {
-            'approvals.view' => (int) ($stats['approbations_en_attente_total'] ?? 0),
-            'notifications.view' => (int) ($stats['alertes_non_lues'] ?? 0),
-            'sales.view' => (int) ($stats['ventes_jour_count'] ?? 0),
-            'payments.view' => (int) ($stats['encaissements_jour_count'] ?? 0),
-            'stock.view' => (int) ($stats['alertes_stock'] ?? 0),
-            'purchases.view', 'purchase_orders.view', 'purchase_requests.view' => (int) ($stats['achats_en_attente'] ?? 0),
-            default => 0,
-        };
-
-        if ($count <= 0) {
-            return null;
-        }
-
-        return $count > 99 ? '99+' : number_format($count, 0, ',', ' ');
-    };
-
-    $avatarInitial = mb_strtoupper(mb_substr(trim((string) (auth()->user()?->name ?? 'Nema')), 0, 1));
 @endphp
 
-@if ($catalog->isNotEmpty())
-    <section class="card dashboard-launcher">
-        <div class="dashboard-launcher__top">
-            <a href="{{ route('search.index') }}" class="dashboard-launcher__search">
-                <span class="dashboard-launcher__search-icon">
-                    @include('dashboard.partials.icon', ['name' => 'search', 'size' => 18])
-                </span>
-                <span>Rechercher un module, un client ou une facture</span>
+<section class="dashboard-workspace" aria-labelledby="dashboard-workspace-title">
+    <header class="dashboard-workspace__header">
+        <div>
+            <p class="dashboard-workspace__eyebrow">Travail du jour</p>
+            <h2 id="dashboard-workspace-title">Situation operationnelle</h2>
+        </div>
+        <div class="dashboard-workspace__tools">
+            <a href="{{ route('search.index') }}" class="dashboard-workspace__search">
+                @include('dashboard.partials.icon', ['name' => 'search', 'size' => 17])
+                <span>Recherche globale</span>
             </a>
-            <div class="dashboard-launcher__actions">
-                @foreach ($counterCards as $counter)
-                    <a href="{{ $counter['url'] }}" class="dashboard-launcher__counter" aria-label="{{ $counter['label'] }} : {{ $counter['value'] }}">
-                        @include('dashboard.partials.icon', ['name' => $counter['icon'], 'size' => 16])
-                        <strong>{{ $counter['value'] > 99 ? '99+' : number_format($counter['value'], 0, ',', ' ') }}</strong>
-                    </a>
-                @endforeach
-                <span class="dashboard-launcher__avatar" title="{{ auth()->user()?->name }}">{{ $avatarInitial }}</span>
-            </div>
-        </div>
-
-        <div class="dashboard-launcher__hero">
-            <div class="dashboard-launcher__copy">
-                <div class="badge badge-muted">Modules ERP</div>
-                <h2 class="dashboard-launcher__title">Applications</h2>
-                <p class="dashboard-launcher__body">{{ $dashboardProfile['focus_title'] }}. Ouvre vite le bon espace metier depuis une grille compacte, comme un vrai launcher ERP mobile.</p>
-                <div class="dashboard-launcher__family-strip">
-                    @foreach ($families as $family)
-                        <span class="dashboard-launcher__family" style="--launcher-accent: {{ $family['accent'] }}; --launcher-border: {{ $family['border'] }};">
-                            {{ $family['label'] }} <strong>{{ $family['count'] }}</strong>
-                        </span>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="dashboard-launcher__status-grid">
-                @foreach ($statusCards as $card)
-                    @if ($card['url'])
-                        <a href="{{ $card['url'] }}" class="dashboard-launcher__status-card">
-                            <span>{{ $card['label'] }}</span>
-                            <strong>{{ $card['value'] }}</strong>
-                            <small>{{ $card['meta'] }}</small>
-                        </a>
-                    @else
-                        <article class="dashboard-launcher__status-card">
-                            <span>{{ $card['label'] }}</span>
-                            <strong>{{ $card['value'] }}</strong>
-                            <small>{{ $card['meta'] }}</small>
-                        </article>
-                    @endif
-                @endforeach
-            </div>
-        </div>
-
-        <div class="dashboard-app-grid">
-            @foreach ($catalog as $item)
-                @php
-                    $tileStyle = implode('; ', [
-                        '--app-accent: '.$item['app_accent'],
-                        '--app-surface: '.$item['app_surface'],
-                        '--app-soft: '.$item['app_soft'],
-                        '--app-border: '.$item['app_border'],
-                        '--app-ink: '.$item['app_ink'],
-                        '--app-muted: '.$item['app_muted'],
-                        '--app-shadow: '.$item['app_shadow'],
-                        '--app-badge-start: '.$item['app_badge_start'],
-                        '--app-badge-end: '.$item['app_badge_end'],
-                    ]);
-                    $badge = $badgeForApp($item);
-                @endphp
-                <a href="{{ $item['url'] }}" class="dashboard-app-card" aria-label="Ouvrir {{ $item['label'] }}" style="{{ $tileStyle }}">
-                    @if ($badge)
-                        <span class="dashboard-app-card__badge">{{ $badge }}</span>
-                    @endif
-                    <span class="dashboard-icon-badge dashboard-icon-badge--app">
-                        @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'grid', 'size' => 30])
-                    </span>
-                    <strong class="dashboard-app-card__label">{{ $item['short_label'] ?? $item['label'] }}</strong>
-                    <span class="dashboard-app-card__family">{{ $item['app_family'] ?? 'Application' }}</span>
+            @foreach ($quickActions as $action)
+                <a href="{{ $action['url'] }}" class="dashboard-workspace__action">
+                    @include('dashboard.partials.icon', ['name' => $action['icon'], 'size' => 17])
+                    <span>{{ $action['label'] }}</span>
                 </a>
             @endforeach
         </div>
+    </header>
 
-        @if ($launcherHighlights->isNotEmpty())
-            <div class="dashboard-launcher__focus-grid">
-                @foreach ($launcherHighlights as $item)
-                    <a href="{{ $item['url'] }}" class="dashboard-launcher__focus-card">
-                        <div class="dashboard-card-lead">
-                            <span class="dashboard-icon-badge dashboard-icon-badge--premium">
-                                @include('dashboard.partials.icon', ['name' => $item['icon'] ?? 'flash', 'size' => 18])
-                            </span>
-                            <div>
-                                <p class="dashboard-card-label">{{ $item['label'] }}</p>
-                                <div class="dashboard-card-caption">{{ $item['eyebrow'] ?? 'Focus' }}</div>
-                            </div>
-                        </div>
-                        <div class="stat-value">{{ $item['metric'] ?? $item['value'] ?? '0' }}</div>
-                        <p class="muted">{{ $item['description'] }}</p>
-                    </a>
-                @endforeach
-            </div>
+    <div class="dashboard-workspace__metrics">
+        @foreach ($metricCards as $metric)
+            <a href="{{ $metric['url'] }}" class="dashboard-workspace__metric dashboard-workspace__metric--{{ $metric['tone'] }}">
+                <span class="dashboard-workspace__metric-icon">
+                    @include('dashboard.partials.icon', ['name' => $metric['icon'], 'size' => 18])
+                </span>
+                <span class="dashboard-workspace__metric-copy">
+                    <small>{{ $metric['label'] }}</small>
+                    <strong>{{ $metric['value'] }}</strong>
+                    <span>{{ $metric['detail'] }}</span>
+                </span>
+            </a>
+        @endforeach
+    </div>
+
+    <div class="dashboard-workspace__feed-grid">
+        @if ($user?->hasPermission('stock.view'))
+            <section class="dashboard-workspace__feed" aria-labelledby="stock-movements-title">
+                <div class="dashboard-workspace__section-head">
+                    <div>
+                        <h3 id="stock-movements-title">Derniers mouvements de stock</h3>
+                        <span>Agence active</span>
+                    </div>
+                    <a href="{{ route('stock.movements') }}">Voir tout</a>
+                </div>
+                @if ($recentStockMovements->isEmpty())
+                    <p class="dashboard-workspace__empty">Aucun mouvement de stock enregistre.</p>
+                @else
+                    <div class="dashboard-workspace__movement-list">
+                        @foreach ($recentStockMovements as $movement)
+                            @php
+                                $isEntry = (float) $movement->quantity_in > 0;
+                                $quantity = $isEntry ? (float) $movement->quantity_in : (float) $movement->quantity_out;
+                                $formattedQuantity = rtrim(rtrim(number_format($quantity, 3, ',', ' '), '0'), ',');
+                            @endphp
+                            <article class="dashboard-workspace__movement">
+                                <span class="dashboard-workspace__direction dashboard-workspace__direction--{{ $isEntry ? 'in' : 'out' }}">{{ $isEntry ? '+' : '-' }}</span>
+                                <div class="dashboard-workspace__movement-main">
+                                    <strong>{{ $movement->product?->name ?? 'Produit archive' }}</strong>
+                                    <span>{{ $movementLabels[$movement->movement_type] ?? ucfirst(str_replace('_', ' ', $movement->movement_type)) }} · {{ $movement->warehouse?->name ?? 'Depot' }}</span>
+                                </div>
+                                <strong class="dashboard-workspace__quantity">{{ $isEntry ? '+' : '-' }}{{ $formattedQuantity }}</strong>
+                                <time datetime="{{ $movement->movement_date?->toIso8601String() }}">{{ $movement->movement_date?->format('d/m H:i') }}</time>
+                            </article>
+                        @endforeach
+                    </div>
+                @endif
+            </section>
         @endif
-    </section>
-@endif
+
+        <section class="dashboard-workspace__feed" aria-labelledby="recent-activity-title">
+            <div class="dashboard-workspace__section-head">
+                <div>
+                    <h3 id="recent-activity-title">Activite recente</h3>
+                    <span>Dernieres operations ERP</span>
+                </div>
+            </div>
+            @if ($recentActivities->isEmpty())
+                <p class="dashboard-workspace__empty">Aucune activite enregistree.</p>
+            @else
+                <div class="dashboard-workspace__activity-list">
+                    @foreach ($recentActivities->take(5) as $activity)
+                        <article class="dashboard-workspace__activity">
+                            <span class="dashboard-workspace__activity-dot"></span>
+                            <div>
+                                <strong>{{ $activity->description }}</strong>
+                                <span>{{ $activity->user?->name ?? 'Systeme' }} · {{ $activity->created_at?->format('d/m/Y H:i') }}</span>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+    </div>
+</section>
