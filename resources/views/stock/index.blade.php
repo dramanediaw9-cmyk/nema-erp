@@ -2,6 +2,7 @@
 
 @section('title', 'Stock - Nema ERP')
 @section('page-title', 'Stock par agence')
+@section('layout-mode', 'compact')
 
 @push('page-styles')
     <style>
@@ -216,6 +217,7 @@
         $visibleAvailableToPromise = $visibleProducts->sum(fn ($product) => (float) ($product->available_to_promise ?? 0));
         $visibleZeroCount = $visibleProducts->filter(fn ($product) => (float) $product->current_stock <= 0)->count();
         $visibleHealthyCount = $visibleProducts->filter(fn ($product) => (float) $product->current_stock > (float) $product->min_stock)->count();
+        $hasActiveFilters = collect($filters)->filter(fn ($value) => filled($value))->isNotEmpty();
         $merchantFilterLinks = [
             ['label' => 'Tout', 'url' => route('stock.index'), 'active' => ! filled($filters['stock_state'] ?? null)],
             ['label' => 'A surveiller', 'url' => route('stock.index', ['stock_state' => 'low']), 'active' => ($filters['stock_state'] ?? null) === 'low'],
@@ -224,105 +226,77 @@
         ];
     @endphp
 
-    <div class="premium-page">
-        <section class="card premium-hero {{ $isMerchantMode ? 'premium-hero--merchant' : '' }}">
-            <div class="premium-hero__grid">
-                <div class="premium-hero__copy">
-                    <div class="badge {{ $isMerchantMode ? 'badge-success' : 'badge-muted' }}">{{ $isMerchantMode ? 'Stock boutique' : 'Pilotage stock' }}</div>
-                    <h2>
-                        {{ $isMerchantMode
-                            ? 'Vois rapidement ce qu il reste en stock dans '.($branch?->name ?? 'l agence active').'.'
-                            : 'Situation stock pour '.($branch?->name ?? 'l agence active').' avec lecture plus claire et plus rapide.' }}
-                    </h2>
-                    <p class="muted">
-                        {{ $isMerchantMode
-                            ? 'L ecran te montre surtout ce qui manque, ce qui est en rupture et les quantites utiles pour vendre sans te perdre dans les details techniques.'
-                            : 'Le stock est calcule a partir des mouvements. Tu peux maintenant voir aussi ce qui est deja promis sur commandes confirmees pour piloter le vrai disponible commercial.' }}
-                    </p>
-                    <div class="premium-actions">
-                        @if ($isMerchantMode)
-                            <a href="{{ route('stock.index', ['stock_state' => 'zero']) }}" class="button button-secondary">Ruptures</a>
-                            <a href="{{ route('stock.index', ['stock_state' => 'low']) }}" class="button button-secondary">A surveiller</a>
-                            <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
-                            @allowed('stock.manage')
-                                <a href="{{ route('stock.losses.create') }}" class="button button-secondary">Pertes stock</a>
-                            @endallowed
-                        @else
-                            <a href="{{ route('stock.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-                            <a href="{{ route('stock.movements') }}" class="button button-secondary">Voir les mouvements</a>
-                            @allowed('warehouses.view')
-                                <a href="{{ route('warehouses.index') }}" class="button button-secondary">Entrepots</a>
-                            @endallowed
-                            @allowed('transfers.view')
-                                <a href="{{ route('transfers.index') }}" class="button button-secondary">Transferts</a>
-                            @endallowed
-                            @allowed('stock.manage')
-                                <a href="{{ route('stock.losses.create') }}" class="button button-secondary">Pertes stock</a>
-                                <a href="{{ route('stock.adjustments.create') }}" class="button button-primary">Ajuster le stock</a>
-                            @endallowed
-                        @endif
-                    </div>
-                </div>
-                <div class="premium-panel">
-                    <strong>{{ $isMerchantMode ? 'Lecture commercant' : 'Lecture terrain' }}</strong>
-                    <p class="muted">
-                        {{ $isMerchantMode
-                            ? 'Priorite aux signaux utiles: rupture, seuil mini et quantite encore disponible pour servir le client.'
-                            : 'Vois les ruptures, la reservation client et le disponible a promettre sans ouvrir chaque fiche. Le mode d affichage reste memorise pour chaque utilisateur.' }}
-                    </p>
-                </div>
+    <div class="premium-page erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <span class="badge {{ $isMerchantMode ? 'badge-success' : 'badge-muted' }}">{{ $isMerchantMode ? 'Stock boutique' : 'Stock' }}</span>
+                <strong>{{ $branch?->name ?? 'Agence active' }}</strong>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                <a href="{{ route('stock.index', ['stock_state' => 'zero']) }}" class="button button-secondary">Ruptures</a>
+                <a href="{{ route('stock.index', ['stock_state' => 'low']) }}" class="button button-secondary">A surveiller</a>
+                <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
+                @unless ($isMerchantMode)
+                    <a href="{{ route('stock.export', request()->query()) }}" class="button button-secondary">Exporter</a>
+                    @allowed('transfers.view')
+                        <a href="{{ route('transfers.index') }}" class="button button-secondary">Transferts</a>
+                    @endallowed
+                @endunless
+                @allowed('stock.manage')
+                    <a href="{{ route('stock.adjustments.create') }}" class="button button-primary">Ajuster</a>
+                @endallowed
             </div>
         </section>
 
-        <section class="premium-metric-grid">
+        <section class="premium-metric-grid erp-kpi-strip">
             @if ($isMerchantMode)
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Articles visibles</div>
                     <div class="value">{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</div>
                     <div class="hint">References affichees sur cette page.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Ruptures visibles</div>
                     <div class="value">{{ number_format($visibleZeroCount, 0, ',', ' ') }}</div>
                     <div class="hint">Articles a zero ou en dessous.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">A surveiller</div>
                     <div class="value">{{ number_format($visibleAlertCount, 0, ',', ' ') }}</div>
                     <div class="hint">Articles au seuil mini ou en dessous.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Encore en stock</div>
                     <div class="value">{{ number_format($visibleHealthyCount, 0, ',', ' ') }}</div>
                     <div class="hint">Articles avec stock au-dessus du minimum.</div>
                 </article>
             @else
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Articles visibles</div>
                     <div class="value">{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</div>
                     <div class="hint">Nombre de references affichees sur cette page.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Stock a surveiller</div>
                     <div class="value">{{ number_format($visibleAlertCount, 0, ',', ' ') }}</div>
                     <div class="hint">Articles au seuil mini ou en dessous.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Valorisation visible</div>
                     <div class="value">{{ number_format($visibleValuation, 0, ',', ' ') }}</div>
                     <div class="hint">Approximation sur les lignes affichees.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Quantite visible</div>
                     <div class="value">{{ number_format($visibleUnits, 3, ',', ' ') }}</div>
                     <div class="hint">Somme des quantites physiques de cette vue.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Stock reserve</div>
                     <div class="value">{{ number_format($visibleReserved, 3, ',', ' ') }}</div>
                     <div class="hint">Quantites deja promises sur commandes confirmees.</div>
                 </article>
-                <article class="premium-metric-card">
+                <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Disponible a promettre</div>
                     <div class="value">{{ number_format($visibleAvailableToPromise, 3, ',', ' ') }}</div>
                     <div class="hint">Stock vendable restant apres reservations.</div>
@@ -330,23 +304,21 @@
             @endif
         </section>
 
-        <section class="card premium-filter-card">
-            <div class="premium-section-head">
-                <div>
-                    <h3>{{ $isMerchantMode ? 'Recherche simple' : 'Filtres stock' }}</h3>
-                    <p class="muted">{{ $isMerchantMode ? 'Retrouve vite un article ou affiche seulement les ruptures et les produits a surveiller.' : 'Affiner par produit, categorie, entrepot, tracabilite ou stock vendable.' }}</p>
-                </div>
-            </div>
+        <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
+            <summary>
+                <span>{{ $isMerchantMode ? 'Recherche et filtres' : 'Filtres stock' }}</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Toutes les references' }}</span>
+            </summary>
+            <div class="erp-filter-panel__body">
+                @if ($isMerchantMode)
+                    <div class="premium-pill-row merchant-filter-pills" style="margin-bottom:10px;">
+                        @foreach ($merchantFilterLinks as $link)
+                            <a href="{{ $link['url'] }}" class="button {{ $link['active'] ? 'button-primary' : 'button-secondary' }}">{{ $link['label'] }}</a>
+                        @endforeach
+                    </div>
+                @endif
 
-            @if ($isMerchantMode)
-                <div class="premium-pill-row merchant-filter-pills" style="margin-bottom:14px;">
-                    @foreach ($merchantFilterLinks as $link)
-                        <a href="{{ $link['url'] }}" class="button {{ $link['active'] ? 'button-primary' : 'button-secondary' }}">{{ $link['label'] }}</a>
-                    @endforeach
-                </div>
-            @endif
-
-            <form method="GET" action="{{ route('stock.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+                <form method="GET" action="{{ route('stock.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">{{ $isMerchantMode ? 'Recherche article' : 'Recherche produit' }}</label>
                     <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="{{ $isMerchantMode ? 'Nom, code ou code-barres...' : 'Nom ou SKU...' }}">
@@ -403,8 +375,9 @@
                     <button type="submit" class="button button-primary">{{ $isMerchantMode ? 'Appliquer' : 'Filtrer' }}</button>
                     <a href="{{ route('stock.index') }}" class="button button-secondary">Reinitialiser</a>
                 </div>
-            </form>
-        </section>
+                </form>
+            </div>
+        </details>
 
         @if ($selectedWarehouse)
             <div class="premium-pill-row">

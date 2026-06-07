@@ -36,8 +36,9 @@ class NavigationFavoriteTest extends TestCase
             ->withSession($this->workspaceSession($manager))
             ->get(route('search.index'))
             ->assertOk()
-            ->assertSee('Modules favoris')
-            ->assertSee('Retirer favori');
+            ->assertSee('Acces rapides')
+            ->assertDontSee('Retirer favori')
+            ->assertDontSee('Epingler');
 
         $this->actingAs($manager)
             ->withSession($this->workspaceSession($manager))

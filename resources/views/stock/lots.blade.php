@@ -2,6 +2,7 @@
 
 @section('title', 'Lots et peremption - Nema ERP')
 @section('page-title', 'Lots et peremption')
+@section('layout-mode', 'compact')
 
 @push('page-styles')
     <style>
@@ -149,62 +150,53 @@
 @endpush
 
 @section('content')
-    <div class="lot-page">
-        <section class="card lot-hero">
-            <div class="lot-hero__grid">
-                <div class="lot-hero__copy">
-                    <div class="badge badge-muted">Traceabilite stock</div>
-                    <h2>Lots, numeros de serie et peremption pour {{ $branch?->name ?? 'l agence active' }}.</h2>
-                    <p class="muted">Cette vue met en avant les lots encore disponibles, les echeances critiques et les receptions a surveiller avant rupture, perte ou blocage terrain.</p>
-                </div>
-                <div class="lot-hero__panel">
-                    <strong>Ce que tu vois ici</strong>
-                    <div class="muted">Les lots filtrables par depot, type de suivi, disponibilite et horizon de peremption, avec acces rapide a la fiche produit et a la reception d origine.</div>
-                    <div class="lot-hero__actions">
-                        <a href="{{ route('stock.index') }}" class="button button-secondary">Retour stock</a>
-                        <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
-                    </div>
-                </div>
+    <div class="lot-page erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <span class="badge badge-muted">Traceabilite</span>
+                <strong>{{ $branch?->name ?? 'Agence active' }}</strong>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                <a href="{{ route('stock.index') }}" class="button button-secondary">Stock</a>
+                <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
             </div>
         </section>
 
-        <section class="lot-metric-grid">
-            <div class="lot-metric-card">
+        <section class="lot-metric-grid erp-kpi-strip">
+            <div class="lot-metric-card erp-kpi-card">
                 <div class="label">Lots visibles</div>
                 <div class="value">{{ $stats['count'] }}</div>
                 <div class="hint">Selon les filtres actifs.</div>
             </div>
-            <div class="lot-metric-card">
+            <div class="lot-metric-card erp-kpi-card">
                 <div class="label">Produits suivis</div>
                 <div class="value">{{ $stats['tracked_products'] }}</div>
                 <div class="hint">Articles couverts par ces lots.</div>
             </div>
-            <div class="lot-metric-card">
+            <div class="lot-metric-card erp-kpi-card">
                 <div class="label">Disponible</div>
                 <div class="value">{{ number_format((float) $stats['available_qty'], 3, ',', ' ') }}</div>
                 <div class="hint">Quantite encore exploitable.</div>
             </div>
-            <div class="lot-metric-card">
+            <div class="lot-metric-card erp-kpi-card">
                 <div class="label">Expire</div>
                 <div class="value">{{ $stats['expired_count'] }}</div>
                 <div class="hint">Lots deja echus et encore disponibles.</div>
             </div>
-            <div class="lot-metric-card">
+            <div class="lot-metric-card erp-kpi-card">
                 <div class="label">A surveiller</div>
                 <div class="value">{{ $stats['expiring_count'] }}</div>
                 <div class="hint">Lots qui expirent sous {{ $expiryHorizonDays }} jours.</div>
             </div>
         </section>
 
-        <section class="card lot-filter-card">
-            <div class="lot-section-head">
-                <div>
-                    <h3>Filtres de pilotage</h3>
-                    <p class="muted">Concentre-toi sur les lots critiques, un depot precis ou une reference exacte.</p>
-                </div>
-            </div>
-
-            <form method="GET" action="{{ route('stock.lots') }}" class="form-grid" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); align-items:end;">
+        <details class="card lot-filter-card erp-filter-panel" @if (request()->query()) open @endif>
+            <summary>
+                <span>Filtres lots et peremption</span>
+                <span class="muted">{{ request()->query() ? 'Filtres actifs' : 'Tous les lots disponibles' }}</span>
+            </summary>
+            <div class="erp-filter-panel__body">
+                <form method="GET" action="{{ route('stock.lots') }}" class="form-grid" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); align-items:end;">
                 <div>
                     <label for="search">Recherche</label>
                     <input id="search" type="text" name="search" value="{{ $filters['search'] }}" placeholder="Lot, serie, produit, BL, depot...">
@@ -256,8 +248,9 @@
                     <button type="submit" class="button button-primary">Appliquer</button>
                     <a href="{{ route('stock.lots') }}" class="button button-secondary">Reinitialiser</a>
                 </div>
-            </form>
-        </section>
+                </form>
+            </div>
+        </details>
 
         <section class="card">
             <div class="lot-section-head">

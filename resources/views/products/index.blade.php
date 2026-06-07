@@ -2,6 +2,7 @@
 
 @section('title', 'Produits - Nema ERP')
 @section('page-title', 'Catalogue produits')
+@section('layout-mode', 'compact')
 
 @push('page-styles')
     <style>
@@ -229,62 +230,55 @@
         $visibleAlerts = $visibleStockable->filter(fn ($product) => ((float) ($product->current_stock ?? 0)) <= (float) $product->min_stock)->count();
         $visibleActive = $visibleProducts->where('is_active', true)->count();
         $resultTotal = method_exists($products, 'total') ? $products->total() : $visibleProducts->count();
+        $hasActiveFilters = collect($filters)->except('view')->filter(fn ($value) => filled($value))->isNotEmpty();
     @endphp
 
-    <div class="premium-page">
-        <section class="card premium-hero">
-            <div class="premium-hero__grid">
-                <div class="premium-hero__copy">
-                    <div class="badge badge-muted">Catalogue central</div>
-                    <h2>Produits et services relies au stock, aux ventes et au POS.</h2>
-                    <p class="muted">Le catalogue sert directement au stock, aux ventes, aux achats et au point de vente. L idee est d aller vite, avec une vue plus premium et plus facile a scanner au quotidien.</p>
-                    <div class="premium-actions">
-                        @allowed('imports.manage')
-                            <a href="{{ route('imports.index') }}" class="button button-secondary">Importer CSV</a>
-                        @endallowed
-                        @allowed('products.manage')
-                            <a href="{{ route('products.create') }}" class="button button-primary">Nouveau produit</a>
-                        @endallowed
-                    </div>
-                </div>
-                <div class="premium-panel">
-                    <strong>Qualite de lecture</strong>
-                    <p class="muted">Passe de `liste` a `kanban`, puis si besoin affine encore la table en mode `compact` ou `detaille`.</p>
-                </div>
+    <div class="premium-page erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <span class="badge badge-muted">Catalogue</span>
+                <strong>{{ number_format($resultTotal, 0, ',', ' ') }} reference(s)</strong>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                @allowed('imports.manage')
+                    <a href="{{ route('imports.index') }}" class="button button-secondary">Importer CSV</a>
+                @endallowed
+                @allowed('products.manage')
+                    <a href="{{ route('products.create') }}" class="button button-primary">Nouveau produit</a>
+                @endallowed
             </div>
         </section>
 
-        <section class="premium-metric-grid">
-            <article class="premium-metric-card">
+        <section class="premium-metric-grid erp-kpi-strip">
+            <article class="premium-metric-card erp-kpi-card">
                 <div class="label">References</div>
                 <div class="value">{{ number_format($resultTotal, 0, ',', ' ') }}</div>
                 <div class="hint">Catalogue trouve avec les filtres courants.</div>
             </article>
-            <article class="premium-metric-card">
+            <article class="premium-metric-card erp-kpi-card">
                 <div class="label">Actifs visibles</div>
                 <div class="value">{{ number_format($visibleActive, 0, ',', ' ') }}</div>
                 <div class="hint">Produits ou services actifs dans cette vue.</div>
             </article>
-            <article class="premium-metric-card">
+            <article class="premium-metric-card erp-kpi-card">
                 <div class="label">Services visibles</div>
                 <div class="value">{{ number_format($visibleServices, 0, ',', ' ') }}</div>
                 <div class="hint">Sans impact stock.</div>
             </article>
-            <article class="premium-metric-card">
+            <article class="premium-metric-card erp-kpi-card">
                 <div class="label">Stock a surveiller</div>
                 <div class="value">{{ number_format($visibleAlerts, 0, ',', ' ') }}</div>
                 <div class="hint">Articles sous ou au niveau mini dans cette page.</div>
             </article>
         </section>
 
-        <section class="card premium-filter-card">
-            <div class="premium-section-head">
-                <div>
-                    <h3>Filtres catalogue</h3>
-                    <p class="muted">Affiner rapidement par recherche, categorie, type, statut ou etat de stock.</p>
-                </div>
-            </div>
-            <form method="GET" action="{{ route('products.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+        <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
+            <summary>
+                <span>Filtres catalogue</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Tous les produits' }}</span>
+            </summary>
+            <div class="erp-filter-panel__body">
+                <form method="GET" action="{{ route('products.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
@@ -328,8 +322,9 @@
                     <button type="submit" class="button button-primary">Filtrer</button>
                     <a href="{{ route('products.index', ['view' => $currentView]) }}" class="button button-secondary">Reinitialiser</a>
                 </div>
-            </form>
-        </section>
+                </form>
+            </div>
+        </details>
 
         <div class="table-tools">
             <div class="table-note">

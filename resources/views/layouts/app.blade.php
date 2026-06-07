@@ -1049,12 +1049,18 @@
             .sidebar-toggle-desktop {
                 display: none;
             }
+            .shell,
             .shell[data-sidebar-state="collapsed"],
             .shell[data-focus-active="true"],
             .shell[data-focus-active="true"][data-sidebar-state="hidden"] {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr) !important;
+                width: 100%;
                 padding: 12px;
                 gap: 14px;
+            }
+            .main {
+                width: 100%;
+                min-width: 0;
             }
             .shell[data-sidebar-state="collapsed"] .sidebar,
             .shell[data-focus-active="true"] .sidebar,
@@ -1374,81 +1380,18 @@
         @include('partials.flash')
 
         @if (! $hideGlobalShortcuts && ! $isMerchantMode && ! empty($erpNavigation['modules'] ?? []))
-            <section class="card" style="margin-bottom:20px; padding:18px 20px;">
-                <div style="display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; align-items:flex-start;">
-                    <div style="display:grid; gap:10px; min-width:0;">
-                        <div class="topbar-label" style="margin:0;">Modules ERP</div>
-                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                            @foreach (($erpNavigation['modules'] ?? []) as $module)
-                                <div class="module-pill">
-                                    <a
-                                        href="{{ $module['url'] }}"
-                                        class="workspace-pill"
-                                        style="gap:10px; background:{{ $module['active'] ? $module['surface'] : 'rgba(255,255,255,0.78)' }}; border-color:{{ $module['active'] ? $module['border'] : 'rgba(102, 82, 56, 0.12)' }}; color:{{ $module['active'] ? $module['accent'] : 'var(--muted)' }};"
-                                    >
-                                        @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 16])
-                                        <strong style="color:inherit;">{{ $module['label'] }}</strong>
-                                    </a>
-                                    @if (($erpNavigation['favorites_enabled'] ?? false) === true)
-                                        <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
-                                            @csrf
-                                            <input type="hidden" name="module_key" value="{{ $module['key'] }}">
-                                            <button
-                                                type="submit"
-                                                class="button {{ $module['favorite'] ? 'button-primary' : 'button-secondary' }} module-favorite-button"
-                                                aria-label="{{ $module['favorite'] ? 'Retirer' : 'Epingler' }} {{ $module['label'] }} des favoris"
-                                            >
-                                                @include('dashboard.partials.icon', ['name' => 'pin', 'size' => 14])
-                                            </button>
-                                        </form>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    @if (($erpNavigation['active_module'] ?? null) !== null)
-                        <div style="min-width:260px; max-width:340px; padding:14px 16px; border-radius:18px; border:1px solid rgba(102, 82, 56, 0.12); background:rgba(255,255,255,0.72);">
-                            <strong>{{ $erpNavigation['active_module']['label'] }}</strong>
-                            <p class="muted">{{ $erpNavigation['active_module']['hint'] }}</p>
-                        </div>
-                    @endif
-                </div>
-                @if (! empty($erpNavigation['quick_actions'] ?? []))
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
-                        @foreach (($erpNavigation['quick_actions'] ?? []) as $action)
-                            <a href="{{ $action['url'] }}" class="button {{ $loop->first ? 'button-primary' : 'button-secondary' }}">{{ $action['label'] }}</a>
-                        @endforeach
-                    </div>
-                @endif
-                @if (! empty($erpNavigation['favorite_modules'] ?? []))
-                    <div style="margin-top:18px; display:grid; gap:10px;">
-                        <div class="topbar-label" style="margin:0;">Modules favoris</div>
-                        <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                            @foreach (($erpNavigation['favorite_modules'] ?? []) as $module)
-                                <div class="module-pill">
-                                    <a
-                                        href="{{ $module['url'] }}"
-                                        class="workspace-pill"
-                                        style="gap:10px; background:{{ $module['surface'] }}; border-color:{{ $module['border'] }}; color:{{ $module['accent'] }};"
-                                    >
-                                        @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 16])
-                                        <strong style="color:inherit;">{{ $module['label'] }}</strong>
-                                    </a>
-                                    @if (($erpNavigation['favorites_enabled'] ?? false) === true)
-                                        <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
-                                            @csrf
-                                            <input type="hidden" name="module_key" value="{{ $module['key'] }}">
-                                            <button type="submit" class="button button-secondary module-favorite-button" aria-label="Retirer {{ $module['label'] }} des favoris">
-                                                @include('dashboard.partials.icon', ['name' => 'pin', 'size' => 14])
-                                            </button>
-                                        </form>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-            </section>
+            <nav class="erp-module-bar" aria-label="Applications ERP">
+                @foreach (($erpNavigation['modules'] ?? []) as $module)
+                    <a
+                        href="{{ $module['url'] }}"
+                        class="erp-module-bar__link {{ $module['active'] ? 'is-active' : '' }}"
+                        aria-current="{{ $module['active'] ? 'page' : 'false' }}"
+                    >
+                        @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 15])
+                        <span>{{ $module['label'] }}</span>
+                    </a>
+                @endforeach
+            </nav>
         @endif
 
         @if (! $hideGlobalShortcuts)

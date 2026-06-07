@@ -2,6 +2,7 @@
 
 @section('title', 'Achats - Nema ERP')
 @section('page-title', 'Factures fournisseurs')
+@section('layout-mode', 'compact')
 
 @push('page-styles')
     <style>
@@ -212,68 +213,61 @@
 @section('content')
     @php
         $currentView = $filters['view'] ?? 'list';
+        $hasActiveFilters = collect($filters)->except('view')->filter(fn ($value) => filled($value))->isNotEmpty();
     @endphp
 
-    <div class="premium-page">
-        <section class="card purchases-hero">
-            <div class="premium-hero__grid">
-                <div class="premium-copy">
-                    <div class="badge badge-muted">Approvisionnements</div>
-                    <h2>Les achats et dettes fournisseurs gagnent en clarte et en priorisation.</h2>
-                    <p class="muted">Une facture fournisseur approuvee augmente le stock et alimente le suivi des montants restant a regler. L ecran met maintenant davantage en avant les urgences et les prochaines actions.</p>
-                    <div class="premium-actions">
-                        @allowed('approvals.view')
-                            <a href="{{ route('approvals.index', ['module' => 'purchases']) }}" class="button button-secondary">Approvals achats</a>
-                        @endallowed
-                        <a href="{{ route('purchases.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-                        @allowed('purchases.manage')
-                            <a href="{{ route('purchases.create') }}" class="button button-primary">Nouvel achat</a>
-                        @endallowed
-                    </div>
-                </div>
-                <div class="premium-panel">
-                    <strong>Lecture acheteur</strong>
-                    <p class="muted">Voir tout de suite ce qui doit etre regle, ce qui est en retard et ce qui est encore bloque par validation avant de descendre dans les pieces une par une.</p>
-                </div>
+    <div class="premium-page erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <span class="badge badge-muted">Achats</span>
+                <strong>{{ number_format($bills->count(), 0, ',', ' ') }} facture(s) visibles</strong>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                @allowed('approvals.view')
+                    <a href="{{ route('approvals.index', ['module' => 'purchases']) }}" class="button button-secondary">Approbations</a>
+                @endallowed
+                <a href="{{ route('purchases.export', request()->query()) }}" class="button button-secondary">Exporter</a>
+                @allowed('purchases.manage')
+                    <a href="{{ route('purchases.create') }}" class="button button-primary">Nouvel achat</a>
+                @endallowed
             </div>
         </section>
 
-        <section class="metric-strip">
-            <article class="metric-card">
+        <section class="metric-strip erp-kpi-strip">
+            <article class="metric-card erp-kpi-card">
                 <div class="label">Factures ouvertes</div>
                 <div class="value">{{ number_format($summary['open_count'], 0, ',', ' ') }}</div>
                 <div class="hint">Documents non totalement regles.</div>
             </article>
-            <article class="metric-card">
+            <article class="metric-card erp-kpi-card">
                 <div class="label">Reste a regler</div>
                 <div class="value">{{ number_format($summary['open_balance'], 0, ',', ' ') }}</div>
                 <div class="hint">Montant encore attendu par les fournisseurs.</div>
             </article>
-            <article class="metric-card">
+            <article class="metric-card erp-kpi-card">
                 <div class="label">En retard</div>
                 <div class="value">{{ number_format($summary['overdue_balance'], 0, ',', ' ') }}</div>
                 <div class="hint">Dettes deja depassees en echeance.</div>
             </article>
-            <article class="metric-card">
+            <article class="metric-card erp-kpi-card">
                 <div class="label">Echeance proche</div>
                 <div class="value">{{ number_format($summary['due_soon_balance'], 0, ',', ' ') }}</div>
                 <div class="hint">Montants a suivre rapidement.</div>
             </article>
-            <article class="metric-card">
+            <article class="metric-card erp-kpi-card">
                 <div class="label">En attente d approbation</div>
                 <div class="value">{{ number_format($summary['pending_approval_count'], 0, ',', ' ') }}</div>
                 <div class="hint">Achats encore bloques par le workflow.</div>
             </article>
         </section>
 
-        <section class="card premium-filter-card">
-            <div class="premium-section-head">
-                <div>
-                    <h3>Filtres achats</h3>
-                    <p class="muted">Recherche rapide par numero, fournisseur, agence, workflow, paiement ou echeance.</p>
-                </div>
-            </div>
-            <form method="GET" action="{{ route('purchases.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+        <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
+            <summary>
+                <span>Filtres achats</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Toutes les factures' }}</span>
+            </summary>
+            <div class="erp-filter-panel__body">
+                <form method="GET" action="{{ route('purchases.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
@@ -328,8 +322,9 @@
                     <button type="submit" class="button button-primary">Filtrer</button>
                     <a href="{{ route('purchases.index', ['view' => $currentView]) }}" class="button button-secondary">Reinitialiser</a>
                 </div>
-            </form>
-        </section>
+                </form>
+            </div>
+        </details>
 
         <div class="table-tools">
             <div class="table-note">

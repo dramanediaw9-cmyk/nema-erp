@@ -2,12 +2,32 @@
 
 @section('title', 'Recherche globale - Nema ERP')
 @section('page-title', 'Recherche globale')
+@section('layout-mode', 'compact')
 
 @push('page-styles')
     <style>
         .search-shell {
             display: grid;
-            gap: 20px;
+            gap: 10px;
+        }
+        .search-workbar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            padding: 9px 10px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 253, 249, 0.9);
+        }
+        .search-workbar input {
+            min-height: 38px;
+            padding: 8px 10px;
+            border-radius: 9px;
+        }
+        .search-workbar .button {
+            min-height: 38px;
+            padding: 8px 11px;
+            border-radius: 9px;
         }
         .search-hero {
             position: relative;
@@ -140,79 +160,52 @@
                 grid-template-columns: 1fr;
             }
         }
+        @media (max-width: 620px) {
+            .search-workbar {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 @endpush
 
 @section('content')
     <div class="search-shell">
-        <section class="card search-hero">
-            <div class="search-hero__grid">
-                <div>
-                    <div class="badge badge-muted">Recherche transverse</div>
-                    <h2>Retrouve rapidement un document, un tiers ou un produit.</h2>
-                    <p class="muted">La recherche globale traverse les modules autorises pour ton profil. Elle renvoie directement vers la bonne fiche au lieu de te faire naviguer menu par menu.</p>
-                    <div class="help" style="margin-top:10px;">Perimetre actif : {{ $availableScopes->join(' | ') }}</div>
-                </div>
-                <div class="search-panel">
-                    <strong style="display:block; margin-bottom:10px;">Recherche rapide</strong>
-                    <form method="GET" action="{{ route('search.index') }}">
-                        <input type="search" name="q" value="{{ $query }}" placeholder="Numero, client, produit, paiement, reception...">
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                            <button type="submit" class="button button-primary">Rechercher</button>
-                            @if ($query !== '')
-                                <a href="{{ route('search.index') }}" class="button button-secondary">Effacer</a>
-                            @endif
-                        </div>
-                    </form>
-                </div>
+        <form method="GET" action="{{ route('search.index') }}" class="search-workbar">
+            <input type="search" name="q" value="{{ $query }}" placeholder="Numero, client, produit, paiement, reception..." autofocus>
+            <div style="display:flex; gap:7px;">
+                <button type="submit" class="button button-primary">Rechercher</button>
+                @if ($query !== '')
+                    <a href="{{ route('search.index') }}" class="button button-secondary">Effacer</a>
+                @endif
             </div>
-        </section>
+        </form>
 
+        @if ($query === '')
         <section class="search-shortcuts">
             <section class="card search-shortcut-card">
                 <div>
-                    <div class="badge badge-muted">Favoris</div>
-                    <h3 style="margin:12px 0 6px;">Modules favoris</h3>
-                    <p class="muted">Epingle les modules utilises chaque jour pour reduire les clics de navigation.</p>
-                    @if (! $favoritesEnabled)
-                        <div class="help" style="margin-top:8px;">Les favoris seront disponibles apres la mise a jour de la base.</div>
-                    @endif
+                    <h3 style="margin:0;">Acces rapides</h3>
                 </div>
                 <div class="search-favorite-grid">
                     @php
                         $modulesToDisplay = $favoriteModules->isNotEmpty() ? $favoriteModules : $suggestedModules;
                     @endphp
                     @foreach ($modulesToDisplay as $module)
-                        <div class="search-favorite-item">
+                        <a href="{{ $module['url'] }}" class="search-favorite-item">
                             <div class="search-favorite-item__head">
                                 <div>
                                     <strong>{{ $module['label'] }}</strong>
-                                    <div class="muted" style="margin-top:6px;">{{ $module['hint'] }}</div>
                                 </div>
                                 @include('dashboard.partials.icon', ['name' => $module['icon'] ?? 'grid', 'size' => 18])
                             </div>
-                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                <a href="{{ $module['url'] }}" class="button button-secondary">Ouvrir</a>
-                                @if ($favoritesEnabled)
-                                    <form method="POST" action="{{ route('navigation.favorites.toggle') }}">
-                                        @csrf
-                                        <input type="hidden" name="module_key" value="{{ $module['key'] }}">
-                                        <button type="submit" class="button {{ ! empty($module['favorite']) ? 'button-primary' : 'button-secondary' }}">
-                                            {{ ! empty($module['favorite']) ? 'Retirer favori' : 'Epingler' }}
-                                        </button>
-                                    </form>
-                                @endif
-                            </div>
-                        </div>
+                        </a>
                     @endforeach
                 </div>
             </section>
 
             <section class="card search-shortcut-card">
                 <div>
-                    <div class="badge badge-muted">Historique</div>
-                    <h3 style="margin:12px 0 6px;">Recherches recentes</h3>
-                    <p class="muted">Relance vite une recherche deja utilisee sans retaper le numero, le client ou le produit.</p>
+                    <h3 style="margin:0;">Recherches recentes</h3>
                 </div>
                 @if ($recentSearches->isEmpty())
                     <div class="empty-state" style="padding:20px 16px;">
@@ -231,13 +224,9 @@
                 @endif
             </section>
         </section>
+        @endif
 
         @if ($query === '')
-            <section class="card empty-state">
-                <div class="badge badge-warning">Conseil</div>
-                <h3>Lance une recherche pour commencer</h3>
-                <p class="muted">Exemples utiles : un numero de facture, un code produit, le nom d un client, une reference de paiement ou un fournisseur.</p>
-            </section>
         @elseif ($groups->isEmpty())
             <section class="card empty-state">
                 <div class="badge badge-warning">Aucun resultat</div>
