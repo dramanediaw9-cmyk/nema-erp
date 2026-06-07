@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Core\Platform\Models\SaasSubscription;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -25,6 +26,56 @@ class AccountProfileTest extends TestCase
             ->assertSee($user->email)
             ->assertSee($user->company->name)
             ->assertSee($user->branch->name);
+    }
+
+    public function test_company_admin_can_see_subscription_and_current_usage(): void
+    {
+        $user = $this->manager();
+
+        SaasSubscription::query()->create([
+            'tenant_id' => $user->company->tenant_id,
+            'company_id' => $user->company_id,
+            'plan' => 'growth',
+            'status' => 'trialing',
+            'user_limit' => 15,
+            'branch_limit' => 3,
+            'starts_at' => now(),
+            'trial_ends_at' => now()->addDays(14),
+            'terms_accepted_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('account.profile.edit'))
+            ->assertOk()
+            ->assertSee('Abonnement Nema')
+            ->assertSee('Croissance')
+            ->assertSee('Essai en cours')
+            ->assertSee('15')
+            ->assertSee('3');
+    }
+
+    public function test_non_admin_user_does_not_see_subscription_information(): void
+    {
+        $user = User::query()->with('company')->where('email', 'caissier@nema-erp.test')->firstOrFail();
+
+        SaasSubscription::query()->create([
+            'tenant_id' => $user->company->tenant_id,
+            'company_id' => $user->company_id,
+            'plan' => 'growth',
+            'status' => 'trialing',
+            'user_limit' => 15,
+            'branch_limit' => 3,
+            'starts_at' => now(),
+            'trial_ends_at' => now()->addDays(14),
+            'terms_accepted_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('account.profile.edit'))
+            ->assertOk()
+            ->assertDontSee('Abonnement Nema');
     }
 
     public function test_user_can_update_only_their_personal_information(): void
