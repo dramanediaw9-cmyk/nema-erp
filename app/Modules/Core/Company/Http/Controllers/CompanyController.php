@@ -4,17 +4,20 @@ namespace App\Modules\Core\Company\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Core\Company\Services\CompanyProvisioningService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class CompanyController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly CompanyProvisioningService $provisioning,
+    ) {}
 
     public function index(CurrentWorkspace $workspace): View
     {
@@ -35,7 +38,7 @@ class CompanyController extends Controller
         $this->ensurePlatformAdmin($workspace);
 
         return view('companies.create', [
-            'company' => new Company(),
+            'company' => new Company,
         ]);
     }
 
@@ -57,10 +60,23 @@ class CompanyController extends Controller
 
         $data['is_active'] = $request->boolean('is_active', true);
 
-        $company = Company::query()->create($data);
+        [$company, $provisioned] = DB::transaction(function () use ($data): array {
+            $company = Company::query()->create($data);
+            $provisioned = $this->provisioning->provision($company);
+
+            return [$company, $provisioned];
+        });
+
         $this->activityLogger->log('companies.create', 'Création entreprise', $company, $data);
 
-        return redirect()->route('companies.index')->with('success', 'Entreprise créée avec succès.');
+        $request->session()->put([
+            'current_tenant_id' => $company->tenant_id,
+            'current_company_id' => $company->id,
+            'current_branch_id' => $provisioned['branch']->id,
+        ]);
+
+        return redirect()->route('onboarding.index')
+            ->with('success', 'Entreprise créée et modules initialisés. Vous pouvez maintenant préparer vos données métier.');
     }
 
     public function edit(Company $company, CurrentWorkspace $workspace): View

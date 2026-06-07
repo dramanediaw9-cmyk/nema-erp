@@ -9,6 +9,7 @@ use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Company\Models\Setting;
 use App\Modules\Core\Company\Models\Tenant;
+use App\Modules\Core\Company\Services\CompanyProvisioningService;
 use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Platform\Models\DeploymentProfile;
 use App\Modules\Core\Platform\Models\SaasSubscription;
@@ -17,9 +18,10 @@ use Illuminate\Support\Str;
 
 class SaasRegistrationService
 {
-    public function __construct(private readonly SectorProfileService $sectorProfiles)
-    {
-    }
+    public function __construct(
+        private readonly SectorProfileService $sectorProfiles,
+        private readonly CompanyProvisioningService $provisioning,
+    ) {}
 
     public function plans(): array
     {
@@ -112,6 +114,11 @@ class SaasRegistrationService
                 $tenant->id,
                 $registration['workspace']['sector_profile']
             );
+            $this->provisioning->provision($company, [
+                'branch_name' => $branch->name,
+                'city' => $branch->city,
+                'sector_profile' => $registration['workspace']['sector_profile'],
+            ]);
 
             Setting::query()->create([
                 'tenant_id' => $tenant->id,
