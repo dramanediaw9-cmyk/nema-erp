@@ -33,7 +33,7 @@ class DashboardRoleSearchTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Pilotage executif')
-            ->assertSee('Priorites direction')
+            ->assertSee('Situation operationnelle')
             ->assertSee('Centre d actions premium');
 
         $this->actingAs($operations)
@@ -41,7 +41,7 @@ class DashboardRoleSearchTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Operations du jour')
-            ->assertSee('Plan de la journee');
+            ->assertSee('Situation operationnelle');
 
         $this->actingAs($cashier)
             ->withSession($this->workspaceSession($cashier))
@@ -49,7 +49,7 @@ class DashboardRoleSearchTest extends TestCase
             ->assertOk()
             ->assertSee('Routine caisse')
             ->assertSee('Caisse comptoir')
-            ->assertSee('Applications');
+            ->assertSee('Situation operationnelle');
 
         $this->actingAs($manager)
             ->withSession($this->workspaceSession($manager))
@@ -58,7 +58,7 @@ class DashboardRoleSearchTest extends TestCase
             ->assertSee('Cockpit entreprise')
             ->assertSee('Recherche globale')
             ->assertSee('Centre d actions premium')
-            ->assertSee('Applications');
+            ->assertSee('Situation operationnelle');
     }
 
     public function test_dashboard_premium_action_center_surfaces_technical_risk_when_monitoring_is_degraded(): void
