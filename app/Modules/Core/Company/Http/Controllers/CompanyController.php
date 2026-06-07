@@ -70,7 +70,7 @@ class CompanyController extends Controller
         $this->activityLogger->log('companies.create', 'Création entreprise', $company, $data);
 
         $request->session()->put([
-            'current_tenant_id' => $company->tenant_id,
+            'current_tenant_id' => (int) $company->getAttribute('tenant_id'),
             'current_company_id' => $company->id,
             'current_branch_id' => $provisioned['branch']->id,
         ]);
