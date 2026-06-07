@@ -16,5 +16,7 @@ class CompactWorkHeaderTest extends TestCase
             strpos($approvalView, "@section('content')"),
             strpos($approvalView, "@section('layout-mode', 'compact')")
         );
+        $this->assertStringContainsString('class="approval-workbar"', $approvalView);
+        $this->assertStringNotContainsString('class="grid stats-grid"', $approvalView);
     }
 }
