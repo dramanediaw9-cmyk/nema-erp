@@ -2,6 +2,7 @@
 
 @section('title', 'Approbations')
 @section('page-title', 'Portail d approbation')
+@section('layout-mode', 'compact')
 
 @section('content')
     <div class="page-head">
