@@ -109,8 +109,8 @@ class CoreNavigationTest extends TestCase
 
         $this->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-layout-mode="normal"', false)
-            ->assertSee('data-focus-available="false"', false);
+            ->assertSee('data-layout-mode="compact"', false)
+            ->assertSee('data-focus-available="true"', false);
 
         $this->get(route('stock.index'))
             ->assertOk()
