@@ -79,16 +79,28 @@ import './bootstrap';
                 button.setAttribute('aria-expanded', visibleSidebarState === 'expanded' ? 'true' : 'false');
                 button.setAttribute(
                     'aria-label',
-                    isMobile || opensHiddenSidebar ? 'Ouvrir le menu lateral' : (visibleSidebarState === 'expanded' ? 'Reduire le menu lateral' : 'Ouvrir le menu lateral'),
+                    isMobile || opensHiddenSidebar
+                        ? 'Ouvrir le menu lateral'
+                        : visibleSidebarState === 'expanded'
+                          ? 'Reduire le menu lateral'
+                          : 'Ouvrir le menu lateral',
                 );
-                button.title = isMobile || opensHiddenSidebar ? 'Menu' : (visibleSidebarState === 'expanded' ? 'Reduire le menu' : 'Ouvrir le menu');
+                button.title =
+                    isMobile || opensHiddenSidebar
+                        ? 'Menu'
+                        : visibleSidebarState === 'expanded'
+                          ? 'Reduire le menu'
+                          : 'Ouvrir le menu';
             });
 
             if (focusToggle) {
                 focusToggle.dataset.focusActive = focusActive && focusAvailable ? 'true' : 'false';
                 focusToggle.setAttribute('aria-pressed', focusActive && focusAvailable ? 'true' : 'false');
-                focusToggle.setAttribute('aria-label', focusActive && focusAvailable ? 'Desactiver le mode focus' : 'Activer le mode focus');
-                focusToggle.title = focusActive && focusAvailable ? 'Quitter le mode focus' : 'Mode focus';
+                focusToggle.setAttribute(
+                    'aria-label',
+                    focusActive && focusAvailable ? 'Desactiver le mode Travail' : 'Activer le mode Travail',
+                );
+                focusToggle.title = focusActive && focusAvailable ? 'Quitter le mode Travail' : 'Mode Travail';
             }
         };
 
@@ -173,7 +185,6 @@ import './bootstrap';
             }
 
             closeSidebar();
-            updateControls();
         };
 
         if (typeof mobileQuery.addEventListener === 'function') {
@@ -183,7 +194,6 @@ import './bootstrap';
         }
 
         handleViewportChange();
-        updateControls();
     };
 
     const bootDashboardCollapsibles = () => {
