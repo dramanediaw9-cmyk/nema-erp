@@ -6,15 +6,15 @@ use Tests\TestCase;
 
 class CompactWorkHeaderTest extends TestCase
 {
-    public function test_work_header_styles_prioritize_operational_space(): void
+    public function test_approval_portal_uses_the_native_compact_work_layout(): void
     {
-        $css = file_get_contents(resource_path('css/app.css'));
+        $approvalView = file_get_contents(resource_path('views/approvals/index.blade.php'));
 
-        $this->assertIsString($css);
-        $this->assertStringContainsString('Compact work header', $css);
-        $this->assertStringContainsString('margin-bottom: 10px;', $css);
-        $this->assertStringContainsString('padding: 9px 12px;', $css);
-        $this->assertStringContainsString('.topbar-leading > .workspace', $css);
-        $this->assertStringContainsString('.topbar .identity-card span', $css);
+        $this->assertIsString($approvalView);
+        $this->assertStringContainsString("@section('layout-mode', 'compact')", $approvalView);
+        $this->assertLessThan(
+            strpos($approvalView, "@section('content')"),
+            strpos($approvalView, "@section('layout-mode', 'compact')")
+        );
     }
 }
