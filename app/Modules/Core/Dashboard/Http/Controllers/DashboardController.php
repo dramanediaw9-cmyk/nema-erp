@@ -19,7 +19,9 @@ use App\Modules\Core\Onboarding\Services\OnboardingService;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Inventory\Models\ProductLot;
+use App\Modules\Inventory\Models\StockCount;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Models\StockTransfer;
 use App\Modules\Partners\Models\Partner;
 use App\Modules\Purchases\Models\GoodsReceipt;
 use App\Modules\Purchases\Models\PurchaseBill;
@@ -93,6 +95,10 @@ class DashboardController extends Controller
             'achats_en_attente' => PurchaseBill::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->where('status', 'pending_approval')->count(),
             'depenses_en_attente' => Expense::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->where('status', 'pending_approval')->count(),
             'alertes_stock' => $this->stockAlerts($companyId, $branchScopeId),
+            'references_disponibles' => $this->availableStockReferences($companyId, $branchScopeId),
+            'mouvements_stock_jour' => StockMovement::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->whereDate('movement_date', $today)->count(),
+            'inventaires_ouverts' => StockCount::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->where('status', 'draft')->count(),
+            'transferts_jour' => StockTransfer::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->whereDate('transfer_date', $today)->count(),
             'comptes_tresorerie' => CashAccount::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->count(),
             'entreprises' => Company::query()->count(),
             'ecritures_mois' => JournalEntry::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId))->when($branchScopeId, fn ($query, $branchId) => $query->where('branch_id', $branchId))->whereDate('entry_date', '>=', $monthStart)->count(),
@@ -117,6 +123,16 @@ class DashboardController extends Controller
             ->latest()
             ->limit(8)
             ->get();
+        $recentStockMovements = $user?->hasPermission('stock.view')
+            ? StockMovement::query()
+                ->with(['product', 'warehouse'])
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->when($branchScopeId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+                ->latest('movement_date')
+                ->latest('id')
+                ->limit(6)
+                ->get()
+            : collect();
 
         $onboarding = $companyId ? $this->onboardingService->summary($companyId) : null;
         $showOnboardingBanner = $companyId
@@ -149,6 +165,7 @@ class DashboardController extends Controller
             'roleSpotlight' => $roleSpotlight,
             'stats' => $stats,
             'recentActivities' => $recentActivities,
+            'recentStockMovements' => $recentStockMovements,
             'onboarding' => $onboarding,
             'showOnboardingBanner' => $showOnboardingBanner,
             'currentPeriodSummary' => $currentPeriodSummary,
@@ -180,6 +197,28 @@ class DashboardController extends Controller
             ->where('type', 'stockable')
             ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
             ->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock')
+            ->count();
+    }
+
+    private function availableStockReferences(?int $companyId, ?int $branchId): int
+    {
+        if (! $companyId) {
+            return 0;
+        }
+
+        $balances = StockMovement::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_in - quantity_out) as current_stock')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($query, $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->groupBy('product_id');
+
+        return Product::query()
+            ->where('company_id', $companyId)
+            ->where('type', 'stockable')
+            ->where('is_active', true)
+            ->joinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
+            ->where('balances.current_stock', '>', 0)
             ->count();
     }
 
