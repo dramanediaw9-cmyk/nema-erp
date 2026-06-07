@@ -11,11 +11,11 @@
     <div class="stats-grid" style="margin-bottom:16px;">
         <div class="card">
             <div class="muted">Entreprise</div>
-            <div style="font-weight:800; margin-top:4px;">{{ $accountUser->company?->name ?? 'Non attribuée' }}</div>
+            <div style="font-weight:800; margin-top:4px;">{{ $activeCompany?->name ?? 'Non attribuée' }}</div>
         </div>
         <div class="card">
             <div class="muted">Agence</div>
-            <div style="font-weight:800; margin-top:4px;">{{ $accountUser->branch?->name ?? 'Toutes les agences' }}</div>
+            <div style="font-weight:800; margin-top:4px;">{{ $activeBranch?->name ?? 'Toutes les agences' }}</div>
         </div>
         <div class="card">
             <div class="muted">Rôle</div>
@@ -28,6 +28,42 @@
             </div>
         </div>
     </div>
+
+    @if ($subscriptionInfo)
+        <section class="card" style="margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-bottom:14px;">
+                <div>
+                    <div class="muted">Abonnement Nema</div>
+                    <h2 style="margin:3px 0 0; font-size:19px;">{{ $subscriptionInfo['plan'] }}</h2>
+                </div>
+                <span class="badge {{ $subscriptionInfo['status'] === 'Actif' ? 'badge-success' : 'badge-warning' }}">
+                    {{ $subscriptionInfo['status'] }}
+                </span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
+                <div>
+                    <div class="muted">Utilisateurs</div>
+                    <strong>{{ $subscriptionInfo['user_count'] }} / {{ $subscriptionInfo['user_limit'] }}</strong>
+                </div>
+                <div>
+                    <div class="muted">Agences</div>
+                    <strong>{{ $subscriptionInfo['branch_count'] }} / {{ $subscriptionInfo['branch_limit'] }}</strong>
+                </div>
+                <div>
+                    <div class="muted">Fin de l’essai</div>
+                    <strong>
+                        @if ($subscriptionInfo['trial_ends_at'])
+                            {{ $subscriptionInfo['trial_ends_at']->format('d/m/Y') }}
+                            · {{ $subscriptionInfo['trial_days_left'] }} jour(s)
+                        @else
+                            Non applicable
+                        @endif
+                    </strong>
+                </div>
+            </div>
+        </section>
+    @endif
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; align-items:start;">
         <form method="POST" action="{{ route('account.profile.update') }}" class="card">
