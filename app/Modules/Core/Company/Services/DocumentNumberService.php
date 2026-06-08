@@ -37,6 +37,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class DocumentNumberService
@@ -130,16 +131,45 @@ class DocumentNumberService
             /** @var class-string<Model> $model */
             $model = $definition['model'];
 
-            return $model::query()
-                ->where('company_id', $companyId)
-                ->where($column, $number)
-                ->exists();
+            $query = $model::query()->where($column, $number);
+
+            if (! $this->columnHasGlobalUniqueConstraint($definition, $column)) {
+                $query->where('company_id', $companyId);
+            }
+
+            return $query->exists();
         }
 
-        return DB::table($definition['table'])
-            ->where('company_id', $companyId)
-            ->where($column, $number)
-            ->exists();
+        $query = DB::table($definition['table'])->where($column, $number);
+
+        if (! $this->columnHasGlobalUniqueConstraint($definition, $column)) {
+            $query->where('company_id', $companyId);
+        }
+
+        return $query->exists();
+    }
+
+    private function columnHasGlobalUniqueConstraint(array $definition, string $column): bool
+    {
+        $table = $definition['table'] ?? null;
+
+        if (! $table && isset($definition['model'])) {
+            /** @var class-string<Model> $model */
+            $model = $definition['model'];
+            $table = (new $model())->getTable();
+        }
+
+        if (! $table) {
+            return false;
+        }
+
+        foreach (Schema::getIndexes($table) as $index) {
+            if (($index['unique'] ?? false) && ($index['columns'] ?? []) === [$column]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function sequenceDefinition(string $documentType): ?array
