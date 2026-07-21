@@ -7,15 +7,18 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductAttribute;
 use App\Modules\Catalog\Models\ProductAttributeValue;
 use App\Modules\Catalog\Models\ProductCategory;
+use App\Modules\Catalog\Services\ProductOptionService;
 use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Company\Models\TaxRule;
 use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Partners\Models\Partner;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +33,80 @@ class ProductController extends Controller
     public function __construct(
         private readonly ActivityLogger $activityLogger,
         private readonly ActivityFeedService $activityFeedService,
+        private readonly ProductOptionService $productOptionService,
     ) {}
+
+    public function options(Request $request, CurrentWorkspace $workspace): JsonResponse
+    {
+        $companyId = $workspace->companyId();
+        $user = $request->user();
+        abort_if(! $companyId || ! $user, 403);
+
+        $permissions = [
+            'products.view', 'products.manage', 'sales.manage', 'quotes.manage',
+            'orders.manage', 'purchase_requests.manage', 'purchase_orders.manage',
+            'purchases.manage', 'stock.manage', 'settings.manage', 'pos.manage',
+        ];
+        abort_unless(collect($permissions)->contains(fn (string $permission): bool => $user->hasPermission($permission)), 403);
+
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'mode' => ['nullable', 'in:active,saleable,purchasable,stockable,parents'],
+            'limit' => ['nullable', 'integer', 'min:10', 'max:50'],
+            'warehouse_id' => ['nullable', 'integer'],
+        ]);
+
+        $payload = $this->productOptionService->search(
+            $companyId,
+            $data['mode'] ?? 'active',
+            $data['q'] ?? null,
+            (int) ($data['limit'] ?? 40),
+        );
+
+        $canViewCost = $user->hasPermission('products.cost.view')
+            || collect(['purchases.manage', 'purchase_orders.manage', 'purchase_requests.manage'])
+                ->contains(fn (string $permission): bool => $user->hasPermission($permission));
+        if (! $canViewCost) {
+            $payload['results'] = collect($payload['results'])->map(function (array $item): array {
+                $item['cost'] = null;
+                $item['purchase_description'] = null;
+                $item['purchase_unit_summary'] = null;
+
+                return $item;
+            })->values();
+        }
+
+        if (! empty($data['warehouse_id'])) {
+            $branchId = $workspace->branchId();
+            abort_if(! $branchId, 403);
+            $warehouseId = (int) $data['warehouse_id'];
+            abort_unless(Warehouse::query()
+                ->where('company_id', $companyId)
+                ->where('branch_id', $branchId)
+                ->whereKey($warehouseId)
+                ->exists(), 403);
+
+            $productIds = collect($payload['results'])->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            $balances = StockMovement::query()
+                ->where('company_id', $companyId)
+                ->where('branch_id', $branchId)
+                ->where('warehouse_id', $warehouseId)
+                ->whereIn('product_id', $productIds)
+                ->groupBy('product_id')
+                ->selectRaw('product_id, COALESCE(SUM(quantity_in - quantity_out), 0) as balance')
+                ->pluck('balance', 'product_id');
+
+            $payload['results'] = collect($payload['results'])
+                ->map(function (array $item) use ($balances): array {
+                    $item['expected_qty'] = round((float) ($balances[$item['id']] ?? 0), 3);
+
+                    return $item;
+                })
+                ->values();
+        }
+
+        return response()->json($payload);
+    }
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
@@ -156,8 +232,8 @@ class ProductController extends Controller
         $supplierInfos = $this->normalizeSupplierInfos($companyId, $data['supplier_infos'] ?? [], null, $canViewProductCosts);
         unset($data['supplier_infos']);
         $data['company_id'] = $companyId;
-        $data['sku'] = $data['sku'] ?: $this->generateSku($companyId);
-        $data['barcode'] = $data['barcode'] ?: null;
+        $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku($companyId);
+        $data['barcode'] = ($data['barcode'] ?? null) ?: $this->defaultBarcodeFromSku($companyId, $data['sku']);
         $data['invoice_policy'] = $data['invoice_policy'] ?? 'ordered';
         $data['tracking_type'] = $data['tracking_type'] ?? 'none';
         $data['sale_ok'] = $request->boolean('sale_ok', true);
@@ -219,7 +295,7 @@ class ProductController extends Controller
             'product' => $product->load(['attributeValues.attribute', 'supplierInfos.supplier']),
             'categories' => $this->categories($product->company_id),
             'taxRules' => $this->taxRules($product->company_id),
-            'variantParents' => $this->variantParents($product->company_id, $product->id),
+            'variantParents' => $this->variantParents($product->company_id, $product->id, old('parent_product_id', $product->parent_product_id)),
             'variantAttributes' => $this->variantAttributes($product->company_id),
             'suppliers' => $this->suppliers($product->company_id),
             'selectedVariantValueIds' => collect(old('variant_value_ids', $product->attributeValues->pluck('id')->all()))->filter()->map(fn ($id) => (int) $id)->all(),
@@ -234,8 +310,8 @@ class ProductController extends Controller
         $canViewProductCosts = $this->canViewProductCosts($request);
         $supplierInfos = $this->normalizeSupplierInfos($product->company_id, $data['supplier_infos'] ?? [], $product, $canViewProductCosts);
         unset($data['supplier_infos']);
-        $data['sku'] = $data['sku'] ?: $product->sku;
-        $data['barcode'] = $data['barcode'] ?: null;
+        $data['sku'] = ($data['sku'] ?? null) ?: $product->sku;
+        $data['barcode'] = ($data['barcode'] ?? null) ?: $this->defaultBarcodeFromSku($product->company_id, $data['sku'], $product->id);
         $data['invoice_policy'] = $data['invoice_policy'] ?? ($product->invoice_policy ?: 'ordered');
         $data['tracking_type'] = $data['tracking_type'] ?? ($product->tracking_type ?: 'none');
         $data['sale_ok'] = $request->boolean('sale_ok', true);
@@ -272,12 +348,25 @@ class ProductController extends Controller
             $data['image_disk'] = null;
         }
 
+        $auditFields = $this->auditWatchedProductFields();
+        $auditBefore = $this->auditProductSnapshot($product, $auditFields);
+
         try {
-            DB::transaction(function () use ($data, $product, $supplierInfos, $variantPayload) {
+            DB::transaction(function () use ($data, $product, $supplierInfos, $variantPayload, $auditFields, $auditBefore) {
                 $product->update($data);
                 $this->syncVariantValues($product, $variantPayload['value_ids']);
                 $this->syncSupplierInfos($product, $supplierInfos);
+                $product->refresh();
+
+                $changes = $this->auditProductChanges($auditBefore, $this->auditProductSnapshot($product, $auditFields));
+
                 $this->activityLogger->log('products.update', 'Mise a jour produit', $product, [
+                    'sku' => $product->sku,
+                    'name' => $product->name,
+                    'barcode' => $product->barcode,
+                    'changes' => $changes,
+                    'changed_fields' => array_keys($changes),
+                    'supplier_lines' => count($supplierInfos),
                     'sale_ok' => $product->sale_ok,
                     'purchase_ok' => $product->purchase_ok,
                     'sale_blocked' => $product->sale_blocked,
@@ -370,6 +459,79 @@ class ProductController extends Controller
         return redirect()->route('products.index')->with('success', 'Produit supprime avec succes.');
     }
 
+    private function auditWatchedProductFields(): array
+    {
+        return [
+            'name',
+            'sku',
+            'barcode',
+            'category_id',
+            'unit',
+            'type',
+            'sale_price',
+            'purchase_price',
+            'sale_tax_rule_id',
+            'purchase_tax_rule_id',
+            'min_stock',
+            'auto_replenish',
+            'reorder_max_qty',
+            'reorder_multiple_qty',
+            'purchase_lead_time_days',
+            'sale_ok',
+            'purchase_ok',
+            'sale_blocked',
+            'sale_block_reason',
+            'purchase_blocked',
+            'purchase_block_reason',
+            'invoice_policy',
+            'tracking_type',
+            'is_active',
+            'is_variant',
+            'parent_product_id',
+            'variant_label',
+        ];
+    }
+
+    private function auditProductSnapshot(Product $product, array $fields): array
+    {
+        return collect($fields)
+            ->mapWithKeys(fn (string $field) => [$field => $this->normalizeAuditValue($product->getAttribute($field))])
+            ->all();
+    }
+
+    private function auditProductChanges(array $before, array $after): array
+    {
+        $changes = [];
+
+        foreach ($after as $field => $newValue) {
+            $oldValue = $before[$field] ?? null;
+
+            if ($oldValue === $newValue) {
+                continue;
+            }
+
+            $changes[$field] = [
+                'old' => $oldValue,
+                'new' => $newValue,
+            ];
+        }
+
+        return $changes;
+    }
+
+    private function normalizeAuditValue(mixed $value): mixed
+    {
+        if (is_float($value)) {
+            return round($value, 2);
+        }
+
+        if (is_numeric($value) && ! is_string($value)) {
+            return (float) $value;
+        }
+
+        return $value;
+    }
+
     private function validateProduct(Request $request, int $companyId, ?int $ignoreId = null): array
     {
         $canViewProductCosts = $this->canViewProductCosts($request);
@@ -450,14 +612,12 @@ class ProductController extends Controller
         return (bool) $request->user()?->hasPermission('products.cost.view');
     }
 
-    private function variantParents(int $companyId, ?int $ignoreId = null): Collection
+    private function variantParents(int $companyId, ?int $ignoreId = null, mixed $selectedId = null): Collection
     {
-        return Product::query()
-            ->where('company_id', $companyId)
-            ->topLevel()
-            ->when($ignoreId, fn (Builder $query, int $productId) => $query->whereKeyNot($productId))
-            ->orderBy('name')
-            ->get();
+        $selectedId ??= old('parent_product_id');
+        $products = $this->productOptionService->initial($companyId, 'parents', [$selectedId]);
+
+        return $ignoreId ? $products->where('id', '!=', $ignoreId)->values() : $products;
     }
 
     private function variantAttributes(int $companyId): Collection
@@ -794,6 +954,23 @@ class ProductController extends Controller
     {
         return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
             ->nextNumber($companyId, 'product_sku');
+    }
+
+    private function defaultBarcodeFromSku(int $companyId, ?string $sku, ?int $ignoreId = null): ?string
+    {
+        $barcode = trim((string) $sku);
+
+        if ($barcode === '') {
+            return null;
+        }
+
+        $exists = Product::query()
+            ->where('company_id', $companyId)
+            ->where('barcode', $barcode)
+            ->when($ignoreId, fn (Builder $query, int $productId) => $query->whereKeyNot($productId))
+            ->exists();
+
+        return $exists ? null : $barcode;
     }
 
     private function storeUploadedImage(Request $request): ?string

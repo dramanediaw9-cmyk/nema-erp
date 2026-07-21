@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Core\Audit\Models\ActivityLog;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Expenses\Models\Expense;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
@@ -21,6 +22,7 @@ class PartnerInsightsTest extends TestCase
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
         $invoice = SalesInvoice::query()->where('company_id', $user->company_id)->where('notes', 'Facture de demonstration initiale')->firstOrFail();
         $customer = $invoice->customer;
+        $vocabulary = app(SectorProfileService::class)->businessVocabularyForCompany($user->company_id);
 
         ActivityLog::query()->create([
             'company_id' => $user->company_id,
@@ -42,7 +44,7 @@ class PartnerInsightsTest extends TestCase
             ->assertSee($customer->name)
             ->assertSee('Historique des actions')
             ->assertSee('Mise a jour client test')
-            ->assertSee('Factures clients')
+            ->assertSee($vocabulary['sales'])
             ->assertSee('Paiements recus')
             ->assertSee('Ecritures comptables liees')
             ->assertSee($invoice->invoice_number);
@@ -54,6 +56,7 @@ class PartnerInsightsTest extends TestCase
         $bill = PurchaseBill::query()->where('company_id', $user->company_id)->where('notes', 'Facture fournisseur de demonstration')->firstOrFail();
         $expense = Expense::query()->where('company_id', $user->company_id)->where('description', 'Achat de carburant pour livraison Bamako')->firstOrFail();
         $supplier = $bill->supplier;
+        $vocabulary = app(SectorProfileService::class)->businessVocabularyForCompany($user->company_id);
 
         ActivityLog::query()->create([
             'company_id' => $user->company_id,
@@ -75,7 +78,7 @@ class PartnerInsightsTest extends TestCase
             ->assertSee($supplier->name)
             ->assertSee('Historique des actions')
             ->assertSee('Mise a jour fournisseur test')
-            ->assertSee('Factures fournisseurs')
+            ->assertSee('Factures '.strtolower($vocabulary['supplier']))
             ->assertSee('Depenses liees')
             ->assertSee('Reglements')
             ->assertSee('Ecritures comptables liees')

@@ -23,7 +23,7 @@ class ErpSimpleNavigationTest extends TestCase
             ->assertSee('erp-module-bar', false)
             ->assertSee('Tableau de bord')
             ->assertSee('Ventes')
-            ->assertSee('POS / Caisse')
+            ->assertSee('Caisse boutique')
             ->assertSee('Achats')
             ->assertSee('Stock')
             ->assertSee('Facturation')

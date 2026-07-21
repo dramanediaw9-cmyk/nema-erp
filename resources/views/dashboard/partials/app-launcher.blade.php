@@ -67,10 +67,15 @@
     ])->filter(fn (array $item) => $user?->hasPermission($item['permission']));
 
     $quickActions = collect([
+        ['permission' => 'pos.view', 'label' => 'Caisse', 'icon' => 'pos', 'url' => route('pos.index')],
         ['permission' => 'sales.manage', 'label' => 'Nouvelle vente', 'icon' => 'sell', 'url' => route('sales.create')],
         ['permission' => 'payments.validate', 'label' => 'Encaisser', 'icon' => 'wallet', 'url' => route('payments.create')],
-        ['permission' => 'stock_counts.manage', 'label' => 'Nouvel inventaire', 'icon' => 'gauge', 'url' => route('stock-counts.create')],
+        ['permission' => 'stock_counts.manage', 'label' => 'Inventaire rapide', 'icon' => 'gauge', 'url' => route('stock-counts.quick')],
+        ['permission' => 'purchase_requests.view', 'label' => 'Reappro auto', 'icon' => 'flash', 'url' => route('replenishments.index')],
         ['permission' => 'transfers.manage', 'label' => 'Nouveau transfert', 'icon' => 'truck', 'url' => route('transfers.create')],
+        ['permission' => 'pos.view', 'label' => 'Rapport caisse', 'icon' => 'report', 'url' => route('pos.report')],
+        ['permission' => 'imports.manage', 'label' => 'Import Excel', 'icon' => 'import', 'url' => route('imports.index')],
+        ['permission' => 'activity_logs.view', 'label' => 'Audit', 'icon' => 'pulse', 'url' => route('activity-logs.index')],
     ])->filter(fn (array $item) => $user?->hasPermission($item['permission']));
 
     $movementLabels = [

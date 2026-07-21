@@ -27,6 +27,7 @@ use App\Modules\Treasury\Models\CashAccount;
 use App\Modules\Treasury\Models\Payment;
 use App\Support\PaymentMethodCatalog;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class PosBackofficeService
@@ -91,36 +92,43 @@ class PosBackofficeService
         ];
     }
 
-    public function orders(int $companyId, int $branchId): array
+    public function orders(int $companyId, int $branchId, ?int $cashierId = null): array
     {
+        $invoices = SalesInvoice::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('sale_channel', 'pos')
+            ->when($cashierId, fn (Builder $query, int $userId) => $query->whereHas('posSession', fn (Builder $sessionQuery) => $sessionQuery->where('opened_by', $userId)));
+        $drafts = PosDraft::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($cashierId, fn (Builder $query, int $userId) => $query->where('created_by', $userId));
+        $returns = PosReturn::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($cashierId, fn (Builder $query, int $userId) => $query->whereHas('session', fn (Builder $sessionQuery) => $sessionQuery->where('opened_by', $userId)));
+
         return [
             'summary' => [
-                'orders' => (int) SalesInvoice::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('sale_channel', 'pos')->count(),
-                'drafts' => (int) PosDraft::query()->where('company_id', $companyId)->where('branch_id', $branchId)->count(),
-                'returns' => (int) PosReturn::query()->where('company_id', $companyId)->where('branch_id', $branchId)->count(),
-                'paid' => (int) SalesInvoice::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('sale_channel', 'pos')->where('payment_status', 'paid')->count(),
+                'orders' => (int) (clone $invoices)->count(),
+                'drafts' => (int) (clone $drafts)->count(),
+                'returns' => (int) (clone $returns)->count(),
+                'paid' => (int) (clone $invoices)->where('payment_status', 'paid')->count(),
             ],
-            'invoices' => SalesInvoice::query()
+            'invoices' => $invoices
                 ->with(['customer', 'creator', 'posSession'])
-                ->where('company_id', $companyId)
-                ->where('branch_id', $branchId)
-                ->where('sale_channel', 'pos')
                 ->latest('invoice_date')
                 ->latest('id')
                 ->limit(16)
                 ->get(),
-            'drafts' => PosDraft::query()
+            'drafts' => $drafts
                 ->with(['customer', 'creator', 'updater'])
-                ->where('company_id', $companyId)
-                ->where('branch_id', $branchId)
                 ->latest('last_activity_at')
                 ->latest('id')
                 ->limit(12)
                 ->get(),
-            'returns' => PosReturn::query()
+            'returns' => $returns
                 ->with(['invoice.customer', 'exchangeInvoice'])
-                ->where('company_id', $companyId)
-                ->where('branch_id', $branchId)
                 ->latest('return_date')
                 ->latest('id')
                 ->limit(12)
@@ -224,19 +232,20 @@ class PosBackofficeService
             ->with(['category', 'parent', 'attributeValues.attribute'])
             ->where('company_id', $companyId)
             ->orderBy('name')
+            ->limit(18)
             ->get();
 
         return [
             'summary' => [
-                'products' => (int) $products->count(),
-                'variants' => (int) $products->where('is_variant', true)->count(),
+                'products' => (int) Product::query()->where('company_id', $companyId)->count(),
+                'variants' => (int) Product::query()->where('company_id', $companyId)->where('is_variant', true)->count(),
                 'categories' => (int) ProductCategory::query()->where('company_id', $companyId)->count(),
                 'attributes' => (int) ProductAttribute::query()->where('company_id', $companyId)->count(),
                 'combos' => (int) PosComboChoice::query()->where('company_id', $companyId)->where('is_active', true)->count(),
                 'menu_categories' => (int) PosMenuCategory::query()->where('company_id', $companyId)->where('is_active', true)->count(),
                 'tags' => (int) PosProductTag::query()->where('company_id', $companyId)->where('is_active', true)->count(),
             ],
-            'products' => $products->take(18),
+            'products' => $products,
             'categories' => ProductCategory::query()->withCount('products')->where('company_id', $companyId)->orderBy('name')->get(),
             'attributes' => ProductAttribute::query()->withCount('values')->where('company_id', $companyId)->orderBy('name')->get(),
             'combos' => PosComboChoice::query()->with(['branch', 'parentProduct'])->where('company_id', $companyId)->latest('id')->get(),
@@ -343,12 +352,21 @@ class PosBackofficeService
         ];
     }
 
-    public function productOptions(int $companyId): Collection
+    public function productOptions(int $companyId, ?string $search = null, int $limit = 250): Collection
     {
         return Product::query()
             ->where('company_id', $companyId)
             ->saleable()
+            ->when(trim((string) $search) !== '', function (Builder $query) use ($search): void {
+                $like = '%'.trim((string) $search).'%';
+                $query->where(function (Builder $filter) use ($like): void {
+                    $filter->where('name', 'like', $like)
+                        ->orWhere('sku', 'like', $like)
+                        ->orWhere('barcode', 'like', $like);
+                });
+            })
             ->orderBy('name')
+            ->limit(max(1, min($limit, 500)))
             ->get(['id', 'name', 'sku', 'is_variant', 'variant_label', 'parent_product_id']);
     }
 

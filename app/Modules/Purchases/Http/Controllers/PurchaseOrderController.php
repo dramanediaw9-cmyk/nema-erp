@@ -47,28 +47,7 @@ class PurchaseOrderController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
-        $hasProductParent = Schema::hasColumn('products', 'parent_id');
-        $productQuery = Product::query()
-            ->where('company_id', $companyId)
-            ->purchasable()
-            ->orderBy('name');
-        $productColumns = [
-            'id',
-            'company_id',
-            'sku',
-            'name',
-            'unit',
-            'description',
-            'purchase_description',
-            'purchase_price',
-            'purchase_unit_name',
-            'purchase_unit_ratio',
-        ];
-
-        if ($hasProductParent) {
-            $productQuery->with('parent:id,name');
-            array_splice($productColumns, 2, 0, ['parent_id']);
-        }
+        $defaultRows = old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_cost' => '']));
 
         return view('purchase-orders.create', [
             'suppliers' => Partner::query()
@@ -85,8 +64,8 @@ class PurchaseOrderController extends Controller
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'name', 'is_default']),
-            'products' => $productQuery->get($productColumns),
-            'defaultRows' => old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_cost' => ''])),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'purchasable', collect($defaultRows)->pluck('product_id')->all()),
+            'defaultRows' => $defaultRows,
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
         ]);
@@ -163,6 +142,24 @@ class PurchaseOrderController extends Controller
 
         return view('purchase-orders.show', [
             'order' => $purchaseOrder->load(['supplier', 'warehouse', 'branch', 'sourcePurchaseRequest', 'items.product', 'creator', 'goodsReceipts.purchaseBill']),
+        ]);
+    }
+
+    public function print(PurchaseOrder $purchaseOrder, CurrentWorkspace $workspace): View
+    {
+        abort_if($workspace->companyId() !== $purchaseOrder->company_id, 403);
+
+        return view('purchase-orders.print', [
+            'company' => $workspace->company(),
+            'order' => $purchaseOrder->load([
+                'supplier',
+                'warehouse',
+                'branch',
+                'sourcePurchaseRequest',
+                'items.product',
+                'creator',
+                'goodsReceipts.purchaseBill',
+            ]),
         ]);
     }
 }

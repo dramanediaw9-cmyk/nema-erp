@@ -9,6 +9,17 @@
         $sectorStarter = $summary['sector_starter'];
         $sectorDemo = $summary['sector_demo_data'];
         $pilotReadiness = $summary['pilot_readiness'];
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+        $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+        $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+        $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
     @endphp
 
     <div class="page-head">
@@ -54,7 +65,7 @@
             <div style="max-width:780px;">
                 <div class="badge badge-success">Objectif 15 minutes</div>
                 <h2 style="margin:12px 0 8px;">Demarrer plus vite qu un ERP classique</h2>
-                <div class="muted">Le but est simple : configurer l entreprise, ouvrir une caisse, ajouter les premiers produits, vendre et voir les chiffres sans formation longue.</div>
+                <div class="muted">Configure l entreprise, ouvre la caisse, ajoute les premiers {{ strtolower($productsLabel) }}, lance une {{ strtolower($saleLabel) }} et lis les chiffres essentiels.</div>
             </div>
             <div style="display:grid; gap:8px; min-width:230px;">
                 <div class="summary-box" style="background:rgba(255,255,255,.72);">
@@ -89,14 +100,9 @@
     <section id="starter-pack" class="card" style="margin-bottom:20px; border-color:#b8d8d0; background:linear-gradient(135deg, rgba(239, 250, 248, 0.98) 0%, rgba(255, 249, 240, 0.94) 100%);">
         <div style="display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap; margin-bottom:18px;">
             <div style="max-width:760px;">
-                <div class="badge badge-success">Profil secteur actif</div>
+                <div class="badge badge-success">Metier actif</div>
                 <h2 style="margin:12px 0 8px;">{{ $sectorProfile['label'] }}</h2>
                 <div class="muted">{{ $sectorProfile['description'] }}</div>
-                <div class="chip-row" style="margin-top:12px;">
-                    @foreach ($sectorProfile['use_cases'] as $useCase)
-                        <span class="badge badge-muted">{{ $useCase }}</span>
-                    @endforeach
-                </div>
             </div>
             <div style="display:grid; gap:10px; min-width:240px;">
                 @if ($sectorStarter['is_applied'])
@@ -115,57 +121,43 @@
                     </form>
                 @endallowed
                 @allowed('settings.view')
-                    <a href="{{ route('settings.index') }}" class="button button-secondary" style="text-align:center;">Ajuster le profil secteur</a>
+                    <a href="{{ route('settings.index') }}" class="button button-secondary" style="text-align:center;">Ajuster le metier</a>
                 @endallowed
             </div>
         </div>
 
         <div class="grid" style="margin-bottom:18px;">
             <div class="summary-box">
-                <strong>Focus terrain</strong>
-                <div class="help" style="margin-top:8px;">{{ implode(' · ', $sectorProfile['operational_focus']) }}</div>
+                <strong>Profil d'activite</strong>
+                <div style="display:flex; gap:14px; align-items:center; margin-top:12px;">
+                    <span class="dashboard-icon-badge dashboard-icon-badge--success">
+                        @include('dashboard.partials.icon', ['name' => $sectorProfile['icon'] ?? 'building', 'size' => 22])
+                    </span>
+                    <div class="help">{{ $sectorProfile['description'] }}</div>
+                </div>
+            </div>
+            <div class="summary-box">
+                <strong>Modules recommandes</strong>
                 <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['starter_catalog'] as $item)
-                        <span class="badge badge-muted">{{ $item }}</span>
+                    @foreach ($sectorProfile['recommended_modules'] as $module)
+                        <span class="badge badge-muted">{{ $module }}</span>
                     @endforeach
                 </div>
             </div>
             <div class="summary-box">
-                <strong>Unites conseillees</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['recommended_units'] as $unit)
-                        <span class="badge badge-muted">{{ $unit }}</span>
-                    @endforeach
-                </div>
+                <strong>Configuration de depart</strong>
+                <div class="help" style="margin-top:8px;">Categories : {{ implode(' · ', $sectorProfile['starter']['categories']) }}</div>
+                <div class="help" style="margin-top:8px;">Unites : {{ implode(' · ', $sectorProfile['starter']['units']) }}</div>
+                <div class="help" style="margin-top:8px;">Paiements : {{ implode(' · ', $sectorProfile['starter']['payments']) }}</div>
             </div>
             <div class="summary-box">
-                <strong>Paiements terrain</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['recommended_payments'] as $payment)
-                        <span class="badge badge-muted">{{ $payment }}</span>
-                    @endforeach
+                <strong>Guide metier</strong>
+                <div class="help" style="margin-top:8px;">Parcours, alertes, rapports et conseils adaptes a {{ $sectorProfile['label'] }}.</div>
+                <div style="margin-top:12px;">
+                    <a href="{{ route('business-guide.index') }}" class="button button-secondary">Ouvrir le guide</a>
                 </div>
-            </div>
-            <div class="summary-box">
-                <strong>Etat du starter</strong>
-                <div class="help" style="margin-top:8px;">{{ $sectorStarter['categories_count'] }} categories produits · {{ $sectorStarter['expense_categories_count'] }} categories depense</div>
-                <div class="help" style="margin-top:8px;">{{ $sectorStarter['price_lists_count'] }} listes de prix · {{ $sectorStarter['payment_terms_count'] }} conditions de paiement</div>
-                <div class="help" style="margin-top:8px;">{{ $sectorStarter['recommended_gateways_ready'] }}/{{ $sectorStarter['recommended_gateways_count'] }} paiements terrain deja prets</div>
             </div>
         </div>
-
-        @if (! empty($sectorProfile['recommended_modules']))
-            <div class="grid">
-                @foreach ($sectorProfile['recommended_modules'] as $module)
-                    @if (auth()->user()?->hasPermission($module['permission']))
-                        <a href="{{ route($module['route_name']) }}" class="card" style="padding:16px; text-decoration:none; color:inherit;">
-                            <strong>{{ $module['label'] }}</strong>
-                            <div class="muted" style="margin-top:8px;">{{ $module['description'] }}</div>
-                        </a>
-                    @endif
-                @endforeach
-            </div>
-        @endif
     </section>
 
     <section id="demo-data" class="card" style="margin-bottom:20px; border-color:#d5c6ff; background:linear-gradient(135deg, rgba(247, 244, 255, 0.98) 0%, rgba(240, 249, 255, 0.95) 100%);">
@@ -173,7 +165,7 @@
             <div style="max-width:760px;">
                 <div class="badge badge-warning">Donnees de demonstration secteur</div>
                 <h2 style="margin:12px 0 8px;">Charge un catalogue et des parcours de test prets a l emploi</h2>
-                <div class="muted">Ce pack met en place des fournisseurs, clients, produits, tarifs, stock et scenarios de test adaptes a {{ $sectorProfile['label'] }}.</div>
+                <div class="muted">Ce pack met en place {{ strtolower($suppliersLabel) }}, {{ strtolower($customersLabel) }}, {{ strtolower($productsLabel) }}, tarifs, {{ strtolower($stockLabel) }} et scenarios de test adaptes a {{ $sectorProfile['label'] }}.</div>
                 @if (! empty($sectorDemo['catalog_highlights']))
                     <div class="chip-row" style="margin-top:12px;">
                         @foreach ($sectorDemo['catalog_highlights'] as $highlight)
@@ -193,7 +185,7 @@
                     @endif
                 @else
                     <div class="badge badge-warning">Demo metier a charger</div>
-                    <div class="help">Ideal pour tester le POS, les achats, le stock et les rapports sans tout saisir a la main.</div>
+                    <div class="help">Ideal pour tester le POS, les {{ strtolower($purchasesLabel) }}, le {{ strtolower($stockLabel) }} et les rapports sans tout saisir a la main.</div>
                 @endif
                 @allowed('settings.manage')
                     <form method="POST" action="{{ route('onboarding.sector-demo.apply') }}">
@@ -210,23 +202,23 @@
         <div class="grid" style="margin-bottom:18px;">
             <div class="summary-box">
                 <strong>Tiers de demo</strong>
-                <div class="help" style="margin-top:8px;">{{ $sectorDemo['suppliers_count'] }} fournisseurs · {{ $sectorDemo['customers_count'] }} clients</div>
-                <div class="help" style="margin-top:8px;">Des partenaires demo sont prets pour ventes, achats et portail client.</div>
+                <div class="help" style="margin-top:8px;">{{ $sectorDemo['suppliers_count'] }} {{ strtolower($suppliersLabel) }} · {{ $sectorDemo['customers_count'] }} {{ strtolower($customersLabel) }}</div>
+                <div class="help" style="margin-top:8px;">Des partenaires demo sont prets pour {{ strtolower($salesLabel) }}, {{ strtolower($purchasesLabel) }} et suivi {{ strtolower($customerLabel) }}.</div>
             </div>
             <div class="summary-box">
                 <strong>Catalogue et tarifs</strong>
-                <div class="help" style="margin-top:8px;">{{ $sectorDemo['products_count'] }} produits · {{ $sectorDemo['price_items_count'] }} lignes tarifaires</div>
+                <div class="help" style="margin-top:8px;">{{ $sectorDemo['products_count'] }} {{ strtolower($productsLabel) }} · {{ $sectorDemo['price_items_count'] }} lignes tarifaires</div>
                 <div class="help" style="margin-top:8px;">Les listes detail, gros, promo ou VIP sont deja chargees selon le secteur.</div>
             </div>
             <div class="summary-box">
-                <strong>Stock et tracabilite</strong>
+                <strong>{{ $stockLabel }} et tracabilite</strong>
                 <div class="help" style="margin-top:8px;">{{ $sectorDemo['stock_entries_count'] }} mouvements demo · {{ $sectorDemo['lots_count'] }} lots</div>
                 <div class="help" style="margin-top:8px;">Le pack prepare aussi les articles traces pour les secteurs sensibles.</div>
             </div>
             <div class="summary-box">
                 <strong>Achat et sourcing</strong>
                 <div class="help" style="margin-top:8px;">{{ $sectorDemo['supplier_links_count'] }} liaisons produit-fournisseur</div>
-                <div class="help" style="margin-top:8px;">Les fournisseurs preferes et delais servent tout de suite au reassort et aux achats.</div>
+                <div class="help" style="margin-top:8px;">Les {{ strtolower($suppliersLabel) }} preferes et delais servent tout de suite au reassort et aux {{ strtolower($purchasesLabel) }}.</div>
             </div>
         </div>
 
@@ -267,12 +259,12 @@
             <div style="max-width:760px;">
                 <div class="badge {{ $pilotReadiness['is_ready'] ? 'badge-success' : 'badge-warning' }}">Essai reel terrain</div>
                 <h2 style="margin:12px 0 8px;">Verrouille le pilote avant de passer en boutique</h2>
-                <div class="muted">Cette section verifie si la caisse, les roles, le catalogue, le stock et les paiements sont assez solides pour un essai reel sans surprise.</div>
+                <div class="muted">Cette section verifie si la caisse, les roles, le catalogue, le {{ strtolower($stockLabel) }} et les paiements sont assez solides pour un essai reel.</div>
                 <div class="chip-row" style="margin-top:12px;">
                     <span class="badge badge-muted">Agence pilote : {{ $pilotReadiness['pilot_branch'] ?: 'Non definie' }}</span>
                     <span class="badge badge-muted">Score : {{ $pilotReadiness['score'] }}%</span>
                     <span class="badge badge-muted">{{ $pilotReadiness['blockers_count'] }} bloquant(s)</span>
-                    <span class="badge badge-muted">{{ $pilotReadiness['stocked_saleable_count'] }} produit(s) vendables en stock</span>
+                    <span class="badge badge-muted">{{ $pilotReadiness['stocked_saleable_count'] }} {{ strtolower($productLabel) }}(s) vendables en {{ strtolower($stockLabel) }}</span>
                 </div>
             </div>
             <div style="display:grid; gap:10px; min-width:260px;">
@@ -305,13 +297,13 @@
             </div>
             <div class="summary-box">
                 <strong>Catalogue vendable</strong>
-                <div class="help" style="margin-top:8px;">{{ $pilotReadiness['saleable_products_count'] }} produit(s) vendables · {{ $pilotReadiness['stocked_saleable_count'] }} avec stock positif</div>
-                <div class="help" style="margin-top:8px;">Mets en avant les produits les plus frequents du pilote pour aller vite.</div>
+                <div class="help" style="margin-top:8px;">{{ $pilotReadiness['saleable_products_count'] }} {{ strtolower($productLabel) }}(s) vendables · {{ $pilotReadiness['stocked_saleable_count'] }} avec {{ strtolower($stockLabel) }} positif</div>
+                <div class="help" style="margin-top:8px;">Mets en avant les {{ strtolower($productsLabel) }} les plus frequents du pilote pour aller vite.</div>
             </div>
             <div class="summary-box">
                 <strong>Logistique pilote</strong>
                 <div class="help" style="margin-top:8px;">{{ $pilotReadiness['warehouse_count'] }} depot(s) actif(s)</div>
-                <div class="help" style="margin-top:8px;">Le stock, les lots et les reassorts doivent etre rattaches a l agence pilote.</div>
+                <div class="help" style="margin-top:8px;">Le {{ strtolower($stockLabel) }}, les lots et les reassorts doivent etre rattaches a l agence pilote.</div>
             </div>
         </div>
 
@@ -344,7 +336,7 @@
             <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px;">
                 <div>
                     <h3 style="margin:0 0 6px;">Qualite des donnees pilotes</h3>
-                    <div class="muted">Cette passe evite les blocages de caisse, de stock ou de reassort pendant le test.</div>
+                    <div class="muted">Cette passe evite les blocages de caisse, de {{ strtolower($stockLabel) }} ou de reassort pendant le test.</div>
                 </div>
                 <div class="badge badge-muted">{{ count($pilotReadiness['data_quality']) }} indicateurs</div>
             </div>
@@ -375,7 +367,7 @@
             @if ($pilotReadiness['blockers_count'] === 0)
                 <div class="summary-box">
                     <strong>Aucun point bloquant</strong>
-                    <div class="help" style="margin-top:8px;">Tu peux passer au pilote terrain avec la caisse, le stock, les roles et les paiements deja prets.</div>
+                    <div class="help" style="margin-top:8px;">Tu peux passer au pilote terrain avec la caisse, le {{ strtolower($stockLabel) }}, les roles et les paiements deja prets.</div>
                 </div>
             @else
                 <div class="grid">
@@ -434,26 +426,26 @@
             </div>
             <div class="card" style="padding:16px;">
                 <strong>3. Verrouiller l essai reel</strong>
-                <div class="muted" style="margin-top:8px;">Controle roles, paiements, catalogue et stock avant le premier vrai pilote.</div>
+                <div class="muted" style="margin-top:8px;">Controle roles, paiements, catalogue et {{ strtolower($stockLabel) }} avant le premier vrai pilote.</div>
                 <div style="margin-top:12px;"><a href="#pilot-readiness" class="button button-secondary">Voir l essai reel</a></div>
             </div>
             <div class="card" style="padding:16px;">
                 <strong>4. Charger les donnees reelles</strong>
-                <div class="muted" style="margin-top:8px;">Importe ou cree clients, fournisseurs et catalogue apres la demo ou le starter.</div>
+                <div class="muted" style="margin-top:8px;">Importe ou cree {{ strtolower($customersLabel) }}, {{ strtolower($suppliersLabel) }} et catalogue apres la demo ou le starter.</div>
                 @allowed('imports.manage')
                     <div style="margin-top:12px;"><a href="{{ route('imports.index') }}" class="button button-secondary">Ouvrir les imports</a></div>
                 @else
-                    <div style="margin-top:12px;"><a href="{{ route('products.index') }}" class="button button-secondary">Voir les produits</a></div>
+                    <div style="margin-top:12px;"><a href="{{ route('products.index') }}" class="button button-secondary">Voir les {{ strtolower($productsLabel) }}</a></div>
                 @endallowed
             </div>
             <div class="card" style="padding:16px;">
-                <strong>5. Initialiser le stock</strong>
+                <strong>5. Initialiser le {{ strtolower($stockLabel) }}</strong>
                 <div class="muted" style="margin-top:8px;">Utilise l import en lot ou la saisie unitaire selon ton volume.</div>
-                <div style="margin-top:12px;"><a href="{{ route('stock.opening.create') }}" class="button button-secondary">Initialiser le stock</a></div>
+                <div style="margin-top:12px;"><a href="{{ route('stock.opening.create') }}" class="button button-secondary">Initialiser le {{ strtolower($stockLabel) }}</a></div>
             </div>
             <div class="card" style="padding:16px;">
                 <strong>6. Lancer l activite</strong>
-                <div class="muted" style="margin-top:8px;">Passe la premiere vente ou le premier achat puis controle les rapports.</div>
+                <div class="muted" style="margin-top:8px;">Passe la premiere {{ strtolower($saleLabel) }} ou le premier {{ strtolower($purchaseLabel) }} puis controle les rapports.</div>
                 <div style="margin-top:12px;"><a href="{{ route('reports.index') }}" class="button button-secondary">Voir les rapports</a></div>
             </div>
         </div>
@@ -465,14 +457,14 @@
                 <div style="max-width:760px;">
                     <div class="badge badge-warning">Onboarding de donnees</div>
                     <h2 style="margin:12px 0 8px;">Charge rapidement tes donnees de base avant le stock initial.</h2>
-                    <div class="muted">Le centre d imports fournit les modeles CSV pour les clients, fournisseurs, produits et stock initial.</div>
+                    <div class="muted">Le centre d imports fournit les modeles CSV pour {{ strtolower($customersLabel) }}, {{ strtolower($suppliersLabel) }}, {{ strtolower($productsLabel) }} et {{ strtolower($stockLabel) }} initial.</div>
                 </div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <a href="{{ route('imports.index') }}" class="button button-primary">Ouvrir le centre d imports</a>
-                    <a href="{{ route('imports.templates.download', 'customers') }}" class="button button-secondary">Modele clients</a>
-                    <a href="{{ route('imports.templates.download', 'suppliers') }}" class="button button-secondary">Modele fournisseurs</a>
-                    <a href="{{ route('imports.templates.download', 'products') }}" class="button button-secondary">Modele produits</a>
-                    <a href="{{ route('imports.templates.download', 'opening-stock') }}" class="button button-secondary">Modele stock</a>
+                    <a href="{{ route('imports.templates.download', 'customers') }}" class="button button-secondary">Modele {{ strtolower($customersLabel) }}</a>
+                    <a href="{{ route('imports.templates.download', 'suppliers') }}" class="button button-secondary">Modele {{ strtolower($suppliersLabel) }}</a>
+                    <a href="{{ route('imports.templates.download', 'products') }}" class="button button-secondary">Modele {{ strtolower($productsLabel) }}</a>
+                    <a href="{{ route('imports.templates.download', 'opening-stock') }}" class="button button-secondary">Modele {{ strtolower($stockLabel) }}</a>
                 </div>
             </div>
         </section>

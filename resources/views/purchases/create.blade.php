@@ -1,15 +1,21 @@
 @extends('layouts.app')
 
-@section('title', 'Nouvel achat - Nema ERP')
-@section('page-title', 'Nouvelle facture fournisseur')
+@php
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+    $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+@endphp
+
+@section('title', 'Nouveau '.$purchaseLabel.' - Nema ERP')
+@section('page-title', 'Nouveau '.$purchaseLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Achats',
-        'title' => 'Nouvelle facture fournisseur',
-        'description' => 'Renseigne le fournisseur, les lignes et l echeance de reglement. Le stock suivra le workflow d achat.',
+        'eyebrow' => $purchasesLabel,
+        'title' => 'Nouveau '.$purchaseLabel,
+        'description' => 'Renseigne le '.$supplierLabel.', les lignes et l echeance de reglement. Le stock suivra le workflow.',
         'actions' => [
-            ['label' => 'Retour aux achats', 'url' => route('purchases.index'), 'style' => 'secondary'],
+            ['label' => 'Retour aux '.$purchasesLabel, 'url' => route('purchases.index'), 'style' => 'secondary'],
         ],
     ])
 

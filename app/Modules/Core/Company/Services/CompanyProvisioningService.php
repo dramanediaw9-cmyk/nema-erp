@@ -37,6 +37,7 @@ class CompanyProvisioningService
             $branch = $this->ensureBranch($company, $options);
             $warehouse = $this->ensureWarehouse($company, $branch);
             $role = $this->ensureAdministratorRole($company);
+            $this->ensureOperationalRoles($company);
 
             $this->ensureGeneralSettings($company, $branch);
             $this->ensureDocumentSequences($company);
@@ -107,6 +108,45 @@ class CompanyProvisioningService
         );
 
         $role->permissions()->sync(Permission::query()->pluck('id'));
+
+        return $role;
+    }
+
+    private function ensureOperationalRoles(Company $company): void
+    {
+        $this->ensureRoleWithPermissions(
+            $company,
+            'cashier',
+            'Caissier',
+            'Acces limite au point de vente et a la session de caisse.',
+            ['dashboard.view', 'pos.view', 'pos.manage'],
+        );
+
+        $this->ensureRoleWithPermissions(
+            $company,
+            'pos_supervisor',
+            'Responsable de caisse',
+            'Supervision des caisses, ecarts, tickets et rapports de caisse.',
+            ['dashboard.view', 'pos.view', 'pos.manage', 'payments.view', 'cash_accounts.view', 'reports.view', 'activity_logs.view'],
+        );
+    }
+
+    private function ensureRoleWithPermissions(Company $company, string $slug, string $name, string $description, array $permissionSlugs): Role
+    {
+        $role = Role::query()->updateOrCreate(
+            [
+                'company_id' => $company->id,
+                'slug' => $slug,
+            ],
+            [
+                'tenant_id' => $company->tenant_id,
+                'name' => $name,
+                'description' => $description,
+                'is_system' => true,
+            ]
+        );
+
+        $role->permissions()->sync(Permission::query()->whereIn('slug', $permissionSlugs)->pluck('id'));
 
         return $role;
     }

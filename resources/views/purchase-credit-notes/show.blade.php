@@ -10,7 +10,7 @@
             <div class="muted">Avoir du {{ $creditNote->credit_note_date?->format('d/m/Y') }} · Facture {{ $creditNote->bill?->bill_number }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('purchase-credit-notes.print', $creditNote) }}" target="_blank" class="button button-secondary">PDF</a>
+            <a href="{{ route('purchase-credit-notes.print', $creditNote) }}" target="_blank" class="button button-secondary">Imprimer l avoir</a>
             <a href="{{ route('purchases.show', $creditNote->bill) }}" class="button button-secondary">Voir la facture</a>
         </div>
     </div>

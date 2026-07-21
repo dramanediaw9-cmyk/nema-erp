@@ -4,6 +4,13 @@
 @section('page-title', 'Paiements POS')
 
 @section('content')
+    @php
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+            ? 'Client comptoir'
+            : $customerLabel.' comptoir';
+    @endphp
+
     <div class="grid" style="gap:18px;">
         @include('pos.partials.backoffice-nav')
 
@@ -39,7 +46,7 @@
                     <thead>
                         <tr>
                             <th>Numero</th>
-                            <th>Client</th>
+                            <th>{{ $customerLabel }}</th>
                             <th>Methode</th>
                             <th>Compte</th>
                             <th>Montant</th>
@@ -50,7 +57,7 @@
                         @forelse ($data['payments'] as $payment)
                             <tr>
                                 <td>{{ $payment->payment_number }}</td>
-                                <td>{{ $payment->partner?->name ?? 'Client comptoir' }}</td>
+                                <td>{{ $payment->partner?->name ?? $counterCustomerLabel }}</td>
                                 <td>{{ \App\Support\PaymentMethodCatalog::label($payment->method) }}</td>
                                 <td>{{ $payment->cashAccount?->name ?? 'n/a' }}</td>
                                 <td>{{ number_format((float) $payment->amount, 0, ',', ' ') }} XOF</td>

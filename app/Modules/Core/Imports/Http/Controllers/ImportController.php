@@ -30,7 +30,31 @@ class ImportController extends Controller
 
     public function downloadTemplate(string $type): StreamedResponse
     {
-        abort_unless(in_array($type, ['customers', 'suppliers', 'products', 'opening-stock', 'historical-sales', 'historical-purchases'], true), 404);
+        abort_unless(in_array($type, ['customers', 'customers-xlsx', 'suppliers', 'suppliers-xlsx', 'products', 'products-xlsx', 'opening-stock', 'historical-sales', 'historical-purchases'], true), 404);
+
+        if ($type === 'customers-xlsx') {
+            return response()->streamDownload(function (): void {
+                echo $this->importService->xlsxFromRows($this->importService->customerTemplate());
+            }, 'modele-clients.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]);
+        }
+
+        if ($type === 'suppliers-xlsx') {
+            return response()->streamDownload(function (): void {
+                echo $this->importService->xlsxFromRows($this->importService->supplierTemplate());
+            }, 'modele-fournisseurs.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]);
+        }
+
+        if ($type === 'products-xlsx') {
+            return response()->streamDownload(function (): void {
+                echo $this->importService->xlsxFromRows($this->importService->productTemplate());
+            }, 'modele-produits.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]);
+        }
 
         $templates = [
             'customers' => ['modele-clients.csv', $this->importService->customerTemplate()],
@@ -63,11 +87,11 @@ class ImportController extends Controller
         abort_if(! $companyId, 403);
 
         $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx'],
         ]);
 
         $result = $this->importService->importCustomers($data['file'], $companyId, $request->user());
-        $this->activityLogger->log('imports.customers', 'Import clients CSV', null, $result);
+        $this->activityLogger->log('imports.customers', 'Import clients Excel/CSV', null, $result);
 
         return redirect()->route('imports.index')->with('success', $result['count'].' client(s) importes ou mis a jour avec succes.');
     }
@@ -78,11 +102,11 @@ class ImportController extends Controller
         abort_if(! $companyId, 403);
 
         $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx'],
         ]);
 
         $result = $this->importService->importSuppliers($data['file'], $companyId, $request->user());
-        $this->activityLogger->log('imports.suppliers', 'Import fournisseurs CSV', null, $result);
+        $this->activityLogger->log('imports.suppliers', 'Import fournisseurs Excel/CSV', null, $result);
 
         return redirect()->route('imports.index')->with('success', $result['count'].' fournisseur(s) importes ou mis a jour avec succes.');
     }
@@ -90,16 +114,22 @@ class ImportController extends Controller
     public function importProducts(Request $request, CurrentWorkspace $workspace): RedirectResponse
     {
         $companyId = $workspace->companyId();
-        abort_if(! $companyId, 403);
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
 
         $data = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx'],
         ]);
 
-        $result = $this->importService->importProducts($data['file'], $companyId, $request->user());
-        $this->activityLogger->log('imports.products', 'Import produits CSV', null, $result);
+        $result = $this->importService->importProducts($data['file'], $companyId, $branchId, $request->user());
+        $this->activityLogger->log('imports.products', 'Import produits catalogue', null, $result);
 
-        return redirect()->route('imports.index')->with('success', $result['count'].' produit(s) importes ou mis a jour avec succes.');
+        $message = $result['count'].' produit(s) importes ou mis a jour avec succes.';
+        if (($result['stock_count'] ?? 0) > 0) {
+            $message .= ' '.$result['stock_count'].' ligne(s) de stock initial ajoutee(s).';
+        }
+
+        return redirect()->route('imports.index')->with('success', $message);
     }
 
     public function importOpeningStock(Request $request, CurrentWorkspace $workspace): RedirectResponse

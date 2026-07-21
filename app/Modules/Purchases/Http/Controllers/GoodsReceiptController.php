@@ -97,5 +97,35 @@ class GoodsReceiptController extends Controller
                 ->get(),
         ]);
     }
-}
 
+    public function print(GoodsReceipt $goodsReceipt, CurrentWorkspace $workspace): View
+    {
+        abort_if($workspace->companyId() !== $goodsReceipt->company_id, 403);
+
+        $receipt = $goodsReceipt->load([
+            'company',
+            'supplier',
+            'warehouse',
+            'branch',
+            'purchaseOrder',
+            'purchaseBill',
+            'items.product',
+            'items.productLots',
+            'creator',
+        ]);
+
+        $stockMovements = StockMovement::query()
+            ->with(['product', 'productLot', 'warehouse'])
+            ->where('company_id', $goodsReceipt->company_id)
+            ->where('reference_type', GoodsReceipt::class)
+            ->where('reference_id', $goodsReceipt->id)
+            ->orderBy('movement_date')
+            ->get();
+
+        return view('goods-receipts.print', [
+            'company' => $receipt->company,
+            'receipt' => $receipt,
+            'stockMovements' => $stockMovements,
+        ]);
+    }
+}

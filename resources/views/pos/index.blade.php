@@ -4,10 +4,24 @@
 @section('page-title', 'Point de vente')
 
 @section('content')
+    @php
+        $isCashier = auth()->user()?->hasRole('cashier');
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $cashierLabel = $businessVocabulary['cashier'] ?? 'Caissier';
+    @endphp
     <style>
         .pos-home {
             display: grid;
-            gap: 22px;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 12px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
         }
         .pos-home-hero {
             display: flex;
@@ -15,8 +29,8 @@
             gap: 18px;
             flex-wrap: wrap;
             align-items: flex-start;
-            padding: 24px 26px;
-            border-radius: 24px;
+            padding: 14px 18px;
+            border-radius: 8px;
             color: #fff;
             background: linear-gradient(135deg, #16324f 0%, #24517a 55%, #3370a8 100%);
             box-shadow: 0 20px 40px rgba(22, 50, 79, 0.18);
@@ -35,7 +49,7 @@
         }
         .pos-panel {
             border: 1px solid #d9e3ef;
-            border-radius: 24px;
+            border-radius: 8px;
             background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
             box-shadow: 0 18px 35px rgba(17, 24, 39, 0.05);
         }
@@ -44,11 +58,11 @@
             justify-content: space-between;
             gap: 14px;
             align-items: flex-start;
-            padding: 22px 22px 14px;
+            padding: 14px 16px 10px;
             border-bottom: 1px solid #e7edf4;
         }
         .pos-panel-head h3 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
-        .pos-panel-body { padding: 20px 22px 22px; }
+        .pos-panel-body { padding: 14px 16px 16px; }
         .pos-mode-strip {
             display: flex;
             gap: 10px;
@@ -87,7 +101,7 @@
         .pos-stat-card {
             padding: 16px 18px;
             border: 1px solid #dce6f2;
-            border-radius: 18px;
+            border-radius: 8px;
             background: #fff;
         }
         .pos-stat-card .label {
@@ -144,15 +158,83 @@
         }
         .pos-kpi .label { color: #6d8096; font-size: 12px; }
         .pos-kpi .value { margin-top: 8px; font-size: 20px; font-weight: 800; color: #13253b; }
+        .pos-control-strip {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            margin-top: 12px;
+        }
+        .pos-control-chip {
+            padding: 10px 12px;
+            border: 1px solid #dbe6f2;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .pos-control-chip .label {
+            color: #65778d;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .pos-control-chip .value {
+            margin-top: 6px;
+            color: #10233a;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: -.03em;
+        }
+        .pos-table-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            white-space: nowrap;
+        }
+        .pos-table-actions .button {
+            min-height: 34px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        .pos-stale-alert {
+            margin-top: 14px;
+            padding: 14px;
+            border: 1px solid #f1c27d;
+            border-left: 5px solid #d97706;
+            border-radius: 8px;
+            background: #fff8ed;
+        }
+        .pos-stale-alert h4 {
+            margin: 0 0 8px;
+            color: #7c3f06;
+            font-size: 15px;
+        }
+        .pos-stale-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .pos-stale-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid #f1dfc3;
+        }
         .pos-shortcuts-grid {
             display: grid;
             gap: 14px;
             grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            margin-top: 14px;
         }
         .pos-shortcut-card {
             display: block;
             padding: 16px 18px;
-            border-radius: 20px;
+            border-radius: 8px;
             border: 1px solid #dbe6f2;
             background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
             box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
@@ -180,20 +262,15 @@
         <section class="pos-home-hero">
             <div>
                 <h2>Caisse comptoir</h2>
-                <div class="muted">Ouverture de caisse, tickets rapides, remboursements, suivi journalier et cloture d equipe dans une interface plus proche d un vrai point de vente.</div>
-                <div class="pos-mode-strip">
-                    <span class="pos-mode-chip">Vente detail</span>
-                    <span class="pos-mode-chip">Scan / recherche</span>
-                    <span class="pos-mode-chip">Remises</span>
-                    <span class="pos-mode-chip">Retours</span>
-                    <span class="pos-mode-chip">Cloture caisse</span>
-                </div>
+                <div class="muted">{{ $currentSession ? $currentSession->session_number.' · '.$currentSession->cashAccount?->name.' · '.$currentSession->warehouse?->name : 'Choisis un poste disponible et ouvre ta session.' }}</div>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
-                <a href="{{ route('pos.preparation.index') }}" class="button button-secondary">Board preparation</a>
+                @unless ($isCashier)
+                    <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
+                    <a href="{{ route('pos.preparation.index') }}" class="button button-secondary">Board preparation</a>
+                @endunless
                 @if ($currentSession)
-                    <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">Nouvelle vente comptoir</a>
+                    <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">Nouvelle {{ strtolower($saleLabel) }} comptoir</a>
                     <a href="{{ route('pos.show', $currentSession) }}" class="button button-secondary">Voir la session</a>
                 @endif
             </div>
@@ -203,30 +280,131 @@
             <div class="pos-panel-head">
                 <div>
                     <h3>Operations caisse</h3>
-                    <div class="muted">Acces direct aux actions frequentes sans quitter l accueil POS.</div>
+                    <div class="muted">{{ $isCashier ? 'Ton espace est limite a tes '.strtolower($salesLabel).' et tes sessions.' : 'Vue rapide des postes, clotures et ecarts de caisse.' }}</div>
                 </div>
             </div>
             <div class="pos-panel-body">
+                <div class="pos-control-strip">
+                    <div class="pos-control-chip">
+                        <div class="label">Sessions ouvertes</div>
+                        <div class="value">{{ $sessionControl['open'] ?? 0 }}</div>
+                    </div>
+                    <div class="pos-control-chip">
+                        <div class="label">Sessions du jour</div>
+                        <div class="value">{{ $sessionControl['today'] ?? 0 }}</div>
+                    </div>
+                    <div class="pos-control-chip">
+                        <div class="label">Cloturees jour</div>
+                        <div class="value">{{ $sessionControl['closed_today'] ?? 0 }}</div>
+                    </div>
+                    <div class="pos-control-chip">
+                        <div class="label">Attendu jour</div>
+                        <div class="value">{{ number_format($sessionControl['expected_today'] ?? 0, 0, ',', ' ') }} XOF</div>
+                    </div>
+                    <div class="pos-control-chip">
+                        <div class="label">Ecart jour</div>
+                        <div class="value">{{ number_format($sessionControl['variance_today'] ?? 0, 0, ',', ' ') }} XOF</div>
+                    </div>
+                </div>
                 <div class="pos-shortcuts-grid">
                     <a href="{{ $currentSession ? route('pos.sales.create', ['session' => $currentSession->id]) : route('pos.index') }}" class="pos-shortcut-card">
-                        <strong>{{ $currentSession ? 'Nouvelle vente comptoir' : 'Ouvrir une session' }}</strong>
+                        <strong>{{ $currentSession ? 'Nouvelle '.strtolower($saleLabel).' comptoir' : 'Ouvrir une session' }}</strong>
                         <div class="muted">{{ $currentSession ? 'Lancer rapidement un ticket dans la session ouverte.' : 'Demarrer la caisse avec le bon compte et le bon entrepot.' }}</div>
                     </a>
-                    <a href="{{ $currentSession ? route('pos.show', $currentSession) : route('pos.sessions.index') }}" class="pos-shortcut-card">
+                    <a href="{{ $currentSession ? route('pos.show', $currentSession) : ($isCashier ? route('pos.index') : route('pos.sessions.index')) }}" class="pos-shortcut-card">
                         <strong>{{ $currentSession ? 'Voir la session active' : 'Voir les sessions' }}</strong>
-                        <div class="muted">{{ $currentSession ? 'Suivre les tickets, retours et la cloture du poste courant.' : 'Retrouver les ouvertures et clotures recentes de caisse.' }}</div>
+                        <div class="muted">{{ $currentSession ? 'Suivre les tickets, retours et la cloture du poste courant.' : ($isCashier ? 'Aucune session ouverte sur ton compte pour le moment.' : 'Retrouver les ouvertures et clotures recentes de caisse.') }}</div>
                     </a>
-                    <a href="{{ route('pos.payments.index') }}" class="pos-shortcut-card">
-                        <strong>Paiements POS</strong>
-                        <div class="muted">Controler les encaissements comptoir et les modes de paiement utilises.</div>
-                    </a>
-                    <a href="{{ route('pos.report') }}" class="pos-shortcut-card">
-                        <strong>Rapport journalier</strong>
-                        <div class="muted">Comparer les ventes, les retours, la caisse attendue et les ecarts du jour.</div>
-                    </a>
+                    @unless ($isCashier)
+                        <a href="{{ route('pos.payments.index') }}" class="pos-shortcut-card">
+                            <strong>Paiements POS</strong>
+                            <div class="muted">Controler les encaissements comptoir et les modes de paiement utilises.</div>
+                        </a>
+                        <a href="{{ route('pos.report') }}" class="pos-shortcut-card">
+                            <strong>Rapport journalier</strong>
+                            <div class="muted">Comparer les {{ strtolower($salesLabel) }}, les retours, la caisse attendue et les ecarts du jour.</div>
+                        </a>
+                    @endunless
                 </div>
+                @if (($staleOpenSessions ?? collect())->isNotEmpty())
+                    <div class="pos-stale-alert">
+                        <h4>Sessions ouvertes a cloturer</h4>
+                        <div class="muted">
+                            Ces caisses sont ouvertes depuis plus de 24h. Il faut les controler et les cloturer pour garder les rapports propres.
+                        </div>
+                        <div class="pos-stale-list">
+                            @foreach ($staleOpenSessions as $staleSession)
+                                <div class="pos-stale-row">
+                                    <div>
+                                        <strong>{{ $staleSession->session_number }}</strong>
+                                        <div class="muted">
+                                            {{ $staleSession->cashAccount?->name }} · {{ $staleSession->opener?->name }} · ouverte {{ $staleSession->opened_at?->diffForHumans() }}
+                                        </div>
+                                        <div class="help">
+                                            {{ number_format((float) ($staleSession->orders_count ?? 0), 0, ',', ' ') }} ticket(s) · {{ number_format((float) ($staleSession->payments_total ?? 0), 0, ',', ' ') }} XOF encaisses
+                                        </div>
+                                    </div>
+                                    <div class="pos-table-actions">
+                                        <a href="{{ route('pos.show', $staleSession) }}#cloture-session" class="button button-primary">Controler</a>
+                                        <a href="{{ route('pos.count-sheet', $staleSession) }}" class="button button-secondary">Comptage</a>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         </section>
+
+        @unless ($isCashier)
+            <section class="pos-panel">
+                <div class="pos-panel-head">
+                    <div>
+                        <h3>Postes de caisse</h3>
+                        <div class="muted">{{ $openSessions->count() }} poste(s) ouvert(s) sur {{ $cashAccounts->count() }} caisse(s) active(s).</div>
+                    </div>
+                </div>
+                <div class="pos-panel-body">
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Caisse</th>
+                                    <th>Etat</th>
+                                    <th>Operateur</th>
+                                    <th>Depot</th>
+                                    <th>Ouverture</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($cashAccounts as $account)
+                                    @php
+                                        $registerSession = $openSessions->firstWhere('cash_account_id', $account->id);
+                                    @endphp
+                                    <tr>
+                                        <td><strong>{{ $account->name }}</strong></td>
+                                        <td>
+                                            <span class="badge {{ $registerSession ? 'badge-warning' : 'badge-success' }}">
+                                                {{ $registerSession ? 'Ouverte' : 'Disponible' }}
+                                            </span>
+                                        </td>
+                                        <td>{{ $registerSession?->opener?->name ?? '-' }}</td>
+                                        <td>{{ $registerSession?->warehouse?->name ?? '-' }}</td>
+                                        <td>{{ $registerSession?->opened_at?->format('d/m H:i') ?? '-' }}</td>
+                                        <td>
+                                            @if ($registerSession)
+                                                <a href="{{ route('pos.show', $registerSession) }}" class="button button-secondary">Voir</a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        @endunless
 
         @if (! $currentSession)
             <div class="pos-home-grid">
@@ -246,7 +424,16 @@
                                 <select id="cash_account_id" name="cash_account_id" required>
                                     <option value="">Choisir un compte</option>
                                     @foreach ($cashAccounts as $account)
-                                        <option value="{{ $account->id }}" @selected(old('cash_account_id') == $account->id)>{{ $account->name }}</option>
+                                        @php
+                                            $occupiedSession = $openSessions->firstWhere('cash_account_id', $account->id);
+                                        @endphp
+                                        <option
+                                            value="{{ $account->id }}"
+                                            @selected(old('cash_account_id') == $account->id)
+                                            @disabled($occupiedSession)
+                                        >
+                                            {{ $account->name }}{{ $occupiedSession ? ' · ouverte par '.$occupiedSession->opener?->name : ' · disponible' }}
+                                        </option>
                                     @endforeach
                                 </select>
                                 @error('cash_account_id')<div class="field-error">{{ $message }}</div>@enderror
@@ -264,16 +451,16 @@
                             <div class="full">
                                 <div class="pos-kpi-row">
                                     <div class="pos-kpi">
-                                        <div class="label">Caissier connecte</div>
-                                        <div class="value">{{ auth()->user()?->name }}</div>
+                                        <div class="label">Comptes disponibles</div>
+                                        <div class="value">{{ $cashAccounts->count() }}</div>
                                     </div>
                                     <div class="pos-kpi">
-                                        <div class="label">Heure d ouverture</div>
-                                        <div class="value">{{ now()->format('H:i') }}</div>
+                                        <div class="label">Entrepots actifs</div>
+                                        <div class="value">{{ $warehouses->count() }}</div>
                                     </div>
                                     <div class="pos-kpi">
-                                        <div class="label">Statut apres ouverture</div>
-                                        <div class="value">OPEN</div>
+                                        <div class="label">Coupures gerees</div>
+                                        <div class="value">{{ count($cashDenominations) }}</div>
                                     </div>
                                 </div>
                             </div>
@@ -283,8 +470,10 @@
                                 <div class="help">Tu peux le saisir directement ou le calculer automatiquement depuis les coupures.</div>
                                 @error('opening_amount')<div class="field-error">{{ $message }}</div>@enderror
                             </div>
-                            @php($openingBreakdown = old('opening_cash_breakdown', []))
-                            @php($openingBreakdownTotal = collect(array_keys($cashDenominations))->sum(fn ($denomination) => ((int) ($openingBreakdown[$denomination] ?? 0)) * (int) $denomination))
+                            @php
+                                $openingBreakdown = old('opening_cash_breakdown', []);
+                                $openingBreakdownTotal = collect(array_keys($cashDenominations))->sum(fn ($denomination) => ((int) ($openingBreakdown[$denomination] ?? 0)) * (int) $denomination);
+                            @endphp
                             <div class="full">
                                 <label>Detail especes par coupures</label>
                                 <div class="help">Renseigne les quantites de billets et pieces pour calculer automatiquement le fond de caisse.</div>
@@ -324,40 +513,23 @@
                 <aside class="pos-panel">
                     <div class="pos-panel-head">
                         <div>
-                            <h3>Avant de commencer</h3>
-                            <div class="muted">Petit rappel operateur pour lancer la caisse dans de bonnes conditions.</div>
+                            <h3>Poste selectionne</h3>
+                            <div class="muted">La caisse, le depot et le fond initial seront attaches a toutes les ventes de cette session.</div>
                         </div>
                     </div>
                     <div class="pos-panel-body pos-side-list">
-                        <div class="pos-side-item">
-                            <strong>1. Verifie le compte de caisse</strong>
-                            <div class="pos-mini-meta">Choisis le bon compte physique ou mobile money pour les encaissements du poste.</div>
-                        </div>
-                        <div class="pos-side-item">
-                            <strong>2. Verifie l entrepot de vente</strong>
-                            <div class="pos-mini-meta">Les tickets comptoir sortiront le stock de cet entrepot pendant toute la session.</div>
-                        </div>
-                        <div class="pos-side-item">
-                            <strong>3. Compte les especes</strong>
-                            <div class="pos-mini-meta">Le detail par coupure alimente automatiquement le montant initial et facilite la cloture.</div>
-                        </div>
-                        <div class="pos-side-item">
-                            <strong>4. Lance la session</strong>
-                            <div class="pos-mini-meta">Tu pourras ensuite vendre, rembourser, imprimer les tickets et cloturer la caisse.</div>
-                        </div>
+                        <div class="pos-side-item"><strong>Caisse</strong><div class="pos-mini-meta">Une seule session ouverte par poste.</div></div>
+                        <div class="pos-side-item"><strong>Operateur</strong><div class="pos-mini-meta">{{ auth()->user()?->name }}</div></div>
+                        <div class="pos-side-item"><strong>Agence</strong><div class="pos-mini-meta">{{ $workspace->branch()?->name }}</div></div>
                     </div>
                 </aside>
             </div>
         @else
             <div class="pos-summary-cards">
                 <div class="pos-stat-card"><div class="label">Session ouverte</div><div class="value">{{ $currentSession->session_number }}</div></div>
-                <div class="pos-stat-card"><div class="label">Statut</div><div class="value">{{ $currentSession->status === 'open' ? 'OPEN' : 'CLOSED' }}</div></div>
-                <div class="pos-stat-card"><div class="label">Montant initial</div><div class="value">{{ number_format((float) $currentSession->opening_amount, 0, ',', ' ') }}</div></div>
-                <div class="pos-stat-card"><div class="label">Caissier</div><div class="value">{{ $currentSession->opener?->name }}</div></div>
-                <div class="pos-stat-card"><div class="label">Ouverture</div><div class="value">{{ $currentSession->opened_at?->format('d/m H:i') }}</div></div>
-                <div class="pos-stat-card"><div class="label">Brut articles</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
+                <div class="pos-stat-card"><div class="label">Brut {{ strtolower($productsLabel) }}</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Remises</div><div class="value">{{ number_format($summary['discount_total'], 0, ',', ' ') }}</div></div>
-                <div class="pos-stat-card"><div class="label">Ventes nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
+                <div class="pos-stat-card"><div class="label">{{ $salesLabel }} nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Retours</div><div class="value">{{ number_format($summary['return_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Encaisse attendu</div><div class="value">{{ number_format($summary['expected_amount'], 0, ',', ' ') }}</div></div>
             </div>
@@ -367,7 +539,6 @@
                     <div class="pos-panel-head">
                         <div>
                             <h3>Session en cours</h3>
-                            <div class="muted">Vue rapide de la caisse active, des tickets du jour et des retours deja traites.</div>
                         </div>
                         @include('partials.erp-status-badge', ['label' => 'Ouverte', 'tone' => 'warning'])
                     </div>
@@ -385,19 +556,17 @@
                                 <div class="label">Ouverte le</div>
                                 <div class="value">{{ $currentSession->opened_at?->format('d/m H:i') }}</div>
                             </div>
-                            <div class="pos-kpi">
-                                <div class="label">Statut</div>
-                                <div class="value">{{ $currentSession->status === 'open' ? 'OPEN' : 'CLOSED' }}</div>
-                            </div>
                         </div>
 
                         <div class="pos-mini-grid">
                             @forelse ($recentInvoices as $invoice)
-                                @php($refundedAmount = (float) $invoice->posReturns->sum('total'))
+                                @php
+                                    $refundedAmount = (float) $invoice->posReturns->sum('total');
+                                @endphp
                                 <div class="pos-mini-card">
                                     <div>
                                         <strong>{{ $invoice->invoice_number }}</strong>
-                                        <div class="pos-mini-meta">{{ $invoice->customer?->name }} · {{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</div>
+                                <div class="pos-mini-meta">{{ $invoice->customer?->name ?? $customerLabel.' comptoir' }} · {{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</div>
                                         @if ((float) $invoice->discount_total > 0)
                                             <div class="help">Remise : {{ number_format((float) $invoice->discount_total, 0, ',', ' ') }} XOF</div>
                                         @endif
@@ -414,7 +583,7 @@
                             @empty
                                 <div class="empty-state" style="padding:26px 18px;">
                                     <h3 style="font-size:22px;">Aucun ticket pour cette session</h3>
-                                    <div class="muted">Ouvre une nouvelle vente comptoir pour commencer a encaisser.</div>
+                                    <div class="muted">Ouvre une nouvelle {{ strtolower($saleLabel) }} comptoir pour commencer a encaisser.</div>
                                 </div>
                             @endforelse
                         </div>
@@ -425,7 +594,6 @@
                     <div class="pos-panel-head">
                         <div>
                             <h3>Suivi de caisse</h3>
-                            <div class="muted">Lecture rapide par mode de paiement et derniers retours.</div>
                         </div>
                     </div>
                     <div class="pos-panel-body" style="display:grid; gap:18px;">
@@ -461,8 +629,11 @@
             <div class="pos-panel-head">
                 <div>
                     <h3>Sessions recentes</h3>
-                    <div class="muted">Historique des ouvertures et clotures de caisse sur cette agence.</div>
+                    <div class="muted">{{ $isCashier ? 'Tes ouvertures, clotures et impressions de controle.' : 'Historique des ouvertures, clotures, ecarts et impressions de controle.' }}</div>
                 </div>
+                @unless ($isCashier)
+                    <a href="{{ route('pos.sessions.index') }}" class="button button-secondary">Pilotage sessions</a>
+                @endunless
             </div>
             <div class="pos-panel-body">
                 <div class="table-wrap">
@@ -474,29 +645,63 @@
                             <th>Entrepot</th>
                             <th>Ouverte par</th>
                             <th>Ouverture</th>
+                            <th>Fermeture</th>
+                            <th class="right">Tickets</th>
+                            <th class="right">Paiements</th>
+                            <th class="right">Attendu</th>
+                            <th class="right">Compte</th>
+                            <th class="right">Ecart</th>
                             <th>Statut</th>
                             <th></th>
                         </tr>
                         </thead>
                         <tbody>
                         @forelse ($recentSessions as $session)
+                            @php
+                                $variance = (float) ($session->variance_amount ?? 0);
+                                $varianceTone = abs($variance) > 0.009 ? 'warning' : 'success';
+                            @endphp
                             <tr>
-                                <td>{{ $session->session_number }}</td>
+                                <td><strong>{{ $session->session_number }}</strong></td>
                                 <td>{{ $session->cashAccount?->name }}</td>
                                 <td>{{ $session->warehouse?->name }}</td>
                                 <td>{{ $session->opener?->name }}</td>
                                 <td>{{ $session->opened_at?->format('d/m/Y H:i') }}</td>
+                                <td>{{ $session->closed_at?->format('d/m/Y H:i') ?? '-' }}</td>
+                                <td class="right">{{ number_format((float) ($session->orders_count ?? 0), 0, ',', ' ') }}</td>
+                                <td class="right">{{ number_format((float) ($session->payments_total ?? 0), 0, ',', ' ') }} XOF</td>
+                                <td class="right">{{ $session->expected_amount !== null ? number_format((float) $session->expected_amount, 0, ',', ' ').' XOF' : '-' }}</td>
+                                <td class="right">{{ $session->closing_amount !== null ? number_format((float) $session->closing_amount, 0, ',', ' ').' XOF' : '-' }}</td>
+                                <td class="right">
+                                    @if ($session->status === 'closed')
+                                        @include('partials.erp-status-badge', [
+                                            'label' => number_format($variance, 0, ',', ' ').' XOF',
+                                            'tone' => $varianceTone,
+                                        ])
+                                    @else
+                                        <span class="muted">-</span>
+                                    @endif
+                                </td>
                                 <td>
                                     @include('partials.erp-status-badge', [
-                                        'label' => $session->status === 'open' ? 'OPEN' : 'CLOSED',
+                                        'label' => $session->status === 'open' ? 'Ouverte' : 'Cloturee',
                                         'tone' => $session->status === 'open' ? 'warning' : 'success',
                                     ])
                                 </td>
-                                <td><a href="{{ route('pos.show', $session) }}" class="button button-secondary">Voir</a></td>
+                                <td>
+                                    <div class="pos-table-actions">
+                                        <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Voir</a>
+                                        <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Comptage</a>
+                                        <a href="{{ route('pos.session.print', $session) }}" class="button button-secondary">Imprimer</a>
+                                        @if ($session->status === 'open')
+                                            <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="button button-primary">{{ $saleLabel }}</a>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="muted">Aucune session enregistree.</td>
+                                <td colspan="13" class="muted">Aucune session enregistree.</td>
                             </tr>
                         @endforelse
                         </tbody>
@@ -538,4 +743,3 @@
     });
     </script>
 @endsection
-

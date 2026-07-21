@@ -1,16 +1,23 @@
 @php
-    $groups = [
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+    $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $groups = auth()->user()?->hasRole('cashier') ? [
+        'Point de Vente' => [
+            ['label' => 'Caisse', 'route' => 'pos.index'],
+            ['label' => 'Commandes', 'route' => 'pos.orders.index'],
+        ],
+    ] : [
         'Point de Vente' => [
             ['label' => 'Tableau de bord', 'route' => 'pos.index'],
             ['label' => 'Commandes', 'route' => 'pos.orders.index'],
-            ['label' => 'Tickets / historique', 'route' => 'pos.orders.index'],
             ['label' => 'Sessions', 'route' => 'pos.sessions.index'],
-            ['label' => 'Verrouillage caisse', 'route' => 'pos.sessions.index'],
             ['label' => 'Paiements', 'route' => 'pos.payments.index'],
-            ['label' => 'Paiements partiels', 'route' => 'pos.payments.index'],
-            ['label' => 'Remboursements', 'route' => 'pos.orders.index'],
-            ['label' => 'Clients', 'route' => 'pos.customers.index'],
-            ['label' => 'Produits', 'route' => 'pos.products.index'],
+            ['label' => $customersLabel, 'route' => 'pos.customers.index'],
+            ['label' => $productsLabel, 'route' => 'pos.products.index'],
             ['label' => 'Preparation', 'route' => 'pos.preparation.index'],
         ],
         'Tarification' => [
@@ -20,9 +27,8 @@
         ],
         'Analyse' => [
             ['label' => 'Commandes', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'orders']],
-            ['label' => 'Details des ventes', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'sales']],
+            ['label' => 'Details des '.$salesLabel, 'route' => 'pos.analytics.index', 'params' => ['focus' => 'sales']],
             ['label' => 'Rapport de session', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'sessions']],
-            ['label' => 'Journal caisse', 'route' => 'accounting.journal-entries.index', 'params' => ['journal_code' => 'TRE', 'source_type' => 'payments']],
             ['label' => 'Temps de preparation', 'route' => 'pos.analytics.index', 'params' => ['focus' => 'prep']],
         ],
         'Configuration' => [
@@ -32,9 +38,9 @@
             ['label' => 'Pieces/billets', 'route' => 'pos.settings.index', 'params' => ['focus' => 'denominations']],
             ['label' => 'Point de vente', 'route' => 'pos.settings.index', 'params' => ['focus' => 'profiles']],
             ['label' => 'Modeles de notes', 'route' => 'pos.settings.index', 'params' => ['focus' => 'note-templates']],
-            ['label' => 'Categories de produits du PdV', 'route' => 'pos.products.index', 'params' => ['focus' => 'menu-categories']],
+            ['label' => 'Categories '.$productsLabel.' du PdV', 'route' => 'pos.products.index', 'params' => ['focus' => 'menu-categories']],
             ['label' => 'Attributs', 'route' => 'pos.products.index', 'params' => ['focus' => 'attributes']],
-            ['label' => 'Etiquettes de produit', 'route' => 'pos.products.index', 'params' => ['focus' => 'tags']],
+            ['label' => 'Etiquettes '.$productLabel, 'route' => 'pos.products.index', 'params' => ['focus' => 'tags']],
             ['label' => 'Imprimantes de preparation', 'route' => 'pos.settings.index', 'params' => ['focus' => 'printers']],
             ['label' => 'Preparation Display', 'route' => 'pos.settings.index', 'params' => ['focus' => 'displays']],
             ['label' => 'Choix de combo', 'route' => 'pos.products.index', 'params' => ['focus' => 'combos']],
@@ -46,6 +52,9 @@
     .pos-backoffice-nav {
         display: grid;
         gap: 14px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         padding: 18px;
         border: 1px solid #d8e3f0;
         border-radius: 24px;
@@ -58,13 +67,18 @@
         gap: 12px;
         align-items: center;
         flex-wrap: wrap;
+        min-width: 0;
     }
     .pos-backoffice-nav-grid {
         display: grid;
         gap: 14px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .pos-backoffice-nav-group {
+        min-width: 0;
         padding: 14px;
         border-radius: 18px;
         border: 1px solid #e3ebf5;
@@ -84,6 +98,7 @@
     .pos-backoffice-nav-link {
         display: inline-flex;
         align-items: center;
+        max-width: 100%;
         padding: 8px 12px;
         border-radius: 999px;
         border: 1px solid #dbe6f2;
@@ -91,11 +106,28 @@
         color: #17304f;
         font-size: 12px;
         font-weight: 700;
+        text-align: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
     .pos-backoffice-nav-link.active {
         background: #143a5a;
         border-color: #143a5a;
         color: #fff;
+    }
+    @media (min-width: 981px) {
+        .erp-module-bar {
+            flex-wrap: wrap;
+            overflow-x: visible;
+        }
+    }
+    @media (max-width: 760px) {
+        .pos-backoffice-nav {
+            padding: 14px;
+        }
+        .pos-backoffice-nav-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
     }
 </style>
 
@@ -103,7 +135,6 @@
     <div class="pos-backoffice-nav-head">
         <div>
             <strong style="font-size:16px; color:#10233a;">Back-office POS</strong>
-            <div class="muted">Structure point de vente inspiree d Odoo, connectee aux flux Nema deja existants.</div>
         </div>
         <a href="{{ route('pos.sales.create') }}" class="button button-primary">Ouvrir la caisse</a>
     </div>
@@ -113,7 +144,9 @@
                 <strong>{{ $groupLabel }}</strong>
                 <div class="pos-backoffice-nav-links">
                     @foreach ($links as $link)
-                        @php($url = route($link['route'], $link['params'] ?? []))
+                        @php
+                            $url = route($link['route'], $link['params'] ?? []);
+                        @endphp
                         <a href="{{ $url }}" class="pos-backoffice-nav-link {{ request()->fullUrlIs($url) || request()->routeIs($link['route']) ? 'active' : '' }}">
                             {{ $link['label'] }}
                         </a>

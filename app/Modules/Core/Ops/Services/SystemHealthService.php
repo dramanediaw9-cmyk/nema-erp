@@ -193,12 +193,15 @@ class SystemHealthService
     private function queueCheck(): array
     {
         $connection = (string) config('queue.default');
+        $usesImmediateQueue = $connection === 'sync';
 
         return [
             'key' => 'queue',
             'label' => 'File de taches',
-            'status' => $connection === 'sync' ? 'warning' : 'ok',
-            'message' => $connection === 'sync' ? 'La queue utilise sync. Passe sur database ou redis en production.' : 'La queue utilise '.$connection.'.',
+            'status' => 'ok',
+            'message' => $usesImmediateQueue
+                ? 'La queue utilise sync : traitement immediat adapte a cet hebergement web.'
+                : 'La queue utilise '.$connection.'.',
             'meta' => ['connection' => $connection],
         ];
     }
@@ -348,14 +351,12 @@ class SystemHealthService
         $configuration = $company ? $this->integrationOutboxService->configurationForCompany($company->id) : null;
 
         if ($company && ($configuration['enabled'] ?? false) !== true) {
-            $status = $summary['pending'] > 0 ? 'warning' : 'ok';
-
             return [
                 'key' => 'outbox',
                 'label' => 'Outbox integration',
-                'status' => $status,
+                'status' => 'ok',
                 'message' => $summary['pending'] > 0
-                    ? 'Webhook integration desactive. Les evenements restent en attente.'
+                    ? 'Webhook integration desactive volontairement. Les evenements sont conserves pour une future connexion.'
                     : 'Webhook integration desactive volontairement.',
                 'meta' => array_merge($summary, ['webhook' => $configuration]),
             ];

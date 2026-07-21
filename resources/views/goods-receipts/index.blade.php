@@ -23,7 +23,12 @@
                     <td>{{ $receipt->purchaseOrder?->order_number }}</td>
                     <td>{{ $receipt->supplier?->name }}</td>
                     <td>{{ $receipt->warehouse?->name }}</td>
-                    <td><a href="{{ route('goods-receipts.show', $receipt) }}" class="button button-secondary">Voir</a></td>
+                    <td>
+                        <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+                            <a href="{{ route('goods-receipts.print', $receipt) }}" class="button button-secondary">Imprimer</a>
+                            <a href="{{ route('goods-receipts.show', $receipt) }}" class="button button-secondary">Voir</a>
+                        </div>
+                    </td>
                 </tr>
             @empty
                 <tr><td colspan="6" class="muted">Aucune reception fournisseur.</td></tr>

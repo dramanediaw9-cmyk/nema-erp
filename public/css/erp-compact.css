@@ -1,0 +1,430 @@
+/* Densite globale : davantage d'informations visibles, cibles tactiles >= 40 px. */
+body::before,
+body::after {
+    display: none;
+}
+
+.shell {
+    grid-template-columns: 228px minmax(0, 1fr);
+    gap: 14px;
+    padding: 12px;
+}
+
+.sidebar {
+    padding: 18px 12px 20px;
+    border-radius: 22px;
+}
+
+.brand {
+    margin-bottom: 14px;
+    padding: 10px 10px 13px;
+}
+
+.brand h1 {
+    font-size: 21px;
+}
+
+.nav-title {
+    margin: 14px 10px 7px;
+    font-size: 11px;
+}
+
+.nav-link {
+    min-height: 40px;
+    gap: 9px;
+    padding: 9px 11px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+}
+
+.main {
+    padding: 4px 2px 16px 0;
+}
+
+.topbar {
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border-radius: 18px;
+}
+
+.topbar-leading {
+    gap: 5px;
+}
+
+.topbar-title {
+    font-size: clamp(20px, 2vw, 24px);
+}
+
+.workspace,
+.topbar-actions {
+    gap: 8px;
+}
+
+.workspace-pill {
+    padding: 7px 10px;
+}
+
+.button,
+button {
+    min-height: 40px;
+    padding: 9px 13px;
+    border-radius: 10px;
+}
+
+.page-head {
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.card {
+    padding: 16px;
+    border-radius: 16px;
+}
+
+.grid {
+    gap: 14px;
+}
+
+.grid > *,
+.split > * {
+    min-width: 0;
+}
+
+.muted,
+.help,
+.summary-box {
+    overflow-wrap: anywhere;
+}
+
+.main .button,
+.main button,
+.main [role="button"],
+.topbar .button,
+.topbar .notification-pill {
+    min-height: 40px !important;
+}
+
+.topbar .layout-icon-button {
+    min-width: 40px !important;
+}
+
+.stat-value {
+    margin-top: 7px;
+    font-size: 24px;
+}
+
+.table-wrap {
+    max-width: 100%;
+    border-radius: 14px;
+}
+
+th,
+td {
+    padding: 10px;
+}
+
+th {
+    font-size: 11px;
+    letter-spacing: .09em;
+}
+
+.form-grid {
+    gap: 12px;
+}
+
+label {
+    margin-bottom: 5px;
+}
+
+input,
+textarea,
+select {
+    min-height: 40px;
+    padding: 9px 11px;
+    border-radius: 10px;
+}
+
+textarea {
+    min-height: 84px;
+}
+
+.section-title {
+    margin-bottom: 5px;
+    font-size: 17px;
+}
+
+.badge {
+    padding: 4px 8px;
+}
+
+form.is-submitting [data-submit-guard="true"] {
+    cursor: wait;
+    opacity: .68;
+    pointer-events: none;
+}
+
+@media (max-width: 980px) {
+    .shell {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .sidebar {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    .topbar {
+        padding: 10px 12px;
+        border-radius: 14px;
+    }
+}
+
+@media (max-width: 720px) {
+    .shell {
+        padding: 8px;
+    }
+
+    .card {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .button,
+    button,
+    input,
+    textarea,
+    select {
+        min-height: 44px;
+    }
+
+    th,
+    td {
+        padding: 9px 8px;
+    }
+}
+
+/* Matrice responsive vérifiée : tablette et téléphone. */
+@media (max-width: 980px) {
+    html,
+    body,
+    .shell,
+    .main {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    html,
+    body,
+    .shell {
+        overflow-x: clip;
+    }
+
+    .shell {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .main {
+        min-width: 0 !important;
+        overflow-x: hidden !important;
+    }
+
+    .main > *,
+    .dashboard-shell,
+    .dashboard-workspace,
+    .card,
+    .summary-box,
+    .table-wrap,
+    fieldset,
+    form {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .main .split {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .erp-module-bar {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+
+    .erp-module-bar__link {
+        min-height: 40px;
+    }
+
+    /* Les styles propres aux modules sont charges apres cette feuille. */
+    .main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    .main select,
+    .main textarea,
+    .dashboard-workspace__search,
+    .dashboard-workspace__action,
+    .pos-backoffice-nav-link,
+    .pos-command-tab,
+    .pos-command-session,
+    .pos-command-count,
+    .approval-filter,
+    .main nav[role="navigation"] a,
+    .main nav[role="navigation"] span {
+        min-height: 40px !important;
+    }
+
+    .pos-command-list,
+    .premium-table-card.table-wrap {
+        max-width: 100%;
+        overflow-x: auto !important;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+    }
+
+    .pos-command-actions a,
+    .pos-command-actions button,
+    .pos-detail-actions a {
+        min-height: 40px !important;
+    }
+
+    .dashboard-workspace a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px !important;
+    }
+
+    .main nav[role="navigation"] a,
+    .pos-order-tab-remove,
+    .pos-payment-remove {
+        min-width: 40px !important;
+    }
+
+    pre,
+    code {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    pre {
+        overflow-x: auto;
+        white-space: pre-wrap;
+    }
+}
+
+@media (max-width: 720px) {
+    .main .grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)) !important;
+    }
+
+    .main .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .dashboard-shell,
+    .dashboard-workspace,
+    .dashboard-workspace > *,
+    .dashboard-banner__layout,
+    .dashboard-split,
+    .dashboard-launcher__hero {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .erp-module-bar__link,
+    .chip,
+    [role="tab"],
+    [role="button"] {
+        min-height: 44px !important;
+    }
+
+    .main .button,
+    .main button,
+    .main [role="button"],
+    .topbar .button,
+    .topbar .notification-pill,
+    .pos-backoffice-nav-link,
+    .pos-command-tab,
+    .pos-command-session,
+    .pos-command-count {
+        min-height: 44px !important;
+    }
+
+    .main input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+    .main select,
+    .main textarea,
+    .dashboard-workspace__search,
+    .dashboard-workspace__action,
+    .approval-filter,
+    .main nav[role="navigation"] a,
+    .main nav[role="navigation"] span,
+    .pos-command-actions a,
+    .pos-command-actions button,
+    .pos-detail-actions a {
+        min-height: 44px !important;
+    }
+
+    .pos-command-actions a,
+    .pos-command-actions button {
+        min-width: 44px !important;
+    }
+
+    .pos-command-search {
+        grid-template-columns: 44px minmax(140px, 1fr) !important;
+    }
+
+    .pos-command-search-hint {
+        display: none !important;
+    }
+
+    .main .layout-icon-button,
+    .topbar .layout-icon-button,
+    .pos-order-tab-remove,
+    .pos-payment-remove {
+        min-width: 44px !important;
+    }
+
+    .dashboard-workspace__section-head a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px !important;
+    }
+
+    .dashboard-workspace a {
+        min-height: 44px !important;
+    }
+
+    .pos-command-topbar {
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        flex-wrap: nowrap !important;
+        scrollbar-width: thin;
+        overscroll-behavior-inline: contain;
+    }
+
+    .pos-command-topbar > * {
+        flex: 0 0 auto;
+    }
+
+    .pos-command-list,
+    .premium-table-card.table-wrap {
+        overflow-x: auto !important;
+        overscroll-behavior-inline: contain;
+    }
+
+    .topbar-actions > a,
+    .topbar-actions > button,
+    .topbar-actions > form > button {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    select {
+        width: 100%;
+        max-width: 100%;
+        text-overflow: ellipsis;
+    }
+}

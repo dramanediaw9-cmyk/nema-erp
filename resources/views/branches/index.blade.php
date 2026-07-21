@@ -19,9 +19,9 @@
     @if (! $company)
         <div class="card">
             <p class="muted">Aucune entreprise active. Commencez par créer une entreprise pour pouvoir gérer ses agences.</p>
-            @allowed('companies.manage')
+            @if (auth()->user()?->hasRole('platform_admin'))
                 <a href="{{ route('companies.create') }}" class="button button-primary">Créer une entreprise</a>
-            @endallowed
+            @endif
         </div>
     @else
         <div class="card table-wrap">

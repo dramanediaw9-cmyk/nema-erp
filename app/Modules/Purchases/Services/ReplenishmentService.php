@@ -117,6 +117,43 @@ class ReplenishmentService
             ->values();
     }
 
+    public function criticalProductsMissingRules(int $companyId, Warehouse $warehouse): Collection
+    {
+        $currentStocks = StockMovement::query()
+            ->where('company_id', $companyId)
+            ->where('warehouse_id', $warehouse->id)
+            ->selectRaw('product_id, COALESCE(SUM(quantity_in - quantity_out), 0) as current_stock')
+            ->groupBy('product_id');
+
+        return Product::query()
+            ->leftJoinSub($currentStocks, 'balances', fn ($join) => $join->on('balances.product_id', '=', 'products.id'))
+            ->leftJoin('product_categories', 'product_categories.id', '=', 'products.category_id')
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->where('products.auto_replenish', false)
+            ->where('products.min_stock', '>', 0)
+            ->where('products.purchase_ok', true)
+            ->where('products.purchase_blocked', false)
+            ->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock')
+            ->select([
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.unit',
+                'products.min_stock',
+                'products.reorder_max_qty',
+                'products.purchase_price',
+                'product_categories.name as category_name',
+            ])
+            ->selectRaw('COALESCE(balances.current_stock, 0) as current_stock')
+            ->orderByRaw('COALESCE(balances.current_stock, 0) <= 0 DESC')
+            ->orderByRaw('(products.min_stock - COALESCE(balances.current_stock, 0)) DESC')
+            ->orderBy('products.name')
+            ->limit(20)
+            ->get();
+    }
+
     public function createPurchaseRequestFromSuggestions(
         int $companyId,
         int $branchId,

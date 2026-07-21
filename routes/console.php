@@ -16,6 +16,7 @@ use App\Modules\Core\Platform\Services\CorePulseService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use Symfony\Component\Process\Process;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -539,6 +540,24 @@ Artisan::command('nema:ops:execute-priorities {--company=* : Limite l execution 
     return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? 'warning') === 'fail') ? 1 : 0;
 })->purpose('Execute les 5 priorites business Ops avec checks et mode apply');
 
+Artisan::command('nema:ops:verify-production {--json : Retourne le rapport en JSON}', function (): int {
+    $arguments = [
+        PHP_BINARY,
+        base_path('scripts/verify-production.php'),
+        '--base-url='.(string) config('app.url'),
+    ];
+
+    if ($this->option('json')) {
+        $arguments[] = '--json';
+    }
+
+    $process = new Process($arguments, base_path(), timeout: 90);
+    $process->run();
+    $this->output->write($process->getOutput().$process->getErrorOutput());
+
+    return $process->getExitCode() ?? 1;
+})->purpose('Controle les contrats HTTP publics et la securite de la production');
+
 Schedule::command('nema:notifications:dispatch-outbound --limit=50')->everyMinute();
 Schedule::command('nema:notifications:sync-internal')->everyFifteenMinutes();
 Schedule::command('nema:approvals:escalate-stale --limit=50')->hourlyAt(5);
@@ -554,3 +573,7 @@ Schedule::command('nema:ops:backup-offsite-verify')->dailyAt('03:30');
 Schedule::command('nema:ops:alert-dispatch')->everyFifteenMinutes();
 Schedule::command('nema:core:pulse --store')->hourlyAt(35);
 Schedule::command('nema:ops:execute-priorities')->dailyAt('04:00');
+Schedule::command('nema:ops:verify-production --json')
+    ->dailyAt('05:15')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/production-smoke.log'));

@@ -9,9 +9,12 @@
             <h2 class="section-title">Inventaires de stock</h2>
             <div class="muted">Comptage physique, ecarts et regularisation du stock par entrepot.</div>
         </div>
-        @allowed('stock_counts.manage')
-            <a href="{{ route('stock-counts.create') }}" class="button button-primary">Nouvel inventaire</a>
-        @endallowed
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            @allowed('stock_counts.manage')
+                <a href="{{ route('stock-counts.quick') }}" class="button button-secondary">Inventaire rapide</a>
+                <a href="{{ route('stock-counts.create') }}" class="button button-primary">Nouvel inventaire</a>
+            @endallowed
+        </div>
     </div>
 
     <div class="card">

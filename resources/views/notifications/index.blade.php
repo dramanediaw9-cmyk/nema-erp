@@ -4,6 +4,37 @@
 @section('page-title', 'Alertes internes')
 
 @section('content')
+    @php
+        $formatMetaValue = function ($value): string {
+            if (is_bool($value)) {
+                return $value ? 'Oui' : 'Non';
+            }
+
+            if ($value === null || $value === '') {
+                return '-';
+            }
+
+            if (is_array($value)) {
+                return \Illuminate\Support\Str::limit(collect($value)->flatten()->take(4)->implode(', '), 80);
+            }
+
+            return \Illuminate\Support\Str::limit((string) $value, 80);
+        };
+
+        $metaLabels = [
+            'count' => 'Nombre',
+            'balance' => 'Solde',
+            'amount' => 'Montant',
+            'impact_value' => 'Impact',
+            'hours_open' => 'Heures',
+            'oldest_session_number' => 'Session',
+            'decline_percent' => 'Baisse',
+            'highlights' => 'Exemples',
+            'actions' => 'Actions',
+            'since' => 'Depuis',
+        ];
+    @endphp
+
     @include('partials.erp-page-head', [
         'eyebrow' => 'Notifications',
         'title' => 'Centre d alertes',
@@ -67,6 +98,11 @@
             <section class="card" style="border-left:6px solid {{ $notification->level === 'danger' ? '#b42318' : ($notification->level === 'warning' ? '#ca6702' : ($notification->level === 'success' ? '#176b4d' : '#005f73')) }};">
                 <div style="display:flex; justify-content:space-between; gap:18px; align-items:flex-start; flex-wrap:wrap;">
                     <div style="max-width:820px;">
+                        @php
+                            $meta = collect(is_array($notification->meta) ? $notification->meta : [])
+                                ->only(array_keys($metaLabels))
+                                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== []);
+                        @endphp
                         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                             <strong>{{ $notification->title }}</strong>
                             @include('partials.erp-status-badge', [
@@ -78,6 +114,15 @@
                             @endif
                         </div>
                         <div class="muted" style="margin-top:10px;">{{ $notification->message }}</div>
+                        @if ($meta->isNotEmpty())
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;">
+                                @foreach ($meta->take(5) as $key => $value)
+                                    <span style="border:1px solid rgba(15, 23, 42, .12); border-radius:999px; padding:4px 9px; font-size:12px;">
+                                        {{ $metaLabels[$key] ?? $key }}: {{ $formatMetaValue($value) }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @endif
                         <div class="muted" style="margin-top:12px; font-size:13px;">
                             Creee le {{ $notification->created_at?->format('d/m/Y H:i') }}
                             @if ($notification->resolved_at)

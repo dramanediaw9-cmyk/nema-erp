@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\User;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Dashboard\Models\UserNavigationFavorite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -30,7 +31,14 @@ class ErpNavigationService
         $favoritesEnabled = $this->favoritesFeatureAvailable();
         $favoriteOrder = $this->favoriteOrderFor($user, $companyId);
 
-        $modules = collect($this->modules())
+        $moduleDefinitions = collect($this->modules());
+        $moduleDefinitions = $this->applyBusinessProfile($moduleDefinitions, $companyId);
+
+        if ($this->isPureCashier($user)) {
+            $moduleDefinitions = $moduleDefinitions->where('key', 'pos');
+        }
+
+        $modules = $moduleDefinitions
             ->filter(fn (array $module): bool => $this->canAccessModule($user, $module))
             ->map(function (array $module) use ($user, $request): array {
                 $menu = $this->authorizeItems($user, $module['menu'] ?? [], $request);
@@ -62,7 +70,7 @@ class ErpNavigationService
             'active_module' => $activeModule,
             'active_menu' => $activeModule['menu'] ?? [],
             'quick_actions' => $activeModule['quick_actions'] ?? [],
-            'support_links' => $this->authorizeItems($user, $this->supportLinks(), $request),
+            'support_links' => $this->isPureCashier($user) ? [] : $this->authorizeItems($user, $this->supportLinks(), $request),
             'breadcrumbs' => $this->breadcrumbs($activeModule),
         ];
     }
@@ -80,10 +88,12 @@ class ErpNavigationService
                 'border' => 'rgba(15, 118, 110, 0.22)',
                 'permission' => 'dashboard.view',
                 'url' => route('dashboard'),
-                'patterns' => ['dashboard', 'merchant.routine', 'onboarding.*', 'approvals.*', 'reports.*', 'notifications.*', 'automation.*', 'search.index', 'budgets.*'],
+                'patterns' => ['dashboard', 'manager.pilot', 'merchant.routine', 'onboarding.*', 'business-guide.*', 'approvals.*', 'reports.*', 'notifications.*', 'automation.*', 'search.index', 'budgets.*'],
                 'menu' => [
-                    ['label' => 'Dashboard', 'url' => route('dashboard'), 'patterns' => ['dashboard']],
+                    ['label' => 'Dashboard', 'url' => route('dashboard'), 'permission' => 'dashboard.view', 'patterns' => ['dashboard']],
+                    ['label' => 'Pilotage manager', 'url' => route('manager.pilot'), 'permission' => 'reports.view', 'patterns' => ['manager.pilot']],
                     ['label' => 'Demarrage', 'url' => route('onboarding.index'), 'permission' => 'dashboard.view', 'patterns' => ['onboarding.*']],
+                    ['label' => 'Guide metier', 'url' => route('business-guide.index'), 'permission' => 'dashboard.view', 'patterns' => ['business-guide.*']],
                     ['label' => 'Approbations', 'url' => route('approvals.index'), 'permission' => 'approvals.view', 'patterns' => ['approvals.*']],
                     ['label' => 'Rapports', 'url' => route('reports.index'), 'permission' => 'reports.view', 'patterns' => ['reports.*']],
                     ['label' => 'Alertes', 'url' => route('notifications.index'), 'permission' => 'notifications.view', 'patterns' => ['notifications.*']],
@@ -130,10 +140,10 @@ class ErpNavigationService
                 'menu' => [
                     ['label' => 'Caisse', 'url' => route('pos.index'), 'permission' => 'pos.view', 'patterns' => ['pos.index', 'pos.show', 'pos.sales.*', 'pos.receipt*', 'pos.returns.*']],
                     ['label' => 'Tickets POS', 'url' => route('pos.orders.index'), 'permission' => 'pos.view', 'patterns' => ['pos.orders.*']],
-                    ['label' => 'Sessions caisse', 'url' => route('pos.sessions.index'), 'permission' => 'pos.view', 'patterns' => ['pos.sessions.*']],
-                    ['label' => 'Paiements POS', 'url' => route('pos.payments.index'), 'permission' => 'pos.view', 'patterns' => ['pos.payments.*']],
-                    ['label' => 'Rapport du jour', 'url' => route('pos.report'), 'permission' => 'pos.view', 'patterns' => ['pos.report']],
-                    ['label' => 'Config POS', 'url' => route('pos.settings.index'), 'permission' => 'pos.view', 'patterns' => ['pos.settings.*']],
+                    ['label' => 'Sessions caisse', 'url' => route('pos.sessions.index'), 'permission' => 'pos.view', 'except_roles' => ['cashier'], 'patterns' => ['pos.sessions.*']],
+                    ['label' => 'Paiements POS', 'url' => route('pos.payments.index'), 'permission' => 'pos.view', 'except_roles' => ['cashier'], 'patterns' => ['pos.payments.*']],
+                    ['label' => 'Rapport du jour', 'url' => route('pos.report'), 'permission' => 'pos.view', 'except_roles' => ['cashier'], 'patterns' => ['pos.report']],
+                    ['label' => 'Config POS', 'url' => route('pos.settings.index'), 'permission' => 'pos.view', 'except_roles' => ['cashier'], 'patterns' => ['pos.settings.*']],
                 ],
                 'quick_actions' => [
                     ['label' => 'Nouvelle vente POS', 'url' => route('pos.sales.create'), 'permission' => 'pos.manage'],
@@ -185,7 +195,7 @@ class ErpNavigationService
                 ],
                 'quick_actions' => [
                     ['label' => 'Ajuster le stock', 'url' => route('stock.adjustments.create'), 'permission' => 'stock.manage'],
-                    ['label' => 'Nouvel inventaire', 'url' => route('stock-counts.create'), 'permission' => 'stock_counts.manage'],
+                    ['label' => 'Inventaire rapide', 'url' => route('stock-counts.quick'), 'permission' => 'stock_counts.manage'],
                     ['label' => 'Nouveau transfert', 'url' => route('transfers.create'), 'permission' => 'transfers.manage'],
                 ],
             ],
@@ -310,8 +320,8 @@ class ErpNavigationService
             ],
             [
                 'key' => 'settings',
-                'label' => 'Parametres',
-                'hint' => 'Societe, acces et outils',
+                'label' => 'Parametres generaux',
+                'hint' => 'Societe et acces',
                 'icon' => 'settings',
                 'accent' => '#334155',
                 'surface' => 'rgba(51, 65, 85, 0.12)',
@@ -320,18 +330,144 @@ class ErpNavigationService
                 'url' => route('settings.index'),
                 'patterns' => ['settings.*', 'companies.*', 'branches.*', 'users.*', 'roles.*', 'imports.*', 'ops.*', 'platform.*', 'activity-logs.*'],
                 'menu' => [
-                    ['label' => 'Parametres', 'url' => route('settings.index'), 'permission' => 'settings.view', 'patterns' => ['settings.*']],
-                    ['label' => 'Entreprises', 'url' => route('companies.index'), 'permission' => 'companies.view', 'patterns' => ['companies.*']],
-                    ['label' => 'Agences', 'url' => route('branches.index'), 'permission' => 'branches.view', 'patterns' => ['branches.*']],
-                    ['label' => 'Utilisateurs', 'url' => route('users.index'), 'permission' => 'users.view', 'patterns' => ['users.*']],
-                    ['label' => 'Roles', 'url' => route('roles.index'), 'permission' => 'roles.view', 'patterns' => ['roles.*']],
+                    ['label' => 'Parametres generaux', 'url' => route('settings.index'), 'permission' => 'settings.view', 'patterns' => ['settings.*', 'companies.*', 'branches.*', 'users.*', 'roles.*']],
                 ],
                 'quick_actions' => [
                     ['label' => 'Nouvel utilisateur', 'url' => route('users.create'), 'permission' => 'users.manage'],
-                    ['label' => 'Imports CSV', 'url' => route('imports.index'), 'permission' => 'imports.manage'],
+                    ['label' => 'Imports Excel/CSV', 'url' => route('imports.index'), 'permission' => 'imports.manage'],
                 ],
             ],
         ];
+    }
+
+    private function applyBusinessProfile(Collection $modules, ?int $companyId): Collection
+    {
+        if (! $companyId) {
+            return $modules;
+        }
+
+        $profile = app(SectorProfileService::class)->profileForCompany($companyId);
+        $profileKey = $profile['key'] ?? SectorProfileService::DEFAULT_PROFILE;
+        $moduleOrder = $this->businessModuleOrder($profile['recommended_modules'] ?? []);
+        $labels = $this->businessModuleLabels($profileKey);
+
+        return $modules
+            ->map(function (array $module) use ($labels): array {
+                if (! isset($labels[$module['key']])) {
+                    return $module;
+                }
+
+                return array_replace($module, $labels[$module['key']]);
+            })
+            ->sortBy(fn (array $module): int => $moduleOrder[$module['key']] ?? 90)
+            ->values();
+    }
+
+    private function businessModuleOrder(array $recommendedModules): array
+    {
+        $map = [
+            'ventes' => 'sales',
+            'achats' => 'purchases',
+            'stock' => 'stock',
+            'caisse/POS' => 'pos',
+            'facturation' => 'billing',
+            'clients' => 'customers',
+            'fournisseurs' => 'suppliers',
+            'depenses' => 'accounting',
+            'employes' => 'hr',
+            'rapports' => 'dashboard',
+            'paiements' => 'billing',
+            'alertes' => 'dashboard',
+            'documents' => 'dashboard',
+        ];
+
+        return collect($recommendedModules)
+            ->map(fn (string $module): ?string => $map[$module] ?? null)
+            ->filter()
+            ->unique()
+            ->values()
+            ->flip()
+            ->map(fn (int $position): int => $position)
+            ->all();
+    }
+
+    private function businessModuleLabels(string $profileKey): array
+    {
+        return match ($profileKey) {
+            'restaurant_cafe' => [
+                'pos' => ['label' => 'Caisse restaurant', 'hint' => 'Commandes, service, tickets'],
+                'products' => ['label' => 'Menus', 'hint' => 'Plats, boissons, ingredients'],
+                'stock' => ['label' => 'Stock cuisine', 'hint' => 'Ingredients et boissons'],
+                'customers' => ['label' => 'Clients restaurant', 'hint' => 'Comptoir, livraison, groupes'],
+                'accounting' => ['label' => 'Depenses cuisine', 'hint' => 'Achats, charges, caisse'],
+            ],
+            'school_training' => [
+                'billing' => ['label' => 'Factures scolaires', 'hint' => 'Frais, mensualites, recus'],
+                'customers' => ['label' => 'Eleves et parents', 'hint' => 'Dossiers, payeurs, contacts'],
+                'sales' => ['label' => 'Inscriptions', 'hint' => 'Devis, dossiers, suivi'],
+                'accounting' => ['label' => 'Depenses ecole', 'hint' => 'Charges et paiements'],
+                'hr' => ['label' => 'Personnel', 'hint' => 'Equipe et enseignants'],
+            ],
+            'food_store', 'general_trade' => [
+                'pos' => ['label' => 'Caisse boutique', 'hint' => 'Tickets et encaissements'],
+                'products' => ['label' => 'Produits boutique', 'hint' => 'Rayons, codes-barres, prix'],
+                'stock' => ['label' => 'Stock magasin', 'hint' => 'Ruptures, inventaires, mouvements'],
+                'billing' => ['label' => 'Facturation', 'hint' => 'Factures, paiements, relances'],
+            ],
+            'auto_parts_garage' => [
+                'sales' => ['label' => 'Devis garage', 'hint' => 'Reparations, pieces, main-d oeuvre'],
+                'products' => ['label' => 'Pieces et services', 'hint' => 'Pieces, forfaits, interventions'],
+                'stock' => ['label' => 'Stock pieces', 'hint' => 'Disponibilite atelier et ruptures'],
+                'purchases' => ['label' => 'Achats pieces', 'hint' => 'Approvisionnement atelier'],
+                'billing' => ['label' => 'Factures garage', 'hint' => 'Factures, paiements, restes'],
+                'customers' => ['label' => 'Clients vehicules', 'hint' => 'Proprietaires, dossiers, suivi'],
+                'accounting' => ['label' => 'Depenses atelier', 'hint' => 'Charges et achats techniques'],
+            ],
+            'pharmacy_parapharmacy' => [
+                'pos' => ['label' => 'Comptoir pharmacie', 'hint' => 'Ventes rapides et tickets'],
+                'products' => ['label' => 'Produits sante', 'hint' => 'Lots, prix, ordonnances'],
+                'stock' => ['label' => 'Lots et peremption', 'hint' => 'Dates, ruptures, stock critique'],
+                'purchases' => ['label' => 'Reappro pharmacie', 'hint' => 'Commandes et fournisseurs'],
+                'billing' => ['label' => 'Factures comptoir', 'hint' => 'Factures et paiements'],
+                'customers' => ['label' => 'Patients / clients', 'hint' => 'Contacts et historique'],
+            ],
+            'wholesale_distribution' => [
+                'stock' => ['label' => 'Depots et transferts', 'hint' => 'Entrepots, sorties, mouvements'],
+                'sales' => ['label' => 'Sorties / commandes', 'hint' => 'Commandes clients et livraisons'],
+                'purchases' => ['label' => 'Reappro depot', 'hint' => 'Commandes fournisseurs'],
+                'products' => ['label' => 'Articles stock', 'hint' => 'Lots, cartons, seuils'],
+                'suppliers' => ['label' => 'Fournisseurs depot', 'hint' => 'Approvisionnement et delais'],
+            ],
+            'services_agency' => [
+                'sales' => ['label' => 'Devis et missions', 'hint' => 'Prestations, offres, suivi'],
+                'billing' => ['label' => 'Factures prestation', 'hint' => 'Acomptes, paiements, relances'],
+                'customers' => ['label' => 'Clients / comptes', 'hint' => 'Portefeuille et contrats'],
+                'accounting' => ['label' => 'Depenses mission', 'hint' => 'Frais et charges clients'],
+                'hr' => ['label' => 'Equipe service', 'hint' => 'Intervenants et responsables'],
+            ],
+            'beauty_salon' => [
+                'pos' => ['label' => 'Caisse salon', 'hint' => 'Prestations et encaissements'],
+                'products' => ['label' => 'Services et produits', 'hint' => 'Coiffure, soins, articles'],
+                'customers' => ['label' => 'Clients salon', 'hint' => 'Habitudes et fidelite'],
+                'stock' => ['label' => 'Stock consommables', 'hint' => 'Produits utilises au salon'],
+                'hr' => ['label' => 'Equipe salon', 'hint' => 'Coiffeurs et planning'],
+            ],
+            'workshop_manufacturing' => [
+                'products' => ['label' => 'Articles fabriques', 'hint' => 'Produits, matieres, nomenclatures'],
+                'manufacturing' => ['label' => 'Atelier production', 'hint' => 'Ordres et fabrication'],
+                'stock' => ['label' => 'Matieres et stock', 'hint' => 'Entrees, sorties, composants'],
+                'sales' => ['label' => 'Commandes atelier', 'hint' => 'Demandes clients et devis'],
+                'purchases' => ['label' => 'Achats matieres', 'hint' => 'Approvisionnement production'],
+            ],
+            'delivery_company' => [
+                'sales' => ['label' => 'Courses et livraisons', 'hint' => 'Commandes, courses, clients'],
+                'billing' => ['label' => 'Facturation livraison', 'hint' => 'Frais, paiements, restes'],
+                'customers' => ['label' => 'Expediteurs / clients', 'hint' => 'Comptes et contacts'],
+                'hr' => ['label' => 'Livreurs', 'hint' => 'Equipe terrain et suivi'],
+                'reports' => ['label' => 'Rapports livraison', 'hint' => 'Chiffres et performance'],
+            ],
+            default => [],
+        };
     }
 
     private function favoriteOrderFor(User $user, ?int $companyId = null): Collection
@@ -355,9 +491,10 @@ class ErpNavigationService
     private function supportLinks(): array
     {
         return [
+            ['label' => 'Guide metier', 'url' => route('business-guide.index'), 'permission' => 'dashboard.view', 'patterns' => ['business-guide.*']],
             ['label' => 'Plan comptable', 'url' => route('accounting.accounts.index'), 'permission' => 'accounting.view', 'patterns' => ['accounting.*']],
             ['label' => 'Roles et permissions', 'url' => route('roles.index'), 'permission' => 'roles.view', 'patterns' => ['roles.*']],
-            ['label' => 'Imports CSV', 'url' => route('imports.index'), 'permission' => 'imports.manage', 'patterns' => ['imports.*']],
+            ['label' => 'Imports Excel/CSV', 'url' => route('imports.index'), 'permission' => 'imports.manage', 'patterns' => ['imports.*']],
             ['label' => 'Operations', 'url' => route('ops.index'), 'permission' => 'ops.view', 'patterns' => ['ops.*']],
             ['label' => 'Journaux d activite', 'url' => route('activity-logs.index'), 'permission' => 'activity_logs.view', 'patterns' => ['activity-logs.*']],
         ];
@@ -366,7 +503,8 @@ class ErpNavigationService
     private function authorizeItems(User $user, array $items, Request $request, ?int $limit = null): array
     {
         $authorized = collect($items)
-            ->filter(fn (array $item): bool => $this->canAccess($user, $item['permission'] ?? null))
+            ->filter(fn (array $item): bool => $this->canAccess($user, $item['permission'] ?? null)
+                && ! collect($item['except_roles'] ?? [])->contains(fn (string $role): bool => $user->hasRole($role)))
             ->map(fn (array $item): array => [
                 ...$item,
                 'active' => $this->matchesPatterns($request, $item['patterns'] ?? []),
@@ -386,7 +524,7 @@ class ErpNavigationService
         }
 
         $breadcrumbs = [
-            ['label' => 'Applications', 'url' => route('dashboard')],
+            ['label' => 'Applications', 'url' => $activeModule['key'] === 'pos' ? route('pos.index') : route('dashboard')],
         ];
 
         if (($activeModule['key'] ?? null) !== 'dashboard') {
@@ -428,6 +566,21 @@ class ErpNavigationService
         }
 
         return false;
+    }
+
+    private function isPureCashier(User $user): bool
+    {
+        if (! $user->hasRole('cashier')) {
+            return false;
+        }
+
+        foreach (['platform_admin', 'company_admin', 'director', 'manager', 'pos_supervisor'] as $role) {
+            if ($user->hasRole($role)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function matchesPatterns(Request $request, array|string $patterns): bool

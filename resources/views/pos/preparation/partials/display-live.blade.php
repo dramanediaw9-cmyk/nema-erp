@@ -1,13 +1,21 @@
-@php($display = $board['display'])
-@php($summary = $board['summary'])
-@php($statusOptions = $board['status_options'])
-@php($nextStatusMap = $board['next_status_map'])
-@php($previousStatusMap = $board['previous_status_map'])
-@php($columns = [
-    'queued' => ['title' => 'En file', 'hint' => 'Nouvelles commandes a lancer'],
-    'in_progress' => ['title' => 'En preparation', 'hint' => 'Equipe en cours d execution'],
-    'ready' => ['title' => 'Pret', 'hint' => 'Commande prete a servir'],
-])
+@php
+    $display = $board['display'];
+    $summary = $board['summary'];
+    $statusOptions = $board['status_options'];
+    $nextStatusMap = $board['next_status_map'];
+    $previousStatusMap = $board['previous_status_map'];
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+        ? 'Client comptoir'
+        : $customerLabel.' comptoir';
+@endphp
+@php
+    $columns = [
+        'queued' => ['title' => 'En file', 'hint' => 'Nouvelles commandes a lancer'],
+        'in_progress' => ['title' => 'En preparation', 'hint' => 'Equipe en cours d execution'],
+        'ready' => ['title' => 'Pret', 'hint' => 'Commande prete a servir'],
+    ];
+@endphp
 
 <div class="prep-display-topbar">
     <div class="prep-display-title">
@@ -20,7 +28,7 @@
         </div>
         <h2>{{ $display->name }}</h2>
         <div class="muted">
-            Ecran tactique pour cuisine, comptoir ou retrait. Il reste focalise sur les tickets vivants et avance le flux d un geste:
+            Ecran tactique pour preparation, comptoir ou retrait. Il reste focalise sur les tickets vivants et avance le flux d un geste:
             <strong>En file -> En preparation -> Pret -> Servi</strong>.
         </div>
     </div>
@@ -40,7 +48,9 @@
 
 <div class="prep-display-board">
     @foreach ($columns as $statusKey => $column)
-        @php($tickets = $board['grouped_tickets'][$statusKey] ?? collect())
+        @php
+            $tickets = $board['grouped_tickets'][$statusKey] ?? collect();
+        @endphp
         <section class="prep-display-column">
             <div class="prep-display-column-head">
                 <div>
@@ -55,14 +65,16 @@
             @else
                 <div class="prep-display-list">
                     @foreach ($tickets as $ticket)
-                        @php($deadline = $ticket->target_minutes ? $ticket->created_at?->copy()->addMinutes($ticket->target_minutes) : null)
-                        @php($isLate = $ticket->target_minutes && $deadline?->isPast())
+                        @php
+                            $deadline = $ticket->target_minutes ? $ticket->created_at?->copy()->addMinutes($ticket->target_minutes) : null;
+                            $isLate = $ticket->target_minutes && $deadline?->isPast();
+                        @endphp
                         <article class="prep-display-ticket">
                             <div class="prep-display-ticket-head">
                                 <div>
                                     <strong>{{ $ticket->ticket_number }}</strong>
                                     <div class="prep-display-ticket-meta">
-                                        <span>{{ $ticket->invoice?->customer?->name ?? 'Client comptoir' }} · Ticket {{ $ticket->invoice?->invoice_number }}</span>
+                                        <span>{{ $ticket->invoice?->customer?->name ?? $counterCustomerLabel }} · Ticket {{ $ticket->invoice?->invoice_number }}</span>
                                         <span>{{ $ticket->created_at?->format('d/m H:i') }} · {{ $ticket->items->count() }} ligne(s)</span>
                                     </div>
                                 </div>

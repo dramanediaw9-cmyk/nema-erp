@@ -4,6 +4,11 @@
 @section('page-title', 'Sessions POS')
 
 @section('content')
+    @php
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    @endphp
+
     <style>
         .pos-session-stack {
             display: grid;
@@ -64,6 +69,11 @@
             flex-wrap: wrap;
             gap: 10px;
         }
+        .pos-session-mobile-actions .button {
+            min-height: 36px;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
     </style>
 
     <div class="grid" style="gap:18px;">
@@ -98,9 +108,10 @@
                                 @endif
                             </div>
                         </div>
-                        <span class="badge {{ $session->status === 'open' ? 'badge-success' : 'badge-warning' }}">
-                            {{ $session->status === 'open' ? 'En cours' : 'Fermee & comptabilisee' }}
-                        </span>
+                        @include('partials.erp-status-badge', [
+                            'label' => $session->status === 'open' ? 'En cours' : 'Cloturee',
+                            'tone' => $session->status === 'open' ? 'warning' : 'success',
+                        ])
                     </div>
 
                     <div class="pos-session-mobile-grid">
@@ -111,6 +122,14 @@
                         <div class="pos-session-mobile-kpi">
                             <div class="label">Paiements</div>
                             <div class="value">{{ number_format((float) ($session->payments_total ?? 0), 0, ',', ' ') }}</div>
+                        </div>
+                        <div class="pos-session-mobile-kpi">
+                            <div class="label">Attendu</div>
+                            <div class="value">{{ $session->expected_amount !== null ? number_format((float) $session->expected_amount, 0, ',', ' ') : '-' }}</div>
+                        </div>
+                        <div class="pos-session-mobile-kpi">
+                            <div class="label">Compte</div>
+                            <div class="value">{{ $session->closing_amount !== null ? number_format((float) $session->closing_amount, 0, ',', ' ') : '-' }}</div>
                         </div>
                         <div class="pos-session-mobile-kpi">
                             <div class="label">Mouvements</div>
@@ -124,8 +143,11 @@
 
                     <div class="pos-session-mobile-actions">
                         <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Ouvrir la session</a>
+                        <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Comptage</a>
+                        <a href="{{ route('pos.session.print', $session) }}" class="button button-secondary">Imprimer</a>
                         @if ($session->status === 'open')
-                            <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="button button-primary">Continuer la vente</a>
+                            <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="button button-primary">{{ $saleLabel }}</a>
+                            <a href="{{ route('pos.show', $session) }}#cloture-session" class="button button-secondary">Cloturer</a>
                         @endif
                     </div>
                 </article>
@@ -143,6 +165,9 @@
                             <th>Caisse</th>
                             <th>Ouverte par</th>
                             <th>Statut</th>
+                            <th>Tickets</th>
+                            <th>Attendu</th>
+                            <th>Compte</th>
                             <th>Variance</th>
                             <th></th>
                         </tr>
@@ -154,12 +179,24 @@
                                 <td>{{ $session->warehouse?->name ?? 'n/a' }}</td>
                                 <td>{{ $session->cashAccount?->name ?? 'n/a' }}</td>
                                 <td>{{ $session->opener?->name ?? 'n/a' }}</td>
-                                <td><span class="badge {{ $session->status === 'open' ? 'badge-success' : 'badge-muted' }}">{{ strtoupper($session->status) }}</span></td>
+                                <td>
+                                    @include('partials.erp-status-badge', [
+                                        'label' => $session->status === 'open' ? 'Ouverte' : 'Cloturee',
+                                        'tone' => $session->status === 'open' ? 'warning' : 'success',
+                                    ])
+                                </td>
+                                <td>{{ number_format((float) ($session->orders_count ?? 0), 0, ',', ' ') }}</td>
+                                <td>{{ $session->expected_amount !== null ? number_format((float) $session->expected_amount, 0, ',', ' ').' XOF' : '-' }}</td>
+                                <td>{{ $session->closing_amount !== null ? number_format((float) $session->closing_amount, 0, ',', ' ').' XOF' : '-' }}</td>
                                 <td>{{ number_format((float) $session->variance_amount, 0, ',', ' ') }} XOF</td>
-                                <td><a href="{{ route('pos.show', $session) }}" class="button button-secondary">Voir</a></td>
+                                <td style="white-space:nowrap;">
+                                    <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Voir</a>
+                                    <a href="{{ route('pos.count-sheet', $session) }}" class="button button-secondary">Comptage</a>
+                                    <a href="{{ route('pos.session.print', $session) }}" class="button button-secondary">Imprimer</a>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="muted">Aucune session POS disponible.</td></tr>
+                            <tr><td colspan="10" class="muted">Aucune session POS disponible.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

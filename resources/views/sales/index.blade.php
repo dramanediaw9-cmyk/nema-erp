@@ -1,7 +1,13 @@
 @extends('layouts.app')
 
-@section('title', 'Ventes - Nema ERP')
-@section('page-title', 'Factures de vente')
+@php
+    $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+@endphp
+
+@section('title', $salesLabel.' - Nema ERP')
+@section('page-title', $salesLabel)
 @section('layout-mode', 'compact')
 
 @push('page-styles')
@@ -219,8 +225,8 @@
     <div class="premium-page erp-work-page">
         <section class="erp-work-toolbar">
             <div class="erp-work-toolbar__context">
-                <span class="badge badge-muted">Ventes</span>
-                <strong>{{ number_format($invoices->count(), 0, ',', ' ') }} facture(s) visibles</strong>
+                <span class="badge badge-muted">{{ $salesLabel }}</span>
+                <strong>{{ number_format($invoices->count(), 0, ',', ' ') }} document(s) visible(s)</strong>
             </div>
             <div class="erp-work-toolbar__actions">
                 @allowed('approvals.view')
@@ -228,14 +234,14 @@
                 @endallowed
                 <a href="{{ route('sales.export', request()->query()) }}" class="button button-secondary">Exporter</a>
                 @allowed('sales.manage')
-                    <a href="{{ route('sales.create') }}" class="button button-primary">Nouvelle facture</a>
+                    <a href="{{ route('sales.create') }}" class="button button-primary">Nouvelle {{ $saleLabel }}</a>
                 @endallowed
             </div>
         </section>
 
         <section class="metric-strip erp-kpi-strip">
             <article class="metric-card erp-kpi-card">
-                <div class="label">Factures ouvertes</div>
+                <div class="label">Documents ouverts</div>
                 <div class="value">{{ number_format($summary['open_count'], 0, ',', ' ') }}</div>
                 <div class="hint">Documents non totalement soldes.</div>
             </article>
@@ -257,21 +263,21 @@
             <article class="metric-card erp-kpi-card">
                 <div class="label">En attente d approbation</div>
                 <div class="value">{{ number_format($summary['pending_approval_count'], 0, ',', ' ') }}</div>
-                <div class="hint">Factures bloquees par le workflow.</div>
+                <div class="hint">Documents bloques par le workflow.</div>
             </article>
         </section>
 
         <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
             <summary>
-                <span>Filtres ventes</span>
-                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Toutes les factures' }}</span>
+                <span>Filtres {{ $salesLabel }}</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Tous les documents' }}</span>
             </summary>
             <div class="erp-filter-panel__body">
                 <form method="GET" action="{{ route('sales.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
-                    <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, client, agence, note...">
+                    <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, {{ strtolower($customerLabel) }}, agence, note...">
                 </div>
                 <div>
                     <label for="date_from">Date debut</label>

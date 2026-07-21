@@ -52,15 +52,26 @@ class ApplicationMonitoringService
             ->take(-$tail)
             ->values();
 
+        $windowHours = max((int) config('ops.log_window_hours', 24), 1);
+        $cutoff = now()->subHours($windowHours);
         $signals = $lines
             ->map(fn (string $line): ?array => $this->parseLogLine($line))
-            ->filter();
+            ->filter()
+            ->filter(function (array $signal) use ($cutoff): bool {
+                try {
+                    return Carbon::parse($signal['occurred_at'])->greaterThanOrEqualTo($cutoff);
+                } catch (\Throwable) {
+                    return false;
+                }
+            });
 
         $signalLevels = ['ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY'];
         $signalMatches = $signals->filter(fn (array $signal): bool => in_array($signal['level'], $signalLevels, true))->values();
         $criticalCount = $signalMatches->whereIn('level', ['CRITICAL', 'ALERT', 'EMERGENCY'])->count();
         $signalsCount = $signalMatches->count();
-        $exceptionMentions = $lines->filter(fn (string $line): bool => Str::contains(Str::lower($line), ['exception', 'stack trace']))->count();
+        $exceptionMentions = $signalMatches
+            ->filter(fn (array $signal): bool => Str::contains(Str::lower($signal['message']), 'exception'))
+            ->count();
         $warningThreshold = max((int) config('ops.log_warning_threshold', 1), 1);
         $failThreshold = max((int) config('ops.log_fail_threshold', 10), $warningThreshold);
 
@@ -81,6 +92,7 @@ class ApplicationMonitoringService
                 : $signalsCount.' signal(s) erreur recent(s) detecte(s) dans les logs applicatifs.',
             'path' => $path,
             'line_count' => $lines->count(),
+            'window_hours' => $windowHours,
             'signals_count' => $signalsCount,
             'critical_count' => $criticalCount,
             'exception_mentions' => $exceptionMentions,

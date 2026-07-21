@@ -15,7 +15,7 @@
                     <a href="{{ route('payments.create', ['type' => 'customer_refund', 'invoice' => $creditNote->invoice?->id, 'amount' => abs((float) $creditNote->invoice?->balance_due)]) }}" class="button button-primary">Rembourser le client</a>
                 @endif
             @endallowed
-            <a href="{{ route('credit-notes.print', $creditNote) }}" target="_blank" class="button button-secondary">PDF</a>
+            <a href="{{ route('credit-notes.print', $creditNote) }}" target="_blank" class="button button-secondary">Imprimer l avoir</a>
             <a href="{{ route('sales.show', $creditNote->invoice) }}" class="button button-secondary">Voir la facture</a>
         </div>
     </div>
@@ -90,5 +90,4 @@
         </section>
     </div>
 @endsection
-
 

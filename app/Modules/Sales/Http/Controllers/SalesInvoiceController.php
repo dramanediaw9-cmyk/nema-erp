@@ -112,17 +112,7 @@ class SalesInvoiceController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
-        $hasProductParent = Schema::hasColumn('products', 'parent_id');
-        $productQuery = Product::query()
-            ->where('company_id', $companyId)
-            ->saleable()
-            ->orderBy('name');
-        $productColumns = ['id', 'company_id', 'sku', 'name', 'unit', 'description', 'sales_description', 'sale_price'];
-
-        if ($hasProductParent) {
-            $productQuery->with('parent:id,name');
-            array_splice($productColumns, 2, 0, ['parent_id']);
-        }
+        $defaultRows = old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => '']));
 
         return view('sales.create', [
             'customers' => Partner::query()
@@ -132,7 +122,7 @@ class SalesInvoiceController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'company_id', 'code', 'name', 'price_list_id']),
-            'products' => $productQuery->get($productColumns),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'saleable', collect($defaultRows)->pluck('product_id')->all()),
             'warehouses' => Warehouse::query()
                 ->where('company_id', $companyId)
                 ->where('branch_id', $branchId)
@@ -140,7 +130,7 @@ class SalesInvoiceController extends Controller
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'code', 'name', 'is_default']),
-            'defaultRows' => old('items', array_fill(0, 3, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => ''])),
+            'defaultRows' => $defaultRows,
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
         ]);

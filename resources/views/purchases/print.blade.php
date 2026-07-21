@@ -1,11 +1,16 @@
 @extends('layouts.print')
 
-@section('title', 'Facture fournisseur '.$bill->bill_number.' - Nema ERP')
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+@endphp
+
+@section('title', 'Facture '.$supplierLabel.' '.$bill->bill_number.' - Nema ERP')
 
 @section('content')
     <section class="doc-header">
         <div>
-            <div class="doc-chip">Facture fournisseur</div>
+            <div class="doc-chip">Facture {{ strtolower($supplierLabel) }}</div>
             <h1>{{ $bill->bill_number }}</h1>
             <div><strong>{{ $bill->company?->legal_name ?: $bill->company?->name }}</strong></div>
             <div class="meta">{{ $bill->company?->address }}</div>
@@ -23,7 +28,7 @@
 
     <section class="grid grid-2">
         <div class="panel">
-            <h2>Fournisseur</h2>
+            <h2>{{ $supplierLabel }}</h2>
             <div><strong>{{ $bill->supplier?->name }}</strong></div>
             <div class="muted">Code : {{ $bill->supplier?->code ?: 'N/A' }}</div>
             <div class="muted">Adresse : {{ $bill->supplier?->address ?: 'Non renseignee' }}</div>
@@ -43,7 +48,7 @@
     <table>
         <thead>
             <tr>
-                <th>Produit</th>
+                <th>{{ $productLabel }}</th>
                 <th>Description</th>
                 <th class="right">Quantite</th>
                 <th class="right">Cout unitaire</th>
@@ -89,4 +94,3 @@
         <div class="signature-box">Visa comptable</div>
     </div>
 @endsection
-

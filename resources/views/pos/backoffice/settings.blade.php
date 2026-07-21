@@ -4,6 +4,14 @@
 @section('page-title', 'Configuration POS')
 
 @section('content')
+    @php
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $cashierLabel = $businessVocabulary['cashier'] ?? 'Caissier';
+    @endphp
+
     <style>
         .pos-settings-alert {
             display: grid;
@@ -86,10 +94,19 @@
 
         @allowed('pos.manage')
             <div class="split">
-                <form method="POST" action="{{ route('pos.profiles.store') }}" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
+                <form method="POST" action="{{ route('pos.profiles.store') }}" enctype="multipart/form-data" class="card form-grid {{ $data['settings_locked'] ? 'pos-settings-locked' : '' }}">
                     @csrf
                     <fieldset {{ $data['settings_locked'] ? 'disabled' : '' }} style="border:0; padding:0; margin:0; display:contents;">
-                    <div class="full"><h3 class="section-title">Profil point de vente</h3></div>
+                    <div class="full"><h3 class="section-title">Configuration de la caisse</h3></div>
+                    <div class="full">
+                        <label for="profile_id">Modifier une caisse existante</label>
+                        <select id="profile_id" name="profile_id">
+                            <option value="">Creer une nouvelle configuration</option>
+                            @foreach ($data['profiles'] as $existingProfile)
+                                <option value="{{ $existingProfile->id }}">{{ $existingProfile->name }} · {{ $existingProfile->cashAccount?->name ?? 'Sans compte' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div>
                         <label for="profile_name">Nom</label>
                         <input id="profile_name" name="name" value="{{ old('name') }}" required>
@@ -164,8 +181,49 @@
                         <label class="checkbox-row"><input type="checkbox" name="allow_draft_orders" value="1" checked> Autoriser les brouillons</label>
                         <label class="checkbox-row"><input type="checkbox" name="is_default" value="1"> Profil par defaut</label>
                     </div>
+                    <div>
+                        <label for="stock_policy">{{ $saleLabel }} sans {{ strtolower($stockLabel) }}</label>
+                        <select id="stock_policy" name="stock_policy" required>
+                            <option value="block">Bloquer la {{ strtolower($saleLabel) }}</option>
+                            <option value="warn">Avertir le {{ strtolower($cashierLabel) }}</option>
+                            <option value="allow">Autoriser</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="max_cash_variance">Ecart maximal de caisse</label>
+                        <input id="max_cash_variance" name="max_cash_variance" type="number" min="0" step="1" placeholder="Ex: 1000">
+                    </div>
+                    <div>
+                        <label for="cash_rounding_precision">Arrondi especes</label>
+                        <input id="cash_rounding_precision" name="cash_rounding_precision" type="number" min="0.01" step="0.01" value="5">
+                    </div>
+                    <div class="full checkbox-grid">
+                        <label class="checkbox-row"><input type="checkbox" name="show_stock_quantity" value="1" checked> Afficher le {{ strtolower($stockLabel) }} dans la caisse</label>
+                        <label class="checkbox-row"><input type="checkbox" name="show_product_images" value="1" checked> Afficher les images {{ strtolower($productsLabel) }}</label>
+                        <label class="checkbox-row"><input type="checkbox" name="group_products_by_category" value="1" checked> Regrouper par categories</label>
+                        <label class="checkbox-row"><input type="checkbox" name="share_open_orders" value="1"> Partager les commandes ouvertes</label>
+                        <label class="checkbox-row"><input type="checkbox" name="quick_cash_payment" value="1"> Paiement especes en un clic</label>
+                        <label class="checkbox-row"><input type="checkbox" name="cash_rounding_enabled" value="1"> Activer l arrondi especes</label>
+                        <label class="checkbox-row"><input type="checkbox" name="allow_tips" value="1"> Autoriser les pourboires</label>
+                    </div>
+                    <div>
+                        <label for="receipt_logo">Logo du ticket</label>
+                        <input id="receipt_logo" name="receipt_logo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                    </div>
+                    <div>
+                        <label for="receipt_header">Entete du ticket</label>
+                        <input id="receipt_header" name="receipt_header" maxlength="255" placeholder="Bienvenue chez nous">
+                    </div>
+                    <div>
+                        <label for="receipt_footer">Pied du ticket</label>
+                        <input id="receipt_footer" name="receipt_footer" maxlength="255" placeholder="Merci pour votre achat">
+                    </div>
+                    <div class="full checkbox-grid">
+                        <label class="checkbox-row"><input type="checkbox" name="receipt_show_cashier" value="1" checked> Afficher le {{ strtolower($cashierLabel) }} sur le ticket</label>
+                        <label class="checkbox-row"><input type="checkbox" name="receipt_show_address" value="1" checked> Afficher l adresse sur le ticket</label>
+                    </div>
                     <div class="full actions">
-                        <button type="submit" class="button button-primary">Enregistrer le profil</button>
+                        <button type="submit" class="button button-primary">Enregistrer la configuration</button>
                     </div>
                     </fieldset>
                 </form>
@@ -294,6 +352,7 @@
                             <strong>{{ $profile->name }}</strong>
                             <div class="muted" style="margin-top:8px;">{{ $profile->branch?->name ?? 'Agence globale' }} · {{ $profile->warehouse?->name ?? 'Sans entrepot' }}</div>
                             <div class="help" style="margin-top:8px;">{{ count($profile->active_payment_methods ?? []) }} mode(s) actif(s) · {{ $profile->is_default ? 'profil par defaut' : 'profil secondaire' }}</div>
+                            <div class="help" style="margin-top:6px;">{{ $stockLabel }} : {{ match($profile->stock_policy ?? 'block') { 'allow' => 'autorise', 'warn' => 'avertissement', default => 'bloque' } }} · Images {{ $profile->show_product_images ? 'oui' : 'non' }} · Arrondi {{ $profile->cash_rounding_enabled ? 'oui' : 'non' }}</div>
                         </div>
                     @endforeach
                     @foreach ($data['payment_methods'] as $method)
@@ -330,4 +389,67 @@
             </section>
         </div>
     </div>
+    @php
+        $profileSettings = $data['profiles']->map(function ($profile) {
+            return [
+                'id' => $profile->id,
+                'name' => $profile->name,
+                'branch_id' => $profile->branch_id,
+                'warehouse_id' => $profile->warehouse_id,
+                'cash_account_id' => $profile->cash_account_id,
+                'price_list_id' => $profile->price_list_id,
+                'loyalty_program_id' => $profile->loyalty_program_id,
+                'active_payment_methods' => $profile->active_payment_methods ?? [],
+                'cash_denomination_preset' => $profile->cash_denomination_preset ?? [],
+                'open_with_cash_control' => $profile->open_with_cash_control,
+                'auto_print_receipt' => $profile->auto_print_receipt,
+                'allow_draft_orders' => $profile->allow_draft_orders,
+                'stock_policy' => $profile->stock_policy ?? 'block',
+                'show_stock_quantity' => $profile->show_stock_quantity,
+                'show_product_images' => $profile->show_product_images,
+                'group_products_by_category' => $profile->group_products_by_category,
+                'share_open_orders' => $profile->share_open_orders,
+                'quick_cash_payment' => $profile->quick_cash_payment,
+                'cash_rounding_enabled' => $profile->cash_rounding_enabled,
+                'cash_rounding_precision' => $profile->cash_rounding_precision,
+                'max_cash_variance' => $profile->max_cash_variance,
+                'allow_tips' => $profile->allow_tips,
+                'receipt_show_cashier' => $profile->receipt_show_cashier,
+                'receipt_show_address' => $profile->receipt_show_address,
+                'receipt_header' => $profile->receipt_header,
+                'receipt_footer' => $profile->receipt_footer,
+                'is_default' => $profile->is_default,
+            ];
+        })->values();
+    @endphp
+    <script>
+        (() => {
+            const profiles = {{ Illuminate\Support\Js::from($profileSettings) }};
+            const selector = document.getElementById('profile_id');
+            const form = selector?.closest('form');
+            if (!selector || !form) return;
+
+            const setValue = (name, value) => {
+                const input = form.elements.namedItem(name);
+                if (input && input instanceof HTMLElement) input.value = value ?? '';
+            };
+            const setChecked = (name, value) => {
+                const input = form.elements.namedItem(name);
+                if (input instanceof HTMLInputElement) input.checked = Boolean(value);
+            };
+
+            selector.addEventListener('change', () => {
+                const profile = profiles.find((item) => String(item.id) === selector.value);
+                if (!profile) return;
+                ['name', 'branch_id', 'warehouse_id', 'cash_account_id', 'price_list_id', 'loyalty_program_id', 'stock_policy', 'cash_rounding_precision', 'max_cash_variance', 'receipt_header', 'receipt_footer']
+                    .forEach((name) => setValue(name, profile[name]));
+                ['open_with_cash_control', 'auto_print_receipt', 'allow_draft_orders', 'show_stock_quantity', 'show_product_images', 'group_products_by_category', 'share_open_orders', 'quick_cash_payment', 'cash_rounding_enabled', 'allow_tips', 'receipt_show_cashier', 'receipt_show_address', 'is_default']
+                    .forEach((name) => setChecked(name, profile[name]));
+                Array.from(form.querySelectorAll('[name="active_payment_methods[]"] option'))
+                    .forEach((option) => { option.selected = profile.active_payment_methods.includes(option.value); });
+                Object.entries(profile.cash_denomination_preset || {})
+                    .forEach(([denomination, count]) => setValue(`cash_denomination_preset[${denomination}]`, count));
+            });
+        })();
+    </script>
 @endsection

@@ -46,9 +46,9 @@ class SectorProfileSettingTest extends TestCase
             ->withSession($this->workspaceSession($manager))
             ->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('Pilotage parametres')
-            ->assertSee('Raccourcis reglages')
-            ->assertSee('Profil secteur')
+            ->assertSee('Parametres generaux')
+            ->assertSee('Profil societe')
+            ->assertSee('Metier actif')
             ->assertSee('API et integrations');
     }
 
@@ -65,10 +65,10 @@ class SectorProfileSettingTest extends TestCase
             ->withSession($this->workspaceSession($manager))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Pack metier actif')
-            ->assertSee('Quincaillerie et negoce technique')
-            ->assertSee('Modules recommandes pour ce secteur')
-            ->assertSee('Devis techniques');
+            ->assertSee("Profil d'activite actif", false)
+            ->assertSee('Quincaillerie')
+            ->assertSee('Modules recommandes pour Quincaillerie')
+            ->assertSee('tarif chantier');
     }
 
     private function workspaceSession(User $user): array

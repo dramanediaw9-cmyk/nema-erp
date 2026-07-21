@@ -15,7 +15,7 @@
             <div class="muted">Client {{ $deliveryNote->customer?->name }} · Agence {{ $deliveryNote->branch?->name }} · {{ $deliveryNote->warehouse?->name ?? 'Entrepot par defaut' }}</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('delivery-notes.print', $deliveryNote) }}" class="button button-secondary" target="_blank">PDF</a>
+            <a href="{{ route('delivery-notes.print', $deliveryNote) }}" class="button button-secondary" target="_blank">Imprimer le bon</a>
             <a href="{{ route('delivery-notes.index') }}" class="button button-secondary">Retour liste</a>
         </div>
     </div>
@@ -163,5 +163,4 @@
         </section>
     </div>
 @endsection
-
 

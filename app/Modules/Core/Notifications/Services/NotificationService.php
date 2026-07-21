@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Accounting\Services\PeriodChecklistService;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Approvals\Models\ApprovalStep;
+use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Notifications\Models\InternalNotification;
@@ -15,6 +16,7 @@ use App\Modules\Inventory\Models\ProductLot;
 use App\Modules\Inventory\Models\StockCount;
 use App\Modules\Inventory\Models\StockCountItem;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Pos\Models\PosSession;
 use App\Modules\Purchases\Models\PurchaseBill;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Services\OrderCoverageService;
@@ -126,6 +128,10 @@ class NotificationService
         $this->syncWholesaleOrderCoverageRiskAlert($companyId, $branchId, $sectorProfile);
         $this->syncWholesaleOverdueCommitmentsAlert($companyId, $branchId, $sectorProfile);
         $this->syncBranchSalesDropAlerts($companyId);
+        $this->syncLongOpenPosSessionAlert($companyId, $branchId);
+        $this->syncNegativeStockAlert($companyId, $branchId);
+        $this->syncProductPriceChangeAlert($companyId, $branchId);
+        $this->syncSensitiveActivityAlert($companyId, $branchId);
         $this->syncTechnicalMonitoringAlerts($companyId);
     }
 
@@ -897,6 +903,227 @@ class NotificationService
                 ],
             ]);
         }
+    }
+
+    private function syncLongOpenPosSessionAlert(int $companyId, ?int $branchId = null): void
+    {
+        if (! $branchId) {
+            $this->resolveSystemAlert($companyId, 'pos-long-open-session');
+
+            return;
+        }
+
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $threshold = now()->subHours(12);
+        $query = PosSession::query()
+            ->with(['branch', 'opener'])
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where('branch_id', $selectedBranchId))
+            ->where('status', 'open')
+            ->where('opened_at', '<=', $threshold);
+
+        $count = (clone $query)->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'pos-long-open-session'.$scopeSuffix);
+
+            return;
+        }
+
+        $oldestSession = (clone $query)->oldest('opened_at')->first();
+        $hoursOpen = $oldestSession?->opened_at ? (int) $oldestSession->opened_at->diffInHours(now()) : 0;
+
+        $this->upsertSystemAlert($companyId, 'pos-long-open-session'.$scopeSuffix, [
+            'branch_id' => $branchId ?: $oldestSession?->branch_id,
+            'level' => $hoursOpen >= 24 ? 'danger' : 'warning',
+            'title' => 'Caisse ouverte trop longtemps',
+            'message' => $count.' session(s) de caisse restent ouvertes depuis plus de 12 h. Plus ancienne : '.($oldestSession?->session_number ?? 'n/a').' ouverte depuis '.$hoursOpen.' h'.($oldestSession?->opener ? ' par '.$oldestSession->opener->name : '').'.',
+            'action_url' => $oldestSession ? route('pos.show', $oldestSession) : route('pos.sessions.index'),
+            'meta' => [
+                'count' => $count,
+                'oldest_session_id' => $oldestSession?->id,
+                'oldest_session_number' => $oldestSession?->session_number,
+                'hours_open' => $hoursOpen,
+            ],
+        ]);
+    }
+
+    private function syncNegativeStockAlert(int $companyId, ?int $branchId = null): void
+    {
+        if (! $branchId) {
+            $this->resolveSystemAlert($companyId, 'negative-stock');
+
+            return;
+        }
+
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $balances = StockMovement::query()
+            ->select('product_id')
+            ->selectRaw('SUM(quantity_in - quantity_out) as current_stock')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $query, int $selectedBranchId) => $query->where('branch_id', $selectedBranchId))
+            ->groupBy('product_id');
+
+        $negativeStockQuery = Product::query()
+            ->where('products.company_id', $companyId)
+            ->where('products.type', 'stockable')
+            ->where('products.is_active', true)
+            ->leftJoinSub($balances, 'balances', fn ($join) => $join->on('products.id', '=', 'balances.product_id'))
+            ->select(['products.id', 'products.name', 'products.sku'])
+            ->selectRaw('COALESCE(balances.current_stock, 0) as current_stock')
+            ->whereRaw('COALESCE(balances.current_stock, 0) < -0.0001');
+
+        $count = (clone $negativeStockQuery)->count();
+        $products = $negativeStockQuery
+            ->orderBy('products.name')
+            ->limit(8)
+            ->get();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'negative-stock'.$scopeSuffix);
+
+            return;
+        }
+
+        $highlights = $products
+            ->take(4)
+            ->map(fn (Product $product) => $product->name.' ('.number_format((float) $product->current_stock, 3, ',', ' ').')')
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'negative-stock'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'danger',
+            'title' => 'Stock negatif detecte',
+            'message' => $count.' produit(s) ont un stock negatif. Cela indique souvent une vente sans stock initial, un inventaire manquant ou un mouvement a corriger.'.($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('stock.index'),
+            'meta' => [
+                'count' => $count,
+                'highlights' => $products->pluck('name')->take(6)->values()->all(),
+            ],
+        ]);
+    }
+
+    private function syncProductPriceChangeAlert(int $companyId, ?int $branchId = null): void
+    {
+        if (! $branchId) {
+            $this->resolveSystemAlert($companyId, 'product-price-changes');
+
+            return;
+        }
+
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $since = now()->subDay();
+        $query = ActivityLog::query()
+            ->with('user')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where(function (Builder $scopeQuery) use ($selectedBranchId) {
+                $scopeQuery->whereNull('branch_id')
+                    ->orWhere('branch_id', $selectedBranchId);
+            }))
+            ->where('action', 'products.update')
+            ->where('created_at', '>=', $since)
+            ->where(function (Builder $builder): void {
+                $builder->where('properties', 'like', '%sale_price%')
+                    ->orWhere('properties', 'like', '%purchase_price%');
+            });
+
+        $logs = (clone $query)->latest()->limit(5)->get();
+        $count = (clone $query)->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'product-price-changes'.$scopeSuffix);
+
+            return;
+        }
+
+        $highlights = $logs
+            ->map(function (ActivityLog $log): string {
+                $properties = is_array($log->properties) ? $log->properties : [];
+                $name = (string) ($properties['name'] ?? 'Produit');
+                $user = $log->user?->name ? ' par '.$log->user->name : '';
+
+                return $name.$user;
+            })
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'product-price-changes'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => 'warning',
+            'title' => 'Prix produits modifies',
+            'message' => $count.' modification(s) de prix ont ete detectees sur les dernieres 24 h.'.($highlights !== '' ? ' Dernieres traces : '.$highlights.'.' : ''),
+            'action_url' => route('activity-logs.index', ['category' => 'products', 'action' => 'products.update']),
+            'meta' => [
+                'count' => $count,
+                'since' => $since->toDateTimeString(),
+                'highlights' => $logs->pluck('description')->values()->all(),
+            ],
+        ]);
+    }
+
+    private function syncSensitiveActivityAlert(int $companyId, ?int $branchId = null): void
+    {
+        if (! $branchId) {
+            $this->resolveSystemAlert($companyId, 'sensitive-activity');
+
+            return;
+        }
+
+        $scopeSuffix = $branchId ? '-'.$branchId : '';
+        $since = now()->subDay();
+        $actions = [
+            'products.delete',
+            'products.archive',
+            'products.restore',
+            'pos.session.unlock',
+            'pos.sale.return',
+            'stock.adjustment',
+            'stock.opening',
+            'stock_counts.post',
+            'transfers.create',
+        ];
+        $prefixes = ['users.', 'roles.', 'permissions.', 'settings.', 'companies.', 'branches.', 'warehouses.', 'cash_registers.', 'taxes.'];
+
+        $query = ActivityLog::query()
+            ->with('user')
+            ->where('company_id', $companyId)
+            ->when($branchId, fn (Builder $builder, int $selectedBranchId) => $builder->where(function (Builder $scopeQuery) use ($selectedBranchId) {
+                $scopeQuery->whereNull('branch_id')
+                    ->orWhere('branch_id', $selectedBranchId);
+            }))
+            ->where('created_at', '>=', $since)
+            ->where(function (Builder $builder) use ($actions, $prefixes): void {
+                $builder->whereIn('action', $actions);
+
+                foreach ($prefixes as $prefix) {
+                    $builder->orWhere('action', 'like', $prefix.'%');
+                }
+            });
+
+        $logs = (clone $query)->latest()->limit(5)->get();
+        $count = (clone $query)->count();
+
+        if ($count === 0) {
+            $this->resolveSystemAlert($companyId, 'sensitive-activity'.$scopeSuffix);
+
+            return;
+        }
+
+        $highlights = $logs
+            ->map(fn (ActivityLog $log) => $log->action.($log->user?->name ? ' par '.$log->user->name : ''))
+            ->implode(', ');
+
+        $this->upsertSystemAlert($companyId, 'sensitive-activity'.$scopeSuffix, [
+            'branch_id' => $branchId,
+            'level' => $count >= 5 ? 'danger' : 'warning',
+            'title' => 'Actions sensibles recentes',
+            'message' => $count.' action(s) sensibles ont ete detectees sur les dernieres 24 h.'.($highlights !== '' ? ' Exemples : '.$highlights.'.' : ''),
+            'action_url' => route('activity-logs.index', ['category' => 'sensitive']),
+            'meta' => [
+                'count' => $count,
+                'since' => $since->toDateTimeString(),
+                'actions' => $logs->pluck('action')->values()->all(),
+            ],
+        ]);
     }
 
     private function syncTechnicalMonitoringAlerts(int $companyId): void

@@ -60,6 +60,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
 
 Route::post('/callbacks/paiements/{company}/{method}', [PaymentGatewayCallbackController::class, 'store'])
     ->whereIn('method', ['wave', 'orange_money', 'moov_money', 'bank_transfer'])
+    ->middleware('throttle:120,1')
     ->name('payment-gateways.callbacks.store');
 
 Route::middleware('signed')->group(function (): void {
@@ -70,7 +71,6 @@ Route::middleware('signed')->group(function (): void {
     Route::get('/portail/factures/{invoice}/reglement', [SalesPortalController::class, 'showInvoicePayment'])->name('portal.invoices.show');
     Route::post('/portail/factures/{invoice}/reglement', [SalesPortalController::class, 'notifyInvoicePayment'])->name('portal.invoices.notify');
 });
-
 
 
 

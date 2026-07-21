@@ -1591,7 +1591,7 @@
                     <span class="dashboard-collapsible__toggle-copy">
                         <span class="dashboard-collapsible__eyebrow">Pack metier</span>
                         <span class="dashboard-collapsible__title">{{ $sectorProfile['label'] }}</span>
-                        <span class="dashboard-collapsible__hint">Signals terrain et modules recommandes pour le profil actif.</span>
+                        <span class="dashboard-collapsible__hint">Profil d'activite actif de l'entreprise.</span>
                     </span>
                     <span class="dashboard-collapsible__chevron" aria-hidden="true"></span>
                 </span>
@@ -1599,40 +1599,77 @@
             <div class="dashboard-collapsible__body" data-dashboard-collapsible-body>
                 <div class="dashboard-banner__layout">
                     <div class="dashboard-banner__copy">
-                        <div class="badge badge-success">Pack metier actif</div>
+                        <div class="badge badge-success">Profil d'activite actif</div>
                         <h2 class="dashboard-display" style="font-size:clamp(24px, 3vw, 34px);">{{ $sectorProfile['label'] }}</h2>
                         <p class="dashboard-copy muted">{{ $sectorProfile['description'] }}</p>
-                        <div class="dashboard-chip-row">
-                            @foreach ($sectorProfile['use_cases'] as $useCase)
-                                <span class="dashboard-chip">{{ $useCase }}</span>
-                            @endforeach
-                        </div>
                     </div>
                     <div class="dashboard-banner__aside">
                         <div class="dashboard-panel">
-                            <strong>Ce que Nema ERP privilegie</strong>
-                            <p class="muted">{{ implode(' · ', $sectorProfile['operational_focus']) }}</p>
-                            <div class="help" style="margin-top:8px;">Catalogue de depart : {{ implode(' · ', $sectorProfile['starter_catalog']) }}</div>
-                        </div>
-                        <div class="dashboard-panel">
-                            <strong>Reglages conseilles</strong>
-                            <p class="muted">Unites : {{ implode(' · ', $sectorProfile['recommended_units']) }}</p>
-                            <p class="muted" style="margin-top:8px;">Paiements terrain : {{ implode(' · ', $sectorProfile['recommended_payments']) }}</p>
+                            <strong>{{ $sectorProfile['label'] }}</strong>
+                            <div style="display:flex; gap:14px; align-items:center; margin-top:12px;">
+                                <span class="dashboard-icon-badge dashboard-icon-badge--success">
+                                    @include('dashboard.partials.icon', ['name' => $sectorProfile['icon'] ?? 'building', 'size' => 22])
+                                </span>
+                                <p class="muted" style="margin:0;">{{ $sectorProfile['description'] }}</p>
+                            </div>
                             @if (auth()->user()?->hasPermission('settings.view'))
                                 <div class="dashboard-actions" style="margin-top:12px;">
-                                    <a href="{{ route('settings.index') }}" class="button button-secondary">Ajuster le profil</a>
+                                    <a href="{{ route('settings.index') }}" class="button button-secondary">Changer le metier</a>
+                                    <a href="{{ route('business-guide.index') }}" class="button button-primary">Guide metier</a>
                                 </div>
                             @endif
                         </div>
                     </div>
                 </div>
 
+                <div class="grid" style="margin-top:18px;">
+                    <div class="dashboard-panel">
+                        <strong>Champs importants</strong>
+                        <p class="muted">{{ implode(' · ', $sectorProfile['specific_fields'] ?? []) }}</p>
+                    </div>
+                    <div class="dashboard-panel">
+                        <strong>Indicateurs adaptes</strong>
+                        <p class="muted">{{ implode(' · ', $sectorProfile['kpis'] ?? []) }}</p>
+                    </div>
+                    <div class="dashboard-panel">
+                        <strong>Alertes a surveiller</strong>
+                        <p class="muted">{{ implode(' · ', $sectorProfile['alerts'] ?? []) }}</p>
+                    </div>
+                </div>
+
+                @if (! empty($sectorActionPlan))
+                    <div style="margin-top:18px;">
+                        <div class="dashboard-section-head" style="margin-bottom:14px;">
+                            <div>
+                                <h2 style="font-size:22px;">Modules recommandes pour {{ $sectorProfile['label'] }}</h2>
+                                <p class="muted">Raccourcis adaptes au profil actif.</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-link-grid">
+                            @foreach ($sectorActionPlan as $action)
+                                <a href="{{ $action['url'] }}" class="dashboard-link-card">
+                                    <div class="dashboard-card-lead">
+                                        <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($action) }}">
+                                            @include('dashboard.partials.icon', ['name' => $action['icon'] ?? 'grid', 'size' => 20])
+                                        </span>
+                                        <div>
+                                            <p class="dashboard-card-label">{{ $action['label'] }}</p>
+                                            <div class="dashboard-card-caption">Module adapte</div>
+                                        </div>
+                                    </div>
+                                    <p class="muted">{{ $action['description'] }}</p>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 @if (! empty($sectorSignals))
                     <div style="margin-top:18px;">
                         <div class="dashboard-section-head" style="margin-bottom:14px;">
                             <div>
-                                <h2 style="font-size:22px;">Signaux terrain du secteur</h2>
-                                <p class="muted">Indicateurs metier remontes specifiquement pour le profil actif.</p>
+                                <h2 style="font-size:22px;">Signaux metier</h2>
+                                <p class="muted">Alertes et chiffres prioritaires selon l activite.</p>
                             </div>
                         </div>
                         <div class="dashboard-watch-grid">
@@ -1649,33 +1686,6 @@
                                     </div>
                                     <div class="stat-value">{{ $item['value'] }}</div>
                                     <p class="muted">{{ $item['description'] }}</p>
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-
-                @if (! empty($sectorActionPlan))
-                    <div style="margin-top:18px;">
-                        <div class="dashboard-section-head" style="margin-bottom:14px;">
-                            <div>
-                                <h2 style="font-size:22px;">Modules recommandes pour ce secteur</h2>
-                                <p class="muted">Raccourcis priorises selon le pack metier actif.</p>
-                            </div>
-                        </div>
-                        <div class="dashboard-link-grid">
-                            @foreach ($sectorActionPlan as $action)
-                                <a href="{{ $action['url'] }}" class="dashboard-link-card">
-                                    <div class="dashboard-card-lead">
-                                        <span class="dashboard-icon-badge dashboard-icon-badge--{{ $iconTone($action) }}">
-                                            @include('dashboard.partials.icon', ['name' => $action['icon'] ?? 'grid', 'size' => 20])
-                                        </span>
-                                        <div>
-                                            <p class="dashboard-card-label">{{ $action['label'] }}</p>
-                                            <div class="dashboard-card-caption">Module</div>
-                                        </div>
-                                    </div>
-                                    <p class="muted">{{ $action['description'] }}</p>
                                 </a>
                             @endforeach
                         </div>
@@ -1969,8 +1979,4 @@
         </section>
     </div>
 @endsection
-
-
-
-
 

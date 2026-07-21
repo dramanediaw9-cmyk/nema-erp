@@ -4,9 +4,16 @@
 @section('page-title', 'Preparation POS')
 
 @section('content')
-    @php($summary = $board['summary'])
-    @php($tickets = $board['tickets'])
-    @php($statusOptions = $board['status_options'])
+    @php
+        $summary = $board['summary'];
+        $tickets = $board['tickets'];
+        $statusOptions = $board['status_options'];
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+            ? 'Client comptoir'
+            : $customerLabel.' comptoir';
+    @endphp
 
     <style>
         .pos-prep { display: grid; gap: 22px; }
@@ -62,8 +69,8 @@
 
         <section class="pos-prep-hero">
             <div>
-                <h2>Preparation comptoir et cuisine</h2>
-                <div class="muted">Chaque ticket caisse peut maintenant alimenter un flux de preparation par zone, imprimante et display. L equipe suit ici les commandes en file, en cours et prêtes a servir.</div>
+                <h2>Preparation {{ strtolower($saleLabel) }} et service</h2>
+                <div class="muted">Les tickets de caisse alimentent un flux de preparation par zone, imprimante et display. L equipe suit ici ce qui est en file, en cours et prêt a servir.</div>
             </div>
             <div class="pos-prep-kpis">
                 <div class="pos-prep-kpi"><div class="label">En file</div><div class="value">{{ $summary['queued'] }}</div></div>
@@ -77,7 +84,7 @@
             <div class="pos-prep-head">
                 <div>
                     <h3 style="margin:0; font-size:22px;">Filtres d execution</h3>
-                    <div class="muted">Tu peux focaliser l affichage par statut, imprimante ou Preparation Display.</div>
+                    <div class="muted">Filtre l affichage par statut, imprimante ou display.</div>
                 </div>
                 @if ($board['displays']->isNotEmpty())
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -130,7 +137,7 @@
             <div class="pos-prep-head">
                 <div>
                     <h3 style="margin:0; font-size:22px;">Tickets preparation</h3>
-                    <div class="muted">Le board se recharge automatiquement quand tu actualises la page, comme un cockpit atelier/comptoir.</div>
+                    <div class="muted">Suivi rapide des tickets a traiter par l equipe.</div>
                 </div>
             </div>
             <div class="pos-prep-body">
@@ -139,13 +146,15 @@
                 @else
                     <div class="pos-prep-grid">
                         @foreach ($tickets as $ticket)
-                            @php($deadline = $ticket->target_minutes ? $ticket->created_at?->copy()->addMinutes($ticket->target_minutes) : null)
-                            @php($isLate = $ticket->target_minutes && !in_array($ticket->status, ['ready', 'served', 'cancelled'], true) && $deadline?->isPast())
+                            @php
+                                $deadline = $ticket->target_minutes ? $ticket->created_at?->copy()->addMinutes($ticket->target_minutes) : null;
+                                $isLate = $ticket->target_minutes && !in_array($ticket->status, ['ready', 'served', 'cancelled'], true) && $deadline?->isPast();
+                            @endphp
                             <article class="pos-prep-ticket">
                                 <div class="pos-prep-ticket-head">
                                     <div class="pos-prep-ticket-title">
                                         <strong>{{ $ticket->ticket_number }}</strong>
-                                        <div class="muted">Ticket {{ $ticket->invoice?->invoice_number }} · Session {{ $ticket->session?->session_number }} · {{ $ticket->invoice?->customer?->name ?? 'Client comptoir' }}</div>
+                                        <div class="muted">Ticket {{ $ticket->invoice?->invoice_number }} · Session {{ $ticket->session?->session_number }} · {{ $ticket->invoice?->customer?->name ?? $counterCustomerLabel }}</div>
                                     </div>
                                     <div class="pos-prep-chip-row">
                                         <span class="pos-prep-chip is-status-{{ $ticket->status }}">{{ $statusOptions[$ticket->status] ?? str($ticket->status)->replace('_', ' ')->title() }}</span>

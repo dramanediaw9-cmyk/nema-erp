@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    @include('partials.security-csp-meta')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#f4ede2">
-    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="apple-touch-icon" href="{{ asset('icons/pos-192.png') }}">
+    <meta name="description" content="Connexion sécurisée à Nema ERP, la solution de gestion d’entreprise de Nema Technologies.">
+    <link rel="icon" type="image/png" href="{{ asset('images/nema-technologies-mark.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/nema-technologies-mark.png') }}">
     <link rel="manifest" href="{{ asset('app-manifest.webmanifest') }}">
     <title>Connexion - Nema ERP</title>
     <style>
@@ -70,12 +72,30 @@
             color: #17643a;
         }
         .auth-link { display:block; margin:-6px 0 16px; color:#005f73; font-size:14px; font-weight:700; text-decoration:none; }
-        .register-link { display:flex; align-items:center; justify-content:center; margin-top:16px; padding-top:16px; border-top:1px solid #e4d8c8; color:#005f73; font-size:14px; font-weight:800; text-decoration:none; }
+        .register-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e4d8c8;
+            color: #005f73;
+            font-size: 14px;
+            font-weight: 800;
+            text-decoration: none;
+        }
         .hint { margin-top: 18px; font-size: 13px; color: #746556; }
+        .company-logo {
+            display: block;
+            width: min(220px, 100%);
+            height: auto;
+            margin: 0 0 20px;
+        }
     </style>
 </head>
 <body>
-    <div class="panel">
+    <main class="panel">
+        <img class="company-logo" src="{{ asset('images/nema-technologies-logo.png') }}" alt="Nema Technologies">
         <h1>Nema ERP</h1>
         <p>Connectez-vous pour accéder au noyau de gestion de votre entreprise.</p>
 
@@ -94,7 +114,7 @@
         <form method="POST" action="{{ route('login.store') }}">
             @csrf
             <label for="email">Adresse e-mail</label>
-            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username email" autocapitalize="off" spellcheck="false" inputmode="email" enterkeyhint="next">
+            <input id="email" type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email" enterkeyhint="next">
 
             <label for="password">Mot de passe</label>
             <input id="password" type="password" name="password" required autocomplete="current-password" enterkeyhint="go">
@@ -113,6 +133,6 @@
         @if (config('nema.expose_demo_credentials'))
             <div class="hint">Compte démo administrateur : <strong>admin@nema-erp.test</strong> / <strong>password</strong></div>
         @endif
-    </div>
+    </main>
 </body>
 </html>

@@ -18,6 +18,10 @@ class ApplySecurityHeaders
         }
 
         $headers = $response->headers;
+        $headers->remove('X-Powered-By');
+        if (function_exists('header_remove') && ! headers_sent()) {
+            header_remove('X-Powered-By');
+        }
         $headers->set('Content-Security-Policy', $this->contentSecurityPolicy($request));
         $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $headers->set('Cross-Origin-Resource-Policy', 'same-origin');

@@ -65,7 +65,7 @@
                 @foreach ($defaultRows as $index => $row)
                     <tr>
                         <td>
-                            <select name="items[{{ $index }}][product_id]">
+                            <select name="items[{{ $index }}][product_id]" data-product-picker data-product-mode="purchasable">
                                 <option value="">Choisir</option>
                                 @foreach ($products as $product)
                                     <option value="{{ $product->id }}" @selected(($row['product_id'] ?? '') == $product->id)>{{ $product->sku }} - {{ $product->name }}</option>

@@ -31,6 +31,7 @@ class Company extends Model
         'phone',
         'email',
         'address',
+        'logo_path',
         'currency_code',
         'is_active',
     ];

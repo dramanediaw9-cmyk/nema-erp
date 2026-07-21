@@ -1,28 +1,29 @@
 @extends('layouts.app')
 
-@section('title', 'Imports CSV - Nema ERP')
+@section('title', 'Imports Excel et CSV - Nema ERP')
 @section('page-title', 'Centre d imports')
 
 @section('content')
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Chargement initial et migration historique</h2>
-            <div class="muted">Importe rapidement les clients, fournisseurs, produits, stock initial et maintenant les achats ou ventes historiques a partir de fichiers CSV simples en francais.</div>
+            <div class="muted">Importe rapidement les clients, fournisseurs, produits, stock initial et maintenant les achats ou ventes historiques a partir de fichiers Excel ou CSV simples.</div>
         </div>
     </div>
 
     <div class="split" style="margin-bottom:20px;">
         <section class="card">
             <h2 style="margin-top:0;">Import clients</h2>
-            <p class="muted">Colonnes attendues : <strong>code</strong>, <strong>name</strong>, <strong>phone</strong>, <strong>email</strong>, <strong>city</strong>, <strong>nif</strong>, <strong>address</strong>, <strong>opening_balance</strong>, <strong>notes</strong>.</p>
-            <div style="margin-bottom:16px;">
-                <a href="{{ route('imports.templates.download', 'customers') }}" class="button button-secondary">Telecharger le modele clients</a>
+            <p class="muted">Colonnes acceptees : <strong>code</strong>, <strong>nom</strong>, <strong>telephone</strong>, <strong>email</strong>, <strong>ville</strong>, <strong>nif</strong>, <strong>adresse</strong>, <strong>solde_initial</strong>, <strong>condition_paiement</strong>, <strong>liste_prix</strong>, <strong>actif</strong>, <strong>notes</strong>.</p>
+            <div style="margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="{{ route('imports.templates.download', 'customers-xlsx') }}" class="button button-primary">Modele Excel clients</a>
+                <a href="{{ route('imports.templates.download', 'customers') }}" class="button button-secondary">Modele CSV clients</a>
             </div>
             <form method="POST" action="{{ route('imports.customers.store') }}" enctype="multipart/form-data">
                 @csrf
-                <label for="customers_file">Fichier CSV clients</label>
-                <input id="customers_file" type="file" name="file" accept=".csv,.txt">
-                <div class="help" style="margin-top:10px;">Si un code existe deja, la fiche sera mise a jour.</div>
+                <label for="customers_file">Fichier clients</label>
+                <input id="customers_file" type="file" name="file" accept=".xlsx,.csv,.txt">
+                <div class="help" style="margin-top:10px;">Si un code, email ou nom existe deja, la fiche sera mise a jour. Les colonnes anglaises comme name, phone et address restent acceptees.</div>
                 <div class="actions" style="justify-content:flex-start;">
                     <button type="submit" class="button button-primary">Importer les clients</button>
                 </div>
@@ -32,14 +33,15 @@
         <section class="card">
             <h2 style="margin-top:0;">Import fournisseurs</h2>
             <p class="muted">Meme modele que les clients pour charger rapidement la base fournisseurs avant les achats, depenses et imports historiques.</p>
-            <div style="margin-bottom:16px;">
-                <a href="{{ route('imports.templates.download', 'suppliers') }}" class="button button-secondary">Telecharger le modele fournisseurs</a>
+            <div style="margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="{{ route('imports.templates.download', 'suppliers-xlsx') }}" class="button button-primary">Modele Excel fournisseurs</a>
+                <a href="{{ route('imports.templates.download', 'suppliers') }}" class="button button-secondary">Modele CSV fournisseurs</a>
             </div>
             <form method="POST" action="{{ route('imports.suppliers.store') }}" enctype="multipart/form-data">
                 @csrf
-                <label for="suppliers_file">Fichier CSV fournisseurs</label>
-                <input id="suppliers_file" type="file" name="file" accept=".csv,.txt">
-                <div class="help" style="margin-top:10px;">Le systeme met a jour un fournisseur existant si le code correspond.</div>
+                <label for="suppliers_file">Fichier fournisseurs</label>
+                <input id="suppliers_file" type="file" name="file" accept=".xlsx,.csv,.txt">
+                <div class="help" style="margin-top:10px;">Le systeme met a jour un fournisseur existant si le code, email ou nom correspond. Les colonnes francaises et anglaises sont acceptees.</div>
                 <div class="actions" style="justify-content:flex-start;">
                     <button type="submit" class="button button-primary">Importer les fournisseurs</button>
                 </div>
@@ -49,16 +51,17 @@
 
     <div class="split" style="margin-bottom:20px;">
         <section class="card">
-            <h2 style="margin-top:0;">Import produits</h2>
-            <p class="muted">Colonnes attendues : <strong>sku</strong>, <strong>name</strong>, <strong>category</strong>, <strong>unit</strong>, <strong>type</strong>, <strong>sale_price</strong>, <strong>purchase_price</strong>, <strong>min_stock</strong>, <strong>description</strong>.</p>
-            <div style="margin-bottom:16px;">
-                <a href="{{ route('imports.templates.download', 'products') }}" class="button button-secondary">Telecharger le modele produits</a>
+            <h2 style="margin-top:0;">Import produits boutique</h2>
+            <p class="muted">Un seul fichier peut creer les produits, categories, codes-barres et stock initial.</p>
+            <div style="margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="{{ route('imports.templates.download', 'products-xlsx') }}" class="button button-primary">Telecharger le modele Excel</a>
+                <a href="{{ route('imports.templates.download', 'products') }}" class="button button-secondary">Modele CSV</a>
             </div>
             <form method="POST" action="{{ route('imports.products.store') }}" enctype="multipart/form-data">
                 @csrf
-                <label for="products_file">Fichier CSV produits</label>
-                <input id="products_file" type="file" name="file" accept=".csv,.txt">
-                <div class="help" style="margin-top:10px;">Les categories absentes seront creees automatiquement.</div>
+                <label for="products_file">Fichier produits</label>
+                <input id="products_file" type="file" name="file" accept=".xlsx,.csv,.txt">
+                <div class="help" style="margin-top:10px;">Colonnes : sku, barcode, name, category, unit, type, sale_price, purchase_price, min_stock, opening_quantity, opening_unit_cost, description.</div>
                 <div class="actions" style="justify-content:flex-start;">
                     <button type="submit" class="button button-primary">Importer les produits</button>
                 </div>

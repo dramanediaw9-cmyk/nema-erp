@@ -11,6 +11,7 @@
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <a href="{{ route('goods-receipts.index') }}" class="button button-secondary">Retour liste</a>
+            <a href="{{ route('goods-receipts.print', $receipt) }}" class="button button-secondary">Imprimer</a>
             @if ($receipt->purchaseBill)
                 <a href="{{ route('purchases.show', $receipt->purchaseBill) }}" class="button button-primary">Ouvrir la facture fournisseur</a>
             @else

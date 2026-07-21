@@ -99,6 +99,12 @@ class ExecutiveBriefingService
         $filters = $context['filters'] ?? [];
         $canViewMargin = (bool) ($context['canViewMargin'] ?? false);
         $appMonitoring = $context['appMonitoring'] ?? ['status' => 'ok'];
+        $businessVocabulary = $context['businessVocabulary'] ?? [];
+        $salesLabel = strtolower($businessVocabulary['sales'] ?? 'ventes');
+        $stockLabel = strtolower($businessVocabulary['stock'] ?? 'stock');
+        $supplierLabel = strtolower($businessVocabulary['supplier'] ?? 'fournisseur');
+        $suppliersLabel = strtolower($businessVocabulary['suppliers'] ?? 'fournisseurs');
+        $purchasesLabel = strtolower($businessVocabulary['purchases'] ?? 'achats');
 
         $items = [];
         $salesDelta = (float) data_get($comparison, 'sales.delta_percent', 0);
@@ -118,7 +124,7 @@ class ExecutiveBriefingService
                 'title' => 'Le chiffre d affaires ralentit',
                 'message' => 'Le CA recule de '.number_format(abs($salesDelta), 1, ',', ' ').' % par rapport a la periode precedente.',
                 'action_url' => route('sales.index', $filters),
-                'action_label' => 'Analyser les ventes',
+                'action_label' => 'Analyser les '.$salesLabel,
             ];
         }
 
@@ -145,20 +151,20 @@ class ExecutiveBriefingService
         if ((float) ($payables['total'] ?? 0) > 0 && (float) ($receivables['total'] ?? 0) > 0 && (float) ($payables['total'] ?? 0) > ((float) ($receivables['total'] ?? 0) * 0.8)) {
             $items[] = [
                 'tone' => 'info',
-                'title' => 'Tension fournisseurs a surveiller',
-                'message' => 'Les dettes fournisseurs approchent le niveau des creances ouvertes. Le pilotage cash doit rester serre.',
+                'title' => 'Tension '.$suppliersLabel.' a surveiller',
+                'message' => 'Les dettes '.$suppliersLabel.' approchent le niveau des creances ouvertes. Le pilotage cash doit rester serre.',
                 'action_url' => route('purchases.index', ['payment_status' => 'unpaid']),
-                'action_label' => 'Voir les achats ouverts',
+                'action_label' => 'Voir les '.$purchasesLabel.' ouverts',
             ];
         }
 
         if ((int) ($stock['alerts'] ?? 0) > 0) {
             $items[] = [
                 'tone' => 'warning',
-                'title' => 'Stock critique visible dans les rapports',
-                'message' => number_format((float) ($stock['alerts'] ?? 0), 0, ',', ' ').' article(s) remontent deja en alerte stock.',
+                'title' => ucfirst($stockLabel).' critique visible dans les rapports',
+                'message' => number_format((float) ($stock['alerts'] ?? 0), 0, ',', ' ').' article(s) remontent deja en alerte '.$stockLabel.'.',
                 'action_url' => route('stock.index', ['stock_state' => 'low']),
-                'action_label' => 'Voir le stock',
+                'action_label' => 'Voir le '.$stockLabel,
             ];
         }
 
@@ -170,10 +176,10 @@ class ExecutiveBriefingService
         if ($weakSupplier && (float) ($weakSupplier['score'] ?? 0) < 60) {
             $items[] = [
                 'tone' => 'warning',
-                'title' => 'Fournisseur a sous-performance',
-                'message' => ($weakSupplier['supplier_name'] ?? 'Un fournisseur').' tombe a '.number_format((float) ($weakSupplier['score'] ?? 0), 1, ',', ' ').' / 100.',
+                'title' => ucfirst($supplierLabel).' a sous-performance',
+                'message' => ($weakSupplier['supplier_name'] ?? 'Un '.$supplierLabel).' tombe a '.number_format((float) ($weakSupplier['score'] ?? 0), 1, ',', ' ').' / 100.',
                 'action_url' => route('suppliers.show', $weakSupplier['supplier_id']),
-                'action_label' => 'Voir le fournisseur',
+                'action_label' => 'Voir le '.$supplierLabel,
             ];
         }
 

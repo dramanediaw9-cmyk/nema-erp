@@ -93,11 +93,12 @@ class SalesQuoteController extends Controller
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId || ! $workspace->branchId(), 403);
+        $defaultRows = old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => '']));
 
         return view('quotes.create', [
             'customers' => Partner::query()->customers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'products' => Product::query()->with('parent')->where('company_id', $companyId)->saleable()->orderBy('name')->get(),
-            'defaultRows' => old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => ''])),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'saleable', collect($defaultRows)->pluck('product_id')->all()),
+            'defaultRows' => $defaultRows,
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
         ]);

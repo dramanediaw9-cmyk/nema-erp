@@ -9,7 +9,10 @@
             <h2 style="margin:0;">{{ $transfer->transfer_number }}</h2>
             <div class="muted">{{ $transfer->sourceWarehouse?->name }} vers {{ $transfer->destinationWarehouse?->name }}</div>
         </div>
-        <a href="{{ route('transfers.index') }}" class="button button-secondary">Retour liste</a>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{{ route('transfers.print', $transfer) }}" class="button button-primary" target="_blank">Imprimer</a>
+            <a href="{{ route('transfers.index') }}" class="button button-secondary">Retour liste</a>
+        </div>
     </div>
 
     <div class="split">
@@ -37,4 +40,3 @@
         </aside>
     </div>
 @endsection
-

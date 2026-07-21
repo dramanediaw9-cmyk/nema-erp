@@ -2,8 +2,10 @@
 
 namespace App\Modules\Pos\Http\Controllers;
 
+use App\Models\User;
 use App\Http\Controllers\Controller;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductCategory;
 use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Inventory\Models\ProductLot;
@@ -28,6 +30,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PosController extends Controller
@@ -48,21 +51,71 @@ class PosController extends Controller
         abort_if(! $companyId || ! $branchId || ! $user, 403);
 
         $currentSession = $this->posService->currentOpenSession($companyId, $branchId, $user->id);
+        $isCashier = $user->hasRole('cashier');
+        $recentSessions = PosSession::query()
+            ->with(['cashAccount', 'warehouse', 'opener', 'closer'])
+            ->withCount([
+                'salesInvoices as orders_count',
+                'payments as payments_count',
+                'returns as returns_count',
+            ])
+            ->withSum('payments as payments_total', 'amount')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($isCashier, fn ($query) => $query->where('opened_by', $user->id))
+            ->latest('opened_at')
+            ->limit(10)
+            ->get();
+        $todaySessions = PosSession::query()
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($isCashier, fn ($query) => $query->where('opened_by', $user->id))
+            ->whereDate('opened_at', now()->toDateString())
+            ->get(['status', 'expected_amount', 'variance_amount']);
+        $staleOpenSessions = PosSession::query()
+            ->with(['cashAccount', 'warehouse', 'opener'])
+            ->withCount([
+                'salesInvoices as orders_count',
+                'payments as payments_count',
+                'returns as returns_count',
+            ])
+            ->withSum('payments as payments_total', 'amount')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->where('opened_at', '<', now()->subDay())
+            ->when($isCashier, fn ($query) => $query->where('opened_by', $user->id))
+            ->oldest('opened_at')
+            ->get();
 
         return view('pos.index', [
             'currentSession' => $currentSession,
+            'openSessions' => PosSession::query()
+                ->with(['cashAccount', 'warehouse', 'opener'])
+                ->where('company_id', $companyId)
+                ->where('branch_id', $branchId)
+                ->where('status', 'open')
+                ->orderBy('opened_at')
+                ->get(),
             'summary' => $currentSession ? $this->posService->summary($currentSession) : null,
             'recentInvoices' => $currentSession ? $this->posService->recentInvoices($currentSession) : collect(),
             'recentReturns' => $currentSession
                 ? $currentSession->returns()->with(['invoice', 'exchangeInvoice', 'payment.cashAccount'])->latest('return_date')->latest('id')->limit(8)->get()
                 : collect(),
-            'recentSessions' => PosSession::query()
-                ->with(['cashAccount', 'warehouse', 'opener', 'closer'])
-                ->where('company_id', $companyId)
-                ->where('branch_id', $branchId)
-                ->latest('opened_at')
-                ->limit(10)
-                ->get(),
+            'recentSessions' => $recentSessions,
+            'staleOpenSessions' => $staleOpenSessions,
+            'sessionControl' => [
+                'open' => (int) PosSession::query()
+                    ->where('company_id', $companyId)
+                    ->where('branch_id', $branchId)
+                    ->when($isCashier, fn ($query) => $query->where('opened_by', $user->id))
+                    ->where('status', 'open')
+                    ->count(),
+                'today' => (int) $todaySessions->count(),
+                'closed_today' => (int) $todaySessions->where('status', 'closed')->count(),
+                'expected_today' => round((float) $todaySessions->sum('expected_amount'), 2),
+                'variance_today' => round((float) $todaySessions->sum('variance_amount'), 2),
+            ],
             'cashAccounts' => CashAccount::query()
                 ->where('company_id', $companyId)
                 ->where('branch_id', $branchId)
@@ -85,8 +138,7 @@ class PosController extends Controller
     {
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
-        $user = $request->user();
-        abort_if(! $companyId || ! $branchId || ! $user, 403);
+        abort_if(! $companyId || ! $branchId, 403);
 
         $data = $request->validate([
             'cash_account_id' => ['required', Rule::exists('cash_accounts', 'id')->where(fn ($query) => $query->where('company_id', $companyId)->where('branch_id', $branchId))],
@@ -99,7 +151,7 @@ class PosController extends Controller
 
         $cashAccount = CashAccount::query()->where('company_id', $companyId)->findOrFail($data['cash_account_id']);
         $warehouse = Warehouse::query()->where('company_id', $companyId)->findOrFail($data['warehouse_id']);
-        $session = $this->posService->openSession($companyId, $branchId, $warehouse, $cashAccount, $data, $user);
+        $session = $this->posService->openSession($companyId, $branchId, $warehouse, $cashAccount, $data, $request->user());
 
         $this->activityLogger->log('pos.session.open', 'Ouverture session de caisse', $session, [
             'session_number' => $session->session_number,
@@ -112,38 +164,124 @@ class PosController extends Controller
         return redirect()->route('pos.show', $session)->with('success', 'Session de caisse ouverte avec succes.');
     }
 
-        public function show(PosSession $session, CurrentWorkspace $workspace): View
+        public function show(PosSession $session, CurrentWorkspace $workspace, Request $request): View
     {
         abort_if($workspace->companyId() !== $session->company_id, 403);
+        abort_if($request->user()?->hasRole('cashier') && (int) $session->opened_by !== (int) $request->user()->id, 403);
 
         $session->load(['branch', 'cashAccount', 'warehouse', 'opener', 'closer', 'unlocker', 'salesInvoices.customer', 'payments.cashAccount', 'returns.invoice', 'returns.exchangeInvoice', 'returns.payment.cashAccount']);
-        $ticketRows = $this->posService->sessionTicketRows($session);
-        $auditLogs = ActivityLog::query()
-            ->with('user')
-            ->where('company_id', $session->company_id)
-            ->where('branch_id', $session->branch_id)
-            ->where('action', 'like', 'pos.%')
-            ->latest('id')
-            ->limit(80)
-            ->get()
-            ->filter(fn (ActivityLog $log): bool => ($log->properties['session_number'] ?? null) === $session->session_number
-                || ($log->subject_type === PosSession::class && (int) $log->subject_id === (int) $session->id))
-            ->take(12)
-            ->values();
+
+        $recentInvoices = $this->posService->recentInvoices($session);
 
         return view('pos.show', [
             'session' => $session,
             'summary' => $this->posService->summary($session),
             'pendingDrafts' => $this->posService->draftsForSession($session),
-            'recentInvoices' => $this->posService->recentInvoices($session),
-            'ticketRows' => $ticketRows,
+            'recentInvoices' => $recentInvoices,
+            'ticketRows' => $this->sessionTicketRows($recentInvoices, $session, $request->user()),
             'recentReturns' => $session->returns()->with(['invoice', 'exchangeInvoice', 'payment.cashAccount'])->latest('return_date')->latest('id')->limit(10)->get(),
-            'auditLogs' => $auditLogs,
+            'auditLogs' => ActivityLog::query()
+                ->with('user:id,name')
+                ->where('company_id', $session->company_id)
+                ->where('subject_type', $session->getMorphClass())
+                ->where('subject_id', $session->id)
+                ->latest()
+                ->limit(20)
+                ->get(),
             'methodOptions' => $this->posService->methodOptions(),
             'cashDenominations' => $this->posService->cashDenominations(),
         ]);
     }
-    public function createSale(CurrentWorkspace $workspace, Request $request): RedirectResponse|View
+
+    private function sessionTicketRows(Collection $invoices, PosSession $session, ?User $user): Collection
+    {
+        return $invoices->map(function (SalesInvoice $invoice) use ($session, $user): array {
+            $returnedAmount = (float) $invoice->posReturns->sum('total');
+            $createdAt = $invoice->created_at ?: $invoice->invoice_date;
+            $status = match (true) {
+                filled($invoice->cancelled_at) => ['label' => 'Annule', 'tone' => 'danger'],
+                $invoice->payment_status === 'paid' => ['label' => 'Paye', 'tone' => 'success'],
+                $invoice->payment_status === 'partial' => ['label' => 'Partiel', 'tone' => 'warning'],
+                default => ['label' => 'Valide', 'tone' => 'info'],
+            };
+            $canPay = (float) $invoice->balance_due > 0.009 && (bool) $user?->hasPermission('payments.validate');
+            $canRefund = $session->isOpen()
+                && ! filled($invoice->cancelled_at)
+                && ((float) $invoice->total - $returnedAmount) > 0.009
+                && (bool) $user?->hasPermission('pos.manage');
+
+            $items = $invoice->items->map(fn ($item): array => [
+                'description' => $item->description,
+                'code' => $item->product?->barcode ?: $item->product?->sku,
+                'qty' => (float) $item->qty,
+                'unit_price' => (float) $item->unit_price,
+                'discount_total' => (float) $item->discount_total,
+                'line_total' => (float) $item->line_total,
+            ])->values();
+            $payments = $invoice->paymentAllocations->map(function ($allocation): array {
+                $payment = $allocation->payment;
+
+                return [
+                    'method' => ucfirst(str_replace('_', ' ', (string) ($payment?->method ?: 'Paiement'))),
+                    'date' => $payment?->payment_date?->format('d/m/Y'),
+                    'reference' => $payment?->reference,
+                    'cash_account' => $payment?->cashAccount?->name,
+                    'direction' => $payment?->direction ?: 'in',
+                    'amount' => (float) $allocation->allocated_amount,
+                ];
+            })->values();
+            $returns = $invoice->posReturns->map(fn ($return): array => [
+                'number' => $return->return_number,
+                'date' => $return->return_date?->format('d/m/Y'),
+                'reason' => $return->notes,
+                'amount' => (float) $return->total,
+            ])->values();
+            $history = collect([[
+                'label' => 'Ticket cree',
+                'detail' => $invoice->creator?->name ?: 'Utilisateur ERP',
+                'date' => $invoice->created_at?->format('d/m/Y H:i'),
+            ]])->concat($payments->map(fn (array $payment): array => [
+                'label' => 'Paiement '.strtolower($payment['method']),
+                'detail' => $payment['reference'] ?: 'Encaissement caisse',
+                'date' => $payment['date'],
+            ]))->concat($returns->map(fn (array $return): array => [
+                'label' => 'Retour '.$return['number'],
+                'detail' => $return['reason'] ?: 'Remboursement article',
+                'date' => $return['date'],
+            ]))->values();
+
+            return [
+                'id' => $invoice->id,
+                'date' => $createdAt?->format('d/m/Y'),
+                'time' => $createdAt?->format('H:i'),
+                'invoice_number' => $invoice->invoice_number,
+                'ticket_reference' => $invoice->pos_sync_key ?: 'Ticket #'.$invoice->id,
+                'customer' => $invoice->customer?->name ?: 'Client comptoir',
+                'cashier' => $invoice->creator?->name ?: 'Non renseigne',
+                'amount' => (float) $invoice->total,
+                'discount_total' => (float) $invoice->discount_total,
+                'amount_paid' => (float) $invoice->amount_paid,
+                'balance_due' => (float) $invoice->balance_due,
+                'returned_amount' => $returnedAmount,
+                'status' => $status,
+                'items' => $items,
+                'payments' => $payments,
+                'returns' => $returns,
+                'history' => $history,
+                'search' => collect([$invoice->invoice_number, $invoice->pos_sync_key, $invoice->customer?->name, $invoice->creator?->name])
+                    ->concat($items->pluck('description'))
+                    ->filter()
+                    ->implode(' '),
+                'receipt_url' => route('pos.receipt', $invoice),
+                'thermal_url' => route('pos.receipt.thermal', $invoice),
+                'payment_url' => $canPay ? route('payments.create', ['invoice_id' => $invoice->id]) : '#',
+                'return_url' => $canRefund ? route('pos.returns.create', $invoice) : '#',
+                'can_pay' => $canPay,
+                'can_refund' => $canRefund,
+            ];
+        })->values();
+    }
+        public function createSale(CurrentWorkspace $workspace, Request $request): RedirectResponse|View
     {
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
@@ -180,11 +318,16 @@ class PosController extends Controller
             array_splice($productColumns, 2, 0, ['parent_id']);
         }
 
+        $productCatalogTotal = Product::query()
+            ->where('company_id', $companyId)
+            ->saleable()
+            ->count();
         $products = Product::query()
             ->with($productRelations)
             ->where('company_id', $companyId)
             ->saleable()
             ->orderBy('name')
+            ->limit(30)
             ->get($productColumns);
         $saleableByProduct = $this->saleableQtyByProduct($products, $companyId, $branchId, $session->warehouse_id);
         $priceRules = $this->pricingService->rulesForPriceList(
@@ -198,6 +341,12 @@ class PosController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+        $catalogCategories = ProductCategory::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->whereHas('products', fn ($query) => $query->saleable())
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $menuCategoryMap = [];
         foreach ($menuCategories as $menuCategory) {
             foreach (($menuCategory->product_ids ?? []) as $productId) {
@@ -239,7 +388,10 @@ class PosController extends Controller
 
             $comboMap[$comboChoice->parent_product_id] = $comboChoice;
         }
-        $drafts = $this->posService->draftsForSession($session, $user->id);
+        $drafts = $this->posService->draftsForSession(
+            $session,
+            ($activeProfile?->share_open_orders ?? false) ? null : $user->id,
+        );
         $paymentAccounts = CashAccount::query()
             ->where('company_id', $companyId)
             ->where('is_active', true)
@@ -261,25 +413,34 @@ class PosController extends Controller
                 'note_template_name' => $activeProfile->noteTemplate?->name,
                 'allow_draft_orders' => (bool) $activeProfile->allow_draft_orders,
                 'auto_print_receipt' => (bool) $activeProfile->auto_print_receipt,
+                'stock_policy' => $activeProfile->stock_policy ?: 'block',
+                'show_stock_quantity' => (bool) $activeProfile->show_stock_quantity,
+                'show_product_images' => (bool) $activeProfile->show_product_images,
+                'group_products_by_category' => (bool) $activeProfile->group_products_by_category,
+                'share_open_orders' => (bool) $activeProfile->share_open_orders,
+                'quick_cash_payment' => (bool) $activeProfile->quick_cash_payment,
+                'cash_rounding_enabled' => (bool) $activeProfile->cash_rounding_enabled,
+                'cash_rounding_precision' => (float) $activeProfile->cash_rounding_precision,
+                'allow_tips' => (bool) $activeProfile->allow_tips,
             ] : null,
             'customers' => Partner::query()->customers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'categories' => ($menuCategories->isNotEmpty()
-                ? $menuCategories->map(fn (PosMenuCategory $category) => [
-                    'key' => 'menu:'.$category->id,
-                    'name' => $category->name,
-                    'color' => $category->color,
-                ])
-                : $products
-                    ->filter(fn (Product $product) => $product->category)
-                    ->map(fn (Product $product) => [
-                        'key' => 'catalog:'.$product->category->id,
-                        'name' => $product->category->name,
-                        'color' => null,
+            'categories' => ($activeProfile?->group_products_by_category ?? true)
+                ? ($menuCategories->isNotEmpty()
+                    ? $menuCategories->map(fn (PosMenuCategory $category) => [
+                        'key' => 'menu:'.$category->id,
+                        'name' => $category->name,
+                        'color' => $category->color,
                     ])
-                    ->unique('key')
-                    ->sortBy('name')
-                    ->values()),
-            'productCatalog' => $products->map(function (Product $product) use ($priceRules, $comboMap, $productTagMap, $menuCategoryMap, $companyId, $branchId, $session) {
+                    : $catalogCategories
+                        ->map(fn (ProductCategory $category) => [
+                            'key' => 'catalog:'.$category->id,
+                            'name' => $category->name,
+                            'color' => null,
+                        ])
+                        ->values())
+                : collect(),
+            'productCatalogTotal' => $productCatalogTotal,
+            'productCatalog' => $products->map(function (Product $product) use ($priceRules, $comboMap, $productTagMap, $menuCategoryMap, $saleableByProduct, $companyId, $branchId, $session) {
                 $menuFilters = collect($menuCategoryMap[$product->id] ?? []);
                 $tagBadges = collect($productTagMap[$product->id] ?? [])->values();
                 /** @var PosComboChoice|null $combo */
@@ -307,7 +468,7 @@ class PosController extends Controller
                     'name' => $product->name,
                     'sku' => $product->sku,
                     'barcode' => $product->barcode,
-                    'image_url' => $product->image_url,
+                    'image_url' => ($activeProfile?->show_product_images ?? true) ? $product->image_url : null,
                     'price' => $displayPrice,
                     'base_price' => $basePrice,
                     'type' => $product->type,
@@ -338,6 +499,11 @@ class PosController extends Controller
             'paymentMethodConfigs' => $methodConfigs->values()->all(),
             'allowDraftOrders' => $activeProfile?->allow_draft_orders ?? true,
             'autoPrintReceipt' => $activeProfile?->auto_print_receipt ?? true,
+            'stockPolicy' => $activeProfile?->stock_policy ?? 'block',
+            'showStockQuantity' => $activeProfile?->show_stock_quantity ?? true,
+            'quickCashPayment' => $activeProfile?->quick_cash_payment ?? false,
+            'cashRoundingEnabled' => $activeProfile?->cash_rounding_enabled ?? false,
+            'cashRoundingPrecision' => (float) ($activeProfile?->cash_rounding_precision ?? 5),
             'paymentAccounts' => $paymentAccounts->map(fn (CashAccount $account) => [
                 'id' => $account->id,
                 'name' => $account->name,
@@ -358,7 +524,12 @@ class PosController extends Controller
         $user = $request->user();
         abort_if(! $companyId || ! $branchId || ! $user, 403);
 
-        $session = $this->resolveAccessibleOpenSession($companyId, $branchId, $user->id, $this->requestedSessionId($request));
+        $session = $this->resolveAccessibleOpenSession(
+            $companyId,
+            $branchId,
+            $user->id,
+            $this->requestedSessionId($request),
+        );
         if (! $session) {
             return response()->json([
                 'message' => 'Aucune session de caisse ouverte n est accessible pour actualiser le stock.',
@@ -385,6 +556,117 @@ class PosController extends Controller
                     ->values(),
             ])
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    }
+
+    public function searchSaleProducts(CurrentWorkspace $workspace, Request $request): JsonResponse
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        $user = $request->user();
+        abort_if(! $companyId || ! $branchId || ! $user, 403);
+
+        $session = $this->resolveAccessibleOpenSession(
+            $companyId,
+            $branchId,
+            $user->id,
+            $this->requestedSessionId($request),
+        );
+        abort_if(! $session, 403);
+
+        $term = trim((string) $request->query('q', ''));
+        $category = trim((string) $request->query('category', ''));
+        $limit = min(max($request->integer('limit', 24), 8), 40);
+        $page = max($request->integer('page', 1), 1);
+        $hasProductParent = Schema::hasColumn('products', 'parent_id');
+        $relations = ['category'];
+        $columns = [
+            'id', 'company_id', 'category_id', 'name', 'sku', 'barcode',
+            'image_path', 'image_disk', 'sale_price', 'type', 'unit', 'tracking_type',
+        ];
+        if ($hasProductParent) {
+            $relations[] = 'parent';
+            array_splice($columns, 2, 0, ['parent_id']);
+        }
+
+        $query = Product::query()
+            ->with($relations)
+            ->where('company_id', $companyId)
+            ->saleable();
+
+        if ($term !== '') {
+            $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term).'%';
+            $query->where(function ($search) use ($like): void {
+                $search->where('name', 'like', $like)
+                    ->orWhere('sku', 'like', $like)
+                    ->orWhere('barcode', 'like', $like);
+            });
+        }
+
+        if (str_starts_with($category, 'catalog:')) {
+            $query->where('category_id', (int) substr($category, 8));
+        } elseif (str_starts_with($category, 'menu:')) {
+            $menuCategory = PosMenuCategory::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->find((int) substr($category, 5));
+            $query->whereIn('id', collect($menuCategory?->product_ids ?? [])->map(fn ($id) => (int) $id)->all());
+        }
+
+        $total = (clone $query)->count();
+        $pages = max((int) ceil($total / $limit), 1);
+        $page = min($page, $pages);
+        if ($term !== '') {
+            $query->orderByRaw('CASE WHEN barcode = ? OR sku = ? THEN 0 WHEN name LIKE ? THEN 1 ELSE 2 END', [$term, $term, $term.'%']);
+        }
+        $products = $query->orderBy('name')->forPage($page, $limit)->get($columns);
+        $activeProfile = $this->posService->activeProfile($companyId, $branchId);
+        $saleableByProduct = $this->saleableQtyByProduct($products, $companyId, $branchId, $session->warehouse_id);
+        $priceRules = $this->pricingService->rulesForPriceList(
+            $companyId,
+            $activeProfile?->price_list_id,
+            $products->pluck('id')->all(),
+        );
+
+        $payload = $products->map(function (Product $product) use ($activeProfile, $priceRules, $saleableByProduct, $category) {
+            $basePrice = $this->pricingService->resolveGroupedPrice(
+                $priceRules->get($product->id),
+                1,
+                (float) $product->sale_price,
+            );
+            $filterKeys = collect($product->category_id ? ['catalog:'.$product->category_id] : []);
+            if (str_starts_with($category, 'menu:')) {
+                $filterKeys->push($category);
+            }
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'barcode' => $product->barcode,
+                'image_url' => ($activeProfile?->show_product_images ?? true) ? $product->image_url : null,
+                'price' => $basePrice,
+                'base_price' => $basePrice,
+                'type' => $product->type,
+                'unit' => $product->unit,
+                'category_id' => $product->category_id,
+                'category_name' => $product->category?->name,
+                'filter_keys' => $filterKeys->unique()->values()->all(),
+                'menu_category_names' => [],
+                'tag_names' => [],
+                'tag_badges' => [],
+                'combo' => null,
+                'available_qty' => $product->type === 'stockable'
+                    ? round((float) ($saleableByProduct[$product->id] ?? 0), 3)
+                    : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'products' => $payload,
+            'total' => $total,
+            'page' => $page,
+            'pages' => $pages,
+        ]);
     }
 
     public function storeSale(Request $request, CurrentWorkspace $workspace): RedirectResponse|JsonResponse
@@ -634,6 +916,7 @@ class PosController extends Controller
                 'message' => 'Ce brouillon ne peut pas etre supprime car sa session n est plus ouverte.',
             ], 422);
         }
+        abort_if($user->hasRole('cashier') && (int) $session->opened_by !== (int) $user->id, 403);
 
         $this->posService->deleteDraft($session, $draft);
 
@@ -654,6 +937,7 @@ class PosController extends Controller
         $branchId = $workspace->branchId();
         $user = $request->user();
         abort_if(! $companyId || ! $branchId || ! $user || $sale->company_id !== $companyId || $sale->sale_channel !== 'pos', 403);
+        $this->authorizeCashierSale($sale, $user);
 
         $session = $this->resolveAccessibleOpenSession($companyId, $branchId, $user->id, $this->requestedSessionId($request));
         if (! $session) {
@@ -661,7 +945,13 @@ class PosController extends Controller
         }
 
         $sale->load(['customer', 'items.product', 'items.posReturnItems', 'posSession.cashAccount', 'posReturns.items']);
-        $products = Product::query()->with(['category', 'parent'])->where('company_id', $companyId)->saleable()->orderBy('name')->get();
+        $products = Product::query()
+            ->with(['category', 'parent'])
+            ->where('company_id', $companyId)
+            ->saleable()
+            ->orderBy('name')
+            ->limit(60)
+            ->get();
         $returnableItems = $this->posService->returnableItems($sale);
 
         return view('pos.return', [
@@ -670,12 +960,12 @@ class PosController extends Controller
             'returnableItems' => $returnableItems,
             'methods' => $this->posService->methodOptions(),
             'summary' => $this->posService->summary($session),
-            'categories' => $products
-                ->filter(fn (Product $product) => $product->category)
-                ->map(fn (Product $product) => ['id' => $product->category->id, 'name' => $product->category->name])
-                ->unique('id')
-                ->sortBy('name')
-                ->values(),
+            'categories' => ProductCategory::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->whereHas('products', fn ($query) => $query->saleable())
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'exchangeCatalog' => $products->map(fn (Product $product) => [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -697,6 +987,7 @@ class PosController extends Controller
         $branchId = $workspace->branchId();
         $user = $request->user();
         abort_if(! $companyId || ! $branchId || ! $user || $sale->company_id !== $companyId || $sale->sale_channel !== 'pos', 403);
+        $this->authorizeCashierSale($sale, $user);
 
         $session = $this->resolveAccessibleOpenSession($companyId, $branchId, $user->id, $this->requestedSessionId($request));
         if (! $session) {
@@ -788,16 +1079,18 @@ class PosController extends Controller
 
         return redirect()->route('pos.show', $session)->with('success', $message);
     }
-    public function receipt(SalesInvoice $sale, CurrentWorkspace $workspace): View
+    public function receipt(SalesInvoice $sale, CurrentWorkspace $workspace, Request $request): View
     {
         abort_if($workspace->companyId() !== $sale->company_id || $sale->sale_channel !== 'pos', 403);
+        $this->authorizeCashierSale($sale, $request->user());
 
         return view('pos.receipt', $this->receiptData($sale));
     }
 
-    public function thermalReceipt(SalesInvoice $sale, CurrentWorkspace $workspace): View
+    public function thermalReceipt(SalesInvoice $sale, CurrentWorkspace $workspace, Request $request): View
     {
         abort_if($workspace->companyId() !== $sale->company_id || $sale->sale_channel !== 'pos', 403);
+        $this->authorizeCashierSale($sale, $request->user());
 
         return view('pos.thermal', $this->receiptData($sale));
     }
@@ -824,9 +1117,31 @@ class PosController extends Controller
         ]);
     }
 
-    public function countSheet(PosSession $session, CurrentWorkspace $workspace): View
+    public function printReport(CurrentWorkspace $workspace, Request $request): View
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
+
+        $filters = [
+            'date' => $request->string('date')->value() ?: now()->toDateString(),
+            'warehouse_id' => $request->integer('warehouse_id') ?: null,
+            'cash_account_id' => $request->integer('cash_account_id') ?: null,
+        ];
+
+        return view('pos.report-print', [
+            'company' => $workspace->company(),
+            'branch' => $workspace->branch(),
+            'report' => $this->posService->dailyReport($companyId, $branchId, $filters),
+            'filters' => $filters,
+            'methodOptions' => $this->posService->methodOptions(),
+        ]);
+    }
+
+    public function countSheet(PosSession $session, CurrentWorkspace $workspace, Request $request): View
     {
         abort_if($workspace->companyId() !== $session->company_id, 403);
+        abort_if($request->user()?->hasRole('cashier') && (int) $session->opened_by !== (int) $request->user()->id, 403);
 
         $session->load(['branch', 'cashAccount', 'warehouse', 'opener', 'closer']);
 
@@ -837,9 +1152,43 @@ class PosController extends Controller
             'cashDenominations' => $this->posService->cashDenominations(),
         ]);
     }
+
+    public function printSession(PosSession $session, CurrentWorkspace $workspace, Request $request): View
+    {
+        abort_if($workspace->companyId() !== $session->company_id, 403);
+        abort_if($request->user()?->hasRole('cashier') && (int) $session->opened_by !== (int) $request->user()->id, 403);
+
+        $session->load([
+            'branch',
+            'cashAccount',
+            'warehouse',
+            'opener',
+            'closer',
+            'unlocker',
+            'salesInvoices.customer',
+            'salesInvoices.creator',
+            'salesInvoices.items.product',
+            'salesInvoices.paymentAllocations.payment.cashAccount',
+            'payments.cashAccount',
+            'payments.creator',
+            'returns.invoice',
+            'returns.exchangeInvoice',
+            'returns.payment.cashAccount',
+        ]);
+
+        return view('pos.session-print', [
+            'company' => $workspace->company(),
+            'branch' => $workspace->branch(),
+            'session' => $session,
+            'summary' => $this->posService->summary($session),
+            'methodOptions' => $this->posService->methodOptions(),
+            'cashDenominations' => $this->posService->cashDenominations(),
+        ]);
+    }
     public function close(Request $request, PosSession $session, CurrentWorkspace $workspace): RedirectResponse
     {
         abort_if($workspace->companyId() !== $session->company_id, 403);
+        abort_if($request->user()?->hasRole('cashier') && (int) $session->opened_by !== (int) $request->user()->id, 403);
 
         $rules = [
             'closing_notes' => ['nullable', 'string'],
@@ -856,12 +1205,23 @@ class PosController extends Controller
         $data['counted_methods'] = $data['counted_methods'] ?? [];
         $data['variance_notes'] = $data['variance_notes'] ?? [];
 
-        $oldValues = [
-            'status' => $session->status,
-            'expected_amount' => (float) ($session->expected_amount ?? 0),
-            'closing_amount' => (float) ($session->closing_amount ?? 0),
-            'variance_amount' => (float) ($session->variance_amount ?? 0),
-        ];
+        $activeProfile = $this->posService->activeProfile($session->company_id, $session->branch_id);
+        if ($activeProfile?->max_cash_variance !== null) {
+            $expected = (float) $this->posService->summary($session)['expected_amount'];
+            $counted = collect($data['counted_methods'])->sum(fn ($amount) => (float) ($amount ?? 0));
+            $cashBreakdown = collect($data['closing_cash_breakdown'] ?? [])
+                ->sum(fn ($count, $denomination) => (float) $count * (float) $denomination);
+            if ($cashBreakdown > 0) {
+                $counted -= (float) ($data['counted_methods']['cash'] ?? 0);
+                $counted += $cashBreakdown;
+            }
+
+            if (abs($counted - $expected) > (float) $activeProfile->max_cash_variance) {
+                throw ValidationException::withMessages([
+                    'closing_notes' => 'L ecart de caisse depasse la limite autorisee de '.number_format((float) $activeProfile->max_cash_variance, 0, ',', ' ').' XOF. Un responsable doit controler la cloture.',
+                ]);
+            }
+        }
 
         $session = $this->posService->closeSession($session, $data, $request->user());
 
@@ -875,14 +1235,6 @@ class PosController extends Controller
             'closing_cash_breakdown' => $session->closing_cash_breakdown,
             'variance_breakdown' => $session->variance_breakdown,
             'variance_notes' => $session->variance_notes,
-            'reason' => $session->closing_notes,
-            'old_values' => $oldValues,
-            'new_values' => [
-                'status' => $session->status,
-                'expected_amount' => (float) $session->expected_amount,
-                'closing_amount' => (float) $session->closing_amount,
-                'variance_amount' => (float) $session->variance_amount,
-            ],
         ]);
 
         return redirect()->route('pos.show', $session)->with('success', 'Session de caisse cloturee avec succes.');
@@ -900,6 +1252,9 @@ class PosController extends Controller
             'status' => $session->status,
             'closed_at' => $session->closed_at?->toIso8601String(),
             'closed_by' => $session->closed_by,
+            'expected_amount' => $session->expected_amount,
+            'closing_amount' => $session->closing_amount,
+            'variance_amount' => $session->variance_amount,
         ];
 
         $session = $this->posService->unlockSession($session, $data['unlock_reason'], $request->user());
@@ -934,10 +1289,25 @@ class PosController extends Controller
                 ->where('company_id', $companyId)
                 ->where('branch_id', $branchId)
                 ->where('status', 'open')
+                ->when(User::query()->find($userId)?->hasRole('cashier'), fn ($query) => $query->where('opened_by', $userId))
                 ->find($requestedSessionId);
         }
 
         return $this->posService->currentOpenSession($companyId, $branchId, $userId);
+    }
+
+    private function authorizeCashierSale(SalesInvoice $sale, ?User $user): void
+    {
+        if (! $user?->hasRole('cashier')) {
+            return;
+        }
+
+        $belongsToCashier = PosSession::query()
+            ->whereKey($sale->pos_session_id)
+            ->where('opened_by', $user->id)
+            ->exists();
+
+        abort_unless($belongsToCashier, 403);
     }
     private function saleableQtyByProduct(Collection $products, int $companyId, int $branchId, ?int $warehouseId = null): array
     {
@@ -1029,6 +1399,7 @@ class PosController extends Controller
             'payments' => $payments,
             'payment' => $payments->first(),
             'preparationTickets' => $invoice->preparationTickets,
+            'receiptProfile' => $this->posService->activeProfile($invoice->company_id, $invoice->branch_id),
         ];
     }
 
@@ -1057,19 +1428,4 @@ class PosController extends Controller
         ];
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

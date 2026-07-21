@@ -3,10 +3,15 @@
 @section('title', 'Feuille de comptage caisse - Nema ERP')
 
 @section('content')
-    @php($openingCashBreakdown = is_array($session->opening_cash_breakdown) ? $session->opening_cash_breakdown : [])
-    @php($openingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($openingCashBreakdown[$denomination] ?? 0)) > 0)
-    @php($closingCashBreakdown = is_array($session->closing_cash_breakdown) ? $session->closing_cash_breakdown : [])
-    @php($closingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($closingCashBreakdown[$denomination] ?? 0)) > 0)
+    @php
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $cashierLabel = $businessVocabulary['cashier'] ?? 'Caissier';
+        $openingCashBreakdown = is_array($session->opening_cash_breakdown) ? $session->opening_cash_breakdown : [];
+        $openingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($openingCashBreakdown[$denomination] ?? 0)) > 0;
+        $closingCashBreakdown = is_array($session->closing_cash_breakdown) ? $session->closing_cash_breakdown : [];
+        $closingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($closingCashBreakdown[$denomination] ?? 0)) > 0;
+    @endphp
 
     <header class="doc-header">
         <div>
@@ -28,7 +33,7 @@
     <div class="grid grid-2">
         <section class="panel">
             <h2>Contexte session</h2>
-            <div>Caissier ouverture : <strong>{{ $session->opener?->name }}</strong></div>
+            <div>{{ $cashierLabel }} ouverture : <strong>{{ $session->opener?->name }}</strong></div>
             <div>Montant initial : <strong>{{ number_format((float) $session->opening_amount, 0, ',', ' ') }} XOF</strong></div>
             <div>Tickets : <strong>{{ number_format($summary['sales_count'], 0, ',', ' ') }}</strong></div>
             <div>Retours : <strong>{{ number_format($summary['return_count'], 0, ',', ' ') }}</strong></div>
@@ -36,9 +41,9 @@
         </section>
         <section class="panel">
             <h2>Totaux a controler</h2>
-            <div>Brut articles : <strong>{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }} XOF</strong></div>
+            <div>Brut {{ strtolower($productsLabel) }} : <strong>{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Remises : <strong>{{ number_format($summary['discount_total'], 0, ',', ' ') }} XOF</strong></div>
-            <div>Ventes nettes : <strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
+            <div>{{ $salesLabel }} nettes : <strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Retours : <strong>{{ number_format($summary['return_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Encaisse attendu : <strong>{{ number_format($summary['expected_amount'], 0, ',', ' ') }} XOF</strong></div>
         </section>
@@ -112,7 +117,7 @@
     </table>
 
     <div class="signatures">
-        <div class="signature-box">Caissier</div>
+        <div class="signature-box">{{ $cashierLabel }}</div>
         <div class="signature-box">Controleur / Responsable</div>
     </div>
 

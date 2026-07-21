@@ -39,8 +39,8 @@ class SaasRegistrationTest extends TestCase
             'name' => 'Awa Traore',
             'email' => 'awa@example.com',
             'phone' => '+22370000000',
-            'password' => 'NemaPass2026',
-            'password_confirmation' => 'NemaPass2026',
+            'password' => 'NemaPass2026!',
+            'password_confirmation' => 'NemaPass2026!',
         ])->assertRedirect(route('saas.register.company'));
 
         $this->post(route('saas.register.company.store'), [

@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Clients - Nema ERP')
-@section('page-title', 'Clients')
+@php
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+@endphp
+
+@section('title', $customersLabel.' - Nema ERP')
+@section('page-title', $customersLabel)
 
 @section('content')
     @php
@@ -9,27 +14,27 @@
         $currentView = $filters['view'] ?? 'list';
 
         if (auth()->user()?->hasPermission('imports.manage')) {
-            $headerActions[] = ['label' => 'Importer CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
+            $headerActions[] = ['label' => 'Importer Excel/CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
         }
 
         if (auth()->user()?->hasPermission('customers.manage')) {
-            $headerActions[] = ['label' => 'Nouveau client', 'url' => route('customers.create'), 'style' => 'primary'];
+            $headerActions[] = ['label' => 'Nouveau '.$customerLabel, 'url' => route('customers.create'), 'style' => 'primary'];
         }
     @endphp
 
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Clients',
-        'title' => 'Portefeuille clients',
-        'description' => 'Recherche, suivi commercial et recouvrement du portefeuille client.',
+        'eyebrow' => $customersLabel,
+        'title' => 'Portefeuille '.$customersLabel,
+        'description' => 'Recherche, suivi commercial et recouvrement du portefeuille.',
         'actions' => $headerActions,
     ])
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Clients</div><div class="stat-value">{{ $summary['customer_count'] }}</div></div>
-        <div class="card"><div class="muted">Clients actifs</div><div class="stat-value">{{ $summary['active_count'] }}</div></div>
+        <div class="card"><div class="muted">{{ $customersLabel }}</div><div class="stat-value">{{ $summary['customer_count'] }}</div></div>
+        <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active_count'] }}</div></div>
         <div class="card"><div class="muted">Solde ouvert</div><div class="stat-value">{{ number_format($summary['open_balance_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Echu</div><div class="stat-value">{{ number_format($summary['overdue_balance_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Clients en retard</div><div class="stat-value">{{ $summary['overdue_customer_count'] }}</div></div>
+        <div class="card"><div class="muted">En retard</div><div class="stat-value">{{ $summary['overdue_customer_count'] }}</div></div>
     </div>
 
     <section class="card" style="margin-bottom:18px;">
@@ -76,7 +81,7 @@
         <div class="muted">Choisis la lecture qui convient le mieux au suivi portefeuille.</div>
         @include('partials.erp-view-switcher', [
             'view' => $currentView,
-            'label' => 'Vue clients',
+            'label' => 'Vue '.$customersLabel,
             'listUrl' => route('customers.index', array_merge(request()->query(), ['view' => 'list'])),
             'kanbanUrl' => route('customers.index', array_merge(request()->query(), ['view' => 'kanban'])),
         ])

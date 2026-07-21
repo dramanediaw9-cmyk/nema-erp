@@ -28,4 +28,3 @@ require __DIR__.'/modules/manufacturing.php';
 require __DIR__.'/modules/commerce.php';
 
 require __DIR__.'/modules/pos.php';
-

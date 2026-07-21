@@ -46,10 +46,7 @@ class DashboardRoleSearchTest extends TestCase
         $this->actingAs($cashier)
             ->withSession($this->workspaceSession($cashier))
             ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('Routine caisse')
-            ->assertSee('Caisse comptoir')
-            ->assertSee('Situation operationnelle');
+            ->assertRedirect(route('pos.index'));
 
         $this->actingAs($manager)
             ->withSession($this->workspaceSession($manager))

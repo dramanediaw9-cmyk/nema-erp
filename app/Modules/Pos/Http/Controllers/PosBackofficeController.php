@@ -20,6 +20,7 @@ use App\Support\PaymentMethodCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class PosBackofficeController extends Controller
@@ -29,13 +30,14 @@ class PosBackofficeController extends Controller
     ) {
     }
 
-    public function orders(CurrentWorkspace $workspace): View
+    public function orders(CurrentWorkspace $workspace, Request $request): View
     {
         [$companyId, $branchId] = $this->workspaceIds($workspace);
+        $cashierId = $request->user()?->hasRole('cashier') ? $request->user()->id : null;
 
         return view('pos.backoffice.orders', [
             'menu' => $this->backofficeService->moduleMenu(),
-            'data' => $this->backofficeService->orders($companyId, $branchId),
+            'data' => $this->backofficeService->orders($companyId, $branchId, $cashierId),
         ]);
     }
 
@@ -69,14 +71,16 @@ class PosBackofficeController extends Controller
         ]);
     }
 
-    public function products(CurrentWorkspace $workspace): View
+    public function products(CurrentWorkspace $workspace, Request $request): View
     {
         [$companyId] = $this->workspaceIds($workspace);
+        $productSearch = trim($request->string('product_search')->value());
 
         return view('pos.backoffice.products', [
             'menu' => $this->backofficeService->moduleMenu(),
             'data' => $this->backofficeService->products($companyId),
-            'productOptions' => $this->backofficeService->productOptions($companyId),
+            'productOptions' => $this->backofficeService->productOptions($companyId, $productSearch),
+            'productOptionsSearch' => $productSearch,
         ]);
     }
 
@@ -430,7 +434,8 @@ class PosBackofficeController extends Controller
         }
 
         $data = $request->validate([
-            'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_profiles', 'code')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'profile_id' => ['nullable', Rule::exists('pos_profiles', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
+            'code' => ['nullable', 'string', 'max:40', Rule::unique('pos_profiles', 'code')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($request->integer('profile_id') ?: null)],
             'name' => ['required', 'string', 'max:120'],
             'branch_id' => ['nullable', Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
             'warehouse_id' => ['nullable', Rule::exists('warehouses', 'id')->where(fn ($query) => $query->where('company_id', $companyId))],
@@ -447,6 +452,21 @@ class PosBackofficeController extends Controller
             'open_with_cash_control' => ['nullable', 'boolean'],
             'auto_print_receipt' => ['nullable', 'boolean'],
             'allow_draft_orders' => ['nullable', 'boolean'],
+            'stock_policy' => ['nullable', Rule::in(['block', 'warn', 'allow'])],
+            'show_stock_quantity' => ['nullable', 'boolean'],
+            'show_product_images' => ['nullable', 'boolean'],
+            'group_products_by_category' => ['nullable', 'boolean'],
+            'share_open_orders' => ['nullable', 'boolean'],
+            'quick_cash_payment' => ['nullable', 'boolean'],
+            'cash_rounding_enabled' => ['nullable', 'boolean'],
+            'cash_rounding_precision' => ['nullable', 'numeric', 'min:0.01', 'max:1000'],
+            'max_cash_variance' => ['nullable', 'numeric', 'min:0'],
+            'allow_tips' => ['nullable', 'boolean'],
+            'receipt_show_cashier' => ['nullable', 'boolean'],
+            'receipt_show_address' => ['nullable', 'boolean'],
+            'receipt_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'receipt_header' => ['nullable', 'string', 'max:255'],
+            'receipt_footer' => ['nullable', 'string', 'max:255'],
             'is_default' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -455,7 +475,20 @@ class PosBackofficeController extends Controller
             PosProfile::query()->where('company_id', $companyId)->update(['is_default' => false]);
         }
 
-        PosProfile::query()->create([
+        $profile = filled($data['profile_id'] ?? null)
+            ? PosProfile::query()->where('company_id', $companyId)->findOrFail($data['profile_id'])
+            : new PosProfile(['company_id' => $companyId]);
+
+        $receiptLogoPath = $profile->receipt_logo_path;
+        if ($request->hasFile('receipt_logo')) {
+            $newLogoPath = $request->file('receipt_logo')->store('pos/receipt-logos', 'public');
+            if ($receiptLogoPath) {
+                Storage::disk('public')->delete($receiptLogoPath);
+            }
+            $receiptLogoPath = $newLogoPath;
+        }
+
+        $profile->fill([
             'company_id' => $companyId,
             'branch_id' => $data['branch_id'] ?? $branchId,
             'warehouse_id' => $data['warehouse_id'] ?? null,
@@ -465,19 +498,35 @@ class PosBackofficeController extends Controller
             'note_template_id' => $data['note_template_id'] ?? null,
             'default_printer_id' => $data['default_printer_id'] ?? null,
             'default_display_id' => $data['default_display_id'] ?? null,
-            'code' => $data['code'] ?: $this->backofficeService->nextCode('pos_profiles', 'POS', $companyId),
+            'code' => $data['code'] ?: ($profile->code ?: $this->backofficeService->nextCode('pos_profiles', 'POS', $companyId)),
             'name' => $data['name'],
             'active_payment_methods' => array_values($data['active_payment_methods'] ?? []),
             'cash_denomination_preset' => $data['cash_denomination_preset'] ?? [],
             'open_with_cash_control' => $request->boolean('open_with_cash_control', true),
             'auto_print_receipt' => $request->boolean('auto_print_receipt', true),
             'allow_draft_orders' => $request->boolean('allow_draft_orders', true),
+            'stock_policy' => $data['stock_policy'] ?? 'block',
+            'show_stock_quantity' => $request->boolean('show_stock_quantity', true),
+            'show_product_images' => $request->boolean('show_product_images', true),
+            'group_products_by_category' => $request->boolean('group_products_by_category', true),
+            'share_open_orders' => $request->boolean('share_open_orders'),
+            'quick_cash_payment' => $request->boolean('quick_cash_payment'),
+            'cash_rounding_enabled' => $request->boolean('cash_rounding_enabled'),
+            'cash_rounding_precision' => $data['cash_rounding_precision'] ?? 5,
+            'max_cash_variance' => $data['max_cash_variance'] ?? null,
+            'allow_tips' => $request->boolean('allow_tips'),
+            'receipt_show_cashier' => $request->boolean('receipt_show_cashier', true),
+            'receipt_show_address' => $request->boolean('receipt_show_address', true),
+            'receipt_logo_path' => $receiptLogoPath,
+            'receipt_header' => $data['receipt_header'] ?? null,
+            'receipt_footer' => $data['receipt_footer'] ?? null,
             'is_default' => $request->boolean('is_default'),
             'is_active' => true,
             'notes' => $data['notes'] ?? null,
         ]);
+        $profile->save();
 
-        return back()->with('success', 'Profil point de vente enregistre avec succes.');
+        return back()->with('success', 'Configuration de la caisse enregistree avec succes.');
     }
 
     private function workspaceIds(CurrentWorkspace $workspace): array

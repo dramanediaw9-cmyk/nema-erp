@@ -189,6 +189,21 @@ class PosService
                 ]);
             }
 
+            $occupiedRegister = PosSession::query()
+                ->with('opener')
+                ->where('company_id', $companyId)
+                ->where('branch_id', $branchId)
+                ->where('cash_account_id', $cashAccount->id)
+                ->where('status', 'open')
+                ->lockForUpdate()
+                ->first();
+
+            if ($occupiedRegister) {
+                throw ValidationException::withMessages([
+                    'cash_account_id' => 'Cette caisse est deja ouverte par '.($occupiedRegister->opener?->name ?: 'un autre utilisateur').'. Choisis une autre caisse.',
+                ]);
+            }
+
             $this->ensureSequence($companyId, 'pos_session', 'POS-{BRANCH}-{YEAR}-');
 
             return PosSession::query()->create([
@@ -283,24 +298,28 @@ class PosService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($session->isOpen()) {
+            if (! $session->isClosed()) {
                 throw ValidationException::withMessages([
-                    'session' => 'Cette session de caisse est deja ouverte.',
-                ]);
-            }
-
-            $cleanReason = trim($reason);
-            if ($cleanReason === '') {
-                throw ValidationException::withMessages([
-                    'unlock_reason' => 'Le motif de deverrouillage est obligatoire.',
+                    'session' => 'Seule une session cloturee peut etre deverrouillee.',
                 ]);
             }
 
             $session->update([
                 'status' => 'open',
+                'expected_amount' => null,
+                'expected_breakdown' => null,
+                'closing_amount' => null,
+                'counted_breakdown' => null,
+                'closing_cash_breakdown' => null,
+                'variance_amount' => null,
+                'variance_breakdown' => null,
+                'variance_notes' => null,
+                'closing_notes' => null,
+                'closed_at' => null,
+                'closed_by' => null,
                 'unlocked_at' => now(),
                 'unlocked_by' => $user->id,
-                'unlock_reason' => $cleanReason,
+                'unlock_reason' => trim($reason),
             ]);
 
             return $session->fresh(['cashAccount', 'warehouse', 'opener', 'closer', 'unlocker', 'payments', 'returns']);
@@ -359,14 +378,22 @@ class PosService
                 : $this->walkInCustomer($session->company_id);
 
             $items = $this->salesInvoiceService->normalizeItems($session->company_id, $itemsInput, null, $user);
-            $this->salesInvoiceService->assertCreatable(
-                $session->company_id,
-                $session->branch_id,
-                $items,
-                $session->warehouse_id,
-                null,
-                false,
-            );
+            $profile = $this->activeProfile($session->company_id, $session->branch_id);
+            $stockPolicy = $profile?->stock_policy ?: 'block';
+            $stockControlledItems = $stockPolicy === 'block'
+                ? $items
+                : $items->filter(fn (array $item) => in_array($item['product']->tracking_type, ['lot', 'serial'], true));
+
+            if ($stockControlledItems->isNotEmpty()) {
+                $this->salesInvoiceService->assertCreatable(
+                    $session->company_id,
+                    $session->branch_id,
+                    $stockControlledItems,
+                    $session->warehouse_id,
+                    null,
+                    false,
+                );
+            }
 
             $invoice = $this->salesInvoiceService->createValidated(
                 companyId: $session->company_id,
@@ -382,6 +409,7 @@ class PosService
                     'pos_sync_key' => $syncKey,
                     'discount_type' => $payload['discount_type'] ?? 'none',
                     'discount_value' => $payload['discount_value'] ?? 0,
+                    'allow_negative_stock' => $stockPolicy !== 'block',
                 ],
                 items: $items,
                 user: $user,
@@ -802,7 +830,7 @@ class PosService
     {
         return DB::transaction(function () use ($session, $invoice, $payload, $itemsInput, $exchangeItemsInput, $user) {
             $session = PosSession::query()->with(['cashAccount', 'warehouse'])->whereKey($session->id)->lockForUpdate()->firstOrFail();
-            $invoice = SalesInvoice::query()->with(['customer', 'posSession', 'items.product', 'items.posReturnItems', 'posReturns.items'])->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $invoice = SalesInvoice::query()->with(['customer', 'items.product', 'items.posReturnItems', 'posReturns.items'])->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
 
             if (! $session->isOpen()) {
                 throw ValidationException::withMessages([
@@ -813,12 +841,6 @@ class PosService
             if ($invoice->sale_channel !== 'pos' || $invoice->status !== 'validated') {
                 throw ValidationException::withMessages([
                     'sale' => 'Seuls les tickets POS valides peuvent etre retournes.',
-                ]);
-            }
-
-            if ($invoice->posSession && ! $invoice->posSession->isOpen()) {
-                throw ValidationException::withMessages([
-                    'sale' => 'Caisse fermee : impossible de modifier, annuler ou retourner ce ticket POS.',
                 ]);
             }
 
@@ -1099,7 +1121,7 @@ class PosService
         ];
     }
 
-    public function recentInvoices(PosSession $session, int $limit = 25): EloquentCollection
+    public function recentInvoices(PosSession $session, int $limit = 60): EloquentCollection
     {
         return $session->salesInvoices()
             ->with([
@@ -1107,164 +1129,12 @@ class PosService
                 'creator',
                 'items.product',
                 'paymentAllocations.payment.cashAccount',
-                'posReturns.items.product',
-                'posReturns.payment.cashAccount',
-                'posReturns.exchangeInvoice',
-                'posReturns.creator',
+                'posReturns',
             ])
             ->latest('invoice_date')
             ->latest('id')
             ->limit($limit)
             ->get();
-    }
-
-    public function sessionTicketRows(PosSession $session, int $limit = 25): Collection
-    {
-        $methods = $this->methodOptions();
-
-        return $this->recentInvoices($session, $limit)
-            ->map(function (SalesInvoice $invoice) use ($session, $methods): array {
-                $payments = $invoice->paymentAllocations
-                    ->pluck('payment')
-                    ->filter(fn ($payment) => $payment instanceof Payment)
-                    ->unique('id')
-                    ->sortBy('payment_date')
-                    ->values();
-                $returns = $invoice->posReturns
-                    ->where('status', 'processed')
-                    ->values();
-                $returnedAmount = round((float) $returns->sum('total'), 2);
-                $status = $this->ticketStatus($invoice, $returnedAmount);
-                $ticketReference = $payments->first()?->reference
-                    ?: $invoice->pos_sync_key
-                    ?: $invoice->invoice_number;
-                $productText = $invoice->items
-                    ->map(fn (SalesInvoiceItem $item) => trim((string) ($item->description ?: $item->product?->name)))
-                    ->filter()
-                    ->implode(' ');
-                $searchText = collect([
-                    $invoice->invoice_number,
-                    $ticketReference,
-                    $invoice->customer?->name,
-                    $invoice->invoice_date?->format('d/m/Y'),
-                    $invoice->created_at?->format('H:i'),
-                    $productText,
-                    $status['label'],
-                ])->filter()->implode(' ');
-
-                return [
-                    'id' => $invoice->id,
-                    'date' => $invoice->invoice_date?->format('d/m/Y') ?? $invoice->created_at?->format('d/m/Y'),
-                    'time' => $invoice->created_at?->format('H:i:s') ?? $invoice->invoice_date?->format('H:i:s'),
-                    'invoice_number' => $invoice->invoice_number,
-                    'ticket_reference' => $ticketReference,
-                    'customer' => $invoice->customer?->name ?? 'Client comptoir',
-                    'cashier' => $invoice->creator?->name ?? $session->opener?->name ?? 'Operateur',
-                    'amount' => round((float) $invoice->total, 2),
-                    'amount_paid' => round((float) $invoice->amount_paid, 2),
-                    'balance_due' => round((float) $invoice->balance_due, 2),
-                    'discount_total' => round((float) $invoice->discount_total, 2),
-                    'returned_amount' => $returnedAmount,
-                    'status' => $status,
-                    'is_locked' => ! $session->isOpen(),
-                    'can_refund' => $session->isOpen() && $status['key'] !== 'cancelled',
-                    'can_pay' => $session->isOpen() && (float) $invoice->balance_due > 0.009,
-                    'receipt_url' => route('pos.receipt', $invoice),
-                    'thermal_url' => route('pos.receipt.thermal', $invoice),
-                    'return_url' => route('pos.returns.create', ['sale' => $invoice, 'session' => $session->id]),
-                    'payment_url' => route('payments.create', ['type' => 'customer_receipt', 'invoice' => $invoice->id, 'amount' => (float) $invoice->balance_due]),
-                    'search' => str($searchText)->lower()->ascii()->value(),
-                    'items' => $invoice->items->map(fn (SalesInvoiceItem $item): array => [
-                        'description' => $item->description ?: $item->product?->name ?? 'Article',
-                        'code' => $item->product?->barcode ?: $item->product?->sku,
-                        'qty' => round((float) $item->qty, 3),
-                        'unit_price' => round((float) $item->unit_price, 2),
-                        'discount_total' => round((float) $item->discount_total, 2),
-                        'line_total' => round((float) $item->line_total, 2),
-                    ])->values()->all(),
-                    'payments' => $payments->map(fn (Payment $payment): array => [
-                        'date' => $payment->payment_date?->format('d/m/Y') ?? $payment->created_at?->format('d/m/Y'),
-                        'method' => $methods[$payment->method] ?? $payment->method,
-                        'amount' => round((float) $payment->amount, 2),
-                        'direction' => $payment->direction,
-                        'reference' => $payment->reference,
-                        'cash_account' => $payment->cashAccount?->name,
-                    ])->values()->all(),
-                    'returns' => $returns->map(fn (PosReturn $return): array => [
-                        'number' => $return->return_number,
-                        'date' => $return->return_date?->format('d/m/Y'),
-                        'amount' => round((float) $return->total, 2),
-                        'method' => $methods[$return->method] ?? $return->method,
-                        'reason' => $return->notes,
-                        'cashier' => $return->creator?->name,
-                        'items' => $return->items->map(fn (PosReturnItem $item): array => [
-                            'description' => $item->description ?: $item->product?->name ?? 'Article',
-                            'qty' => round((float) $item->qty, 3),
-                            'line_total' => round((float) $item->line_total, 2),
-                        ])->values()->all(),
-                    ])->values()->all(),
-                    'history' => $this->ticketHistory($invoice, $payments, $returns),
-                ];
-            })
-            ->values();
-    }
-
-    private function ticketStatus(SalesInvoice $invoice, float $returnedAmount): array
-    {
-        if ($invoice->status === 'cancelled') {
-            return ['key' => 'cancelled', 'label' => 'Annule', 'tone' => 'danger'];
-        }
-
-        if ($returnedAmount > 0) {
-            return ['key' => 'refunded', 'label' => $returnedAmount >= (float) $invoice->total ? 'Rembourse' : 'Rembourse partiel', 'tone' => 'purple'];
-        }
-
-        if ($invoice->payment_status === 'paid' && (float) $invoice->balance_due <= 0.009) {
-            return ['key' => 'paid', 'label' => 'Paye', 'tone' => 'success'];
-        }
-
-        return ['key' => 'pending', 'label' => 'En attente', 'tone' => 'warning'];
-    }
-
-    private function ticketHistory(SalesInvoice $invoice, Collection $payments, Collection $returns): array
-    {
-        $events = collect([
-            [
-                'date' => $invoice->created_at?->format('d/m/Y H:i'),
-                'label' => 'Ticket cree',
-                'detail' => $invoice->creator?->name ?? 'Operateur',
-            ],
-        ]);
-
-        foreach ($payments as $payment) {
-            if (! $payment instanceof Payment) {
-                continue;
-            }
-
-            $events->push([
-                'date' => $payment->created_at?->format('d/m/Y H:i'),
-                'label' => $payment->direction === 'out' ? 'Remboursement' : 'Paiement',
-                'detail' => number_format((float) $payment->amount, 0, ',', ' ').' XOF',
-            ]);
-        }
-
-        foreach ($returns as $return) {
-            if (! $return instanceof PosReturn) {
-                continue;
-            }
-
-            $events->push([
-                'date' => $return->created_at?->format('d/m/Y H:i'),
-                'label' => 'Retour '.$return->return_number,
-                'detail' => number_format((float) $return->total, 0, ',', ' ').' XOF'.($return->notes ? ' · '.$return->notes : ''),
-            ]);
-        }
-
-        return $events
-            ->filter(fn (array $event) => filled($event['label']))
-            ->sortByDesc('date')
-            ->values()
-            ->all();
     }
 
     public function dailyReport(int $companyId, int $branchId, array $filters): array
@@ -1310,6 +1180,27 @@ class PosService
         $returnsTotal = (float) (clone $returnsQuery)->sum('total');
         $incoming = (float) (clone $paymentsQuery)->where('direction', 'in')->sum('amount');
         $outgoing = (float) (clone $paymentsQuery)->where('direction', 'out')->sum('amount');
+        $estimatedCost = (float) DB::table('sales_invoice_items')
+            ->join('sales_invoices', 'sales_invoices.id', '=', 'sales_invoice_items.sales_invoice_id')
+            ->join('products', 'products.id', '=', 'sales_invoice_items.product_id')
+            ->where('sales_invoices.company_id', $companyId)
+            ->where('sales_invoices.sale_channel', 'pos')
+            ->whereIn('sales_invoices.pos_session_id', $sessionIds)
+            ->whereDate('sales_invoices.invoice_date', $date)
+            ->selectRaw('COALESCE(SUM(sales_invoice_items.qty * products.purchase_price), 0) as estimated_cost')
+            ->value('estimated_cost');
+        $returnedEstimatedCost = (float) DB::table('pos_return_items')
+            ->join('pos_returns', 'pos_returns.id', '=', 'pos_return_items.pos_return_id')
+            ->join('products', 'products.id', '=', 'pos_return_items.product_id')
+            ->where('pos_returns.company_id', $companyId)
+            ->whereIn('pos_returns.pos_session_id', $sessionIds)
+            ->whereDate('pos_returns.return_date', $date)
+            ->selectRaw('COALESCE(SUM(pos_return_items.qty * products.purchase_price), 0) as estimated_cost')
+            ->value('estimated_cost');
+        $grossMargin = round($salesAfterDiscount - $estimatedCost, 2);
+        $returnsMargin = round($returnsTotal - $returnedEstimatedCost, 2);
+        $netMargin = round($grossMargin - $returnsMargin, 2);
+        $netSales = round($salesAfterDiscount - $returnsTotal, 2);
 
         $methodBreakdown = [];
         foreach ($this->methodOptions() as $method => $label) {
@@ -1353,6 +1244,26 @@ class PosService
             ->map(fn ($product) => tap($product, function ($product): void {
                 $product->image_url = $product->image_path ? url(route('products.media.show', ['path' => $product->image_path], false)) : null;
             }));
+
+        $cashierBreakdown = DB::table('sales_invoices')
+            ->join('pos_sessions', 'pos_sessions.id', '=', 'sales_invoices.pos_session_id')
+            ->leftJoin('users', 'users.id', '=', 'pos_sessions.opened_by')
+            ->leftJoin('sales_invoice_items', 'sales_invoice_items.sales_invoice_id', '=', 'sales_invoices.id')
+            ->leftJoin('products', 'products.id', '=', 'sales_invoice_items.product_id')
+            ->where('sales_invoices.company_id', $companyId)
+            ->where('sales_invoices.sale_channel', 'pos')
+            ->whereIn('sales_invoices.pos_session_id', $sessionIds)
+            ->whereDate('sales_invoices.invoice_date', $date)
+            ->selectRaw('COALESCE(users.name, ?) as cashier_name', ['Caissier non renseigne'])
+            ->selectRaw('COUNT(DISTINCT sales_invoices.id) as sales_count')
+            ->selectRaw('COALESCE(SUM(sales_invoice_items.line_total), 0) as total_sales')
+            ->selectRaw('COALESCE(SUM(sales_invoice_items.qty * products.purchase_price), 0) as estimated_cost')
+            ->selectRaw('COALESCE(SUM(sales_invoice_items.line_total), 0) - COALESCE(SUM(sales_invoice_items.qty * products.purchase_price), 0) as estimated_margin')
+            ->groupBy('users.id', 'users.name')
+            ->orderByDesc('total_sales')
+            ->get();
+
+        $stockAlerts = $this->dailyReportStockAlerts($companyId, $branchId, $filters);
         $payments = $paymentsQuery
             ->with(['reconciliationItem'])
             ->get();
@@ -1367,15 +1278,63 @@ class PosService
             'sales_after_discount' => $salesAfterDiscount,
             'returns_count' => (int) (clone $returnsQuery)->count(),
             'returns_total' => $returnsTotal,
-            'net_sales' => round($salesAfterDiscount - $returnsTotal, 2),
+            'net_sales' => $netSales,
+            'estimated_cost' => round($estimatedCost - $returnedEstimatedCost, 2),
+            'estimated_margin' => $netMargin,
+            'estimated_margin_rate' => $netSales > 0 ? round(($netMargin / $netSales) * 100, 2) : 0,
             'incoming_total' => $incoming,
             'outgoing_total' => $outgoing,
             'net_cash' => round($incoming - $outgoing, 2),
             'average_ticket' => (int) (clone $salesQuery)->count() > 0 ? round($salesAfterDiscount / max((int) (clone $salesQuery)->count(), 1), 2) : 0,
             'method_breakdown' => $methodBreakdown,
+            'cashier_breakdown' => $cashierBreakdown,
             'top_products' => $topProducts,
             'top_returns' => $topReturns,
+            'stock_alerts' => $stockAlerts,
             'settlement_watch' => $this->settlementWatch($sessions, $payments),
+        ];
+    }
+
+    private function dailyReportStockAlerts(int $companyId, int $branchId, array $filters): array
+    {
+        $warehouseId = filled($filters['warehouse_id'] ?? null) ? (int) $filters['warehouse_id'] : null;
+
+        $balanceSubquery = DB::table('stock_movements')
+            ->select('product_id')
+            ->selectRaw('COALESCE(SUM(quantity_in - quantity_out), 0) as current_stock')
+            ->where('company_id', $companyId)
+            ->where('branch_id', $branchId)
+            ->when($warehouseId, fn ($query) => $query->where('warehouse_id', $warehouseId))
+            ->groupBy('product_id');
+
+        $rows = DB::table('products')
+            ->leftJoinSub($balanceSubquery, 'balances', fn ($join) => $join->on('balances.product_id', '=', 'products.id'))
+            ->leftJoin('product_categories', 'product_categories.id', '=', 'products.category_id')
+            ->where('products.company_id', $companyId)
+            ->where('products.is_active', true)
+            ->where('products.type', 'stockable')
+            ->select([
+                'products.id',
+                'products.name',
+                'products.sku',
+                'products.barcode',
+                'products.unit',
+                'products.min_stock',
+                'product_categories.name as category_name',
+            ])
+            ->selectRaw('COALESCE(balances.current_stock, 0) as current_stock')
+            ->whereRaw('COALESCE(balances.current_stock, 0) <= products.min_stock')
+            ->orderByRaw('COALESCE(balances.current_stock, 0) <= 0 DESC')
+            ->orderByRaw('(products.min_stock - COALESCE(balances.current_stock, 0)) DESC')
+            ->orderBy('products.name')
+            ->limit(12)
+            ->get();
+
+        return [
+            'warehouse_id' => $warehouseId,
+            'out_of_stock_count' => (int) $rows->filter(fn ($row) => (float) $row->current_stock <= 0.0001)->count(),
+            'low_stock_count' => (int) $rows->filter(fn ($row) => (float) $row->current_stock > 0.0001)->count(),
+            'items' => $rows,
         ];
     }
 

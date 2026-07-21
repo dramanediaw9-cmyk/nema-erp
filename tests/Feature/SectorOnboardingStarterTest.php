@@ -126,11 +126,11 @@ class SectorOnboardingStarterTest extends TestCase
             ->withSession($this->workspaceSession($manager))
             ->get(route('onboarding.index'))
             ->assertOk()
-            ->assertSee('Profil secteur actif')
-            ->assertSee('Cosmetique et beaute')
+            ->assertSee('Metier actif')
+            ->assertSee('Salon de coiffure')
             ->assertSee('Starter pack applique')
             ->assertSee('Appliquer le starter pack')
-            ->assertSee('Choisir le profil secteur');
+            ->assertSee('Configuration de depart');
     }
 
     private function workspaceSession(User $user): array

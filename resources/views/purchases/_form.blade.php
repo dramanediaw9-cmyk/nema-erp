@@ -1,4 +1,9 @@
 <?php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+    $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
     $isReceiptSourced = isset($selectedReceipt) && $selectedReceipt;
     $selectedSupplierId = old('supplier_id', $isReceiptSourced ? $selectedReceipt->supplier_id : null);
     $selectedWarehouseId = old('warehouse_id', $isReceiptSourced ? $selectedReceipt->warehouse_id : null);
@@ -6,7 +11,7 @@
 
 @if ($isReceiptSourced)
     <div class="card" style="margin-bottom:18px; border-left:4px solid #14532d;">
-        <h2 class="section-title" style="margin-top:0;">Facturation depuis reception fournisseur</h2>
+        <h2 class="section-title" style="margin-top:0;">Facturation depuis reception</h2>
         <div class="grid" style="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
             <div>
                 <div class="muted">Reception source</div>
@@ -17,7 +22,7 @@
                 <div style="font-weight:600; margin-top:6px;"><a href="{{ route('purchase-orders.show', $selectedReceipt->purchaseOrder) }}">{{ $selectedReceipt->purchaseOrder?->order_number }}</a></div>
             </div>
             <div>
-                <div class="muted">Fournisseur</div>
+                <div class="muted">{{ $supplierLabel }}</div>
                 <div style="font-weight:600; margin-top:6px;">{{ $selectedReceipt->supplier?->name }}</div>
             </div>
             <div>
@@ -25,7 +30,7 @@
                 <div style="font-weight:600; margin-top:6px;">{{ $selectedReceipt->warehouse?->name }}</div>
             </div>
         </div>
-        <div class="muted" style="margin-top:14px;">Les quantites et produits suivent la reception source. Tu peux encore ajuster le libelle et le cout facture si le document fournisseur differe.</div>
+        <div class="muted" style="margin-top:14px;">Les quantites et {{ strtolower($productsLabel) }} suivent la reception source. Tu peux encore ajuster le libelle et le cout facture si le document differe.</div>
         <input type="hidden" name="goods_receipt_id" value="{{ old('goods_receipt_id', $selectedReceipt->id) }}">
         @error('goods_receipt_id')<div class="field-error" style="margin-top:8px;">{{ $message }}</div>@enderror
     </div>
@@ -33,26 +38,26 @@
 
 <div class="split">
     <section class="card">
-        <h2 class="section-title">Entete de l'achat</h2>
-        <div class="muted" style="margin-bottom:16px;">Prepare la facture fournisseur, l'entrepot de reception et son echeance de reglement. Les lignes vides seront ignorees.</div>
+        <h2 class="section-title">Entete du {{ strtolower($purchaseLabel) }}</h2>
+        <div class="muted" style="margin-bottom:16px;">Prepare le document, l'entrepot de reception et son echeance de reglement. Les lignes vides seront ignorees.</div>
 
         <div class="form-grid">
             <div>
-                <label for="supplier_id">Fournisseur</label>
+                <label for="supplier_id">{{ $supplierLabel }}</label>
                 @if ($isReceiptSourced)
                     <input type="hidden" name="supplier_id" value="{{ $selectedSupplierId }}">
                 @endif
                 <select id="supplier_id" name="supplier_id" @disabled($isReceiptSourced) required>
-                    <option value="">Selectionner un fournisseur</option>
+                    <option value="">Selectionner</option>
                     @foreach ($suppliers as $supplier)
                         <option value="{{ $supplier->id }}" data-price-list-id="{{ $supplier->price_list_id ?? '' }}" data-price-list-name="{{ $supplier->priceList?->name ?? '' }}" @selected((string) $selectedSupplierId === (string) $supplier->id)>{{ $supplier->code }} - {{ $supplier->name }}</option>
                     @endforeach
                 </select>
                 @if ($isReceiptSourced)
-                    <div class="help">Le fournisseur est fixe par la reception source.</div>
+                    <div class="help">Le {{ strtolower($supplierLabel) }} est fixe par la reception source.</div>
                 @endif
                 @error('supplier_id')<div class="field-error">{{ $message }}</div>@enderror
-                <div class="help" id="purchase-supplier-pricing">Aucune liste de prix fournisseur specifique: le cout catalogue sera propose.</div>
+                <div class="help" id="purchase-supplier-pricing">Aucune liste de prix {{ strtolower($supplierLabel) }} specifique: le cout catalogue sera propose.</div>
             </div>
             <div>
                 <label for="warehouse_id">Entrepot de reception</label>
@@ -82,7 +87,7 @@
                     <button type="button" class="chip" data-due-days="15">+15 jours</button>
                     <button type="button" class="chip" data-due-days="30">+30 jours</button>
                 </div>
-                <div class="help">Cette date pilote les alertes de reglement sur la liste des achats.</div>
+                <div class="help">Cette date pilote les alertes de reglement sur la liste des {{ strtolower($purchasesLabel) }}.</div>
                 @error('due_date')<div class="field-error">{{ $message }}</div>@enderror
             </div>
             <div>
@@ -92,14 +97,14 @@
             </div>
             <div class="full">
                 <label for="notes">Notes</label>
-                <textarea id="notes" name="notes" placeholder="Reference fournisseur, commentaire d'achat, precision logistique...">{{ old('notes', $isReceiptSourced ? $selectedReceipt->notes : null) }}</textarea>
+                <textarea id="notes" name="notes" placeholder="Reference {{ strtolower($supplierLabel) }}, commentaire, precision logistique...">{{ old('notes', $isReceiptSourced ? $selectedReceipt->notes : null) }}</textarea>
                 @error('notes')<div class="field-error">{{ $message }}</div>@enderror
             </div>
         </div>
     </section>
 
     <aside class="card">
-        <h2 class="section-title">Resume de l'achat</h2>
+        <h2 class="section-title">Resume du {{ strtolower($purchaseLabel) }}</h2>
         <div class="summary-stack">
             <div class="summary-box">
                 <div class="muted">Montant estime</div>
@@ -118,11 +123,11 @@
             <div class="tip-grid">
                 <div class="tip-card">
                     <strong>Impact a l'approbation finale</strong>
-                    <div class="muted">{{ $isReceiptSourced ? "La dette fournisseur et la comptabilite seront mises a jour sans doubler le stock deja receptionne." : "Le stock augmente dans l'entrepot choisi et la dette fournisseur est enregistree." }}</div>
+                    <div class="muted">{{ $isReceiptSourced ? "La dette et la comptabilite seront mises a jour sans doubler le stock deja receptionne." : "Le stock augmente dans l'entrepot choisi et la dette est enregistree." }}</div>
                 </div>
                 <div class="tip-card">
                     <strong>Bon reflexe</strong>
-                    <div class="muted">Renseigne une echeance si tu veux visualiser les reglements prioritaires dans les achats.</div>
+                    <div class="muted">Renseigne une echeance si tu veux visualiser les reglements prioritaires dans {{ strtolower($purchasesLabel) }}.</div>
                 </div>
             </div>
         </div>
@@ -132,12 +137,12 @@
 <div class="card" style="margin-top:18px;">
     <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; align-items:flex-start;">
         <div>
-            <h2 class="section-title">Lignes de facture fournisseur</h2>
-            <div class="muted">{{ $isReceiptSourced ? 'Les lignes viennent de la reception source. Ajuste seulement le libelle et le cout facture si besoin.' : 'Choisis les produits, ajuste les quantites et les couts reels. Les lignes vides ne seront pas traitees.' }}</div>
+            <h2 class="section-title">Lignes du {{ strtolower($purchaseLabel) }}</h2>
+            <div class="muted">{{ $isReceiptSourced ? 'Les lignes viennent de la reception source. Ajuste seulement le libelle et le cout facture si besoin.' : 'Choisis les '.$productsLabel.', ajuste les quantites et les couts reels. Les lignes vides ne seront pas traitees.' }}</div>
         </div>
         <div class="tip-card" style="min-width:260px;">
             <strong>Conseil operateur</strong>
-            <div class="muted">{{ $isReceiptSourced ? 'Chaque ligne reste rattachee a la reception pour garder une piste d audit claire.' : 'Le cout d achat historique se propose automatiquement a la selection du produit.' }}</div>
+            <div class="muted">{{ $isReceiptSourced ? 'Chaque ligne reste rattachee a la reception pour garder une piste d audit claire.' : 'Le cout historique se propose automatiquement a la selection.' }}</div>
         </div>
     </div>
 
@@ -146,7 +151,7 @@
             <thead>
             <tr>
                 <th>#</th>
-                <th>Produit</th>
+                <th>{{ $productLabel }}</th>
                 <th>Description</th>
                 <th>Quantite</th>
                 <th>Cout unitaire</th>
@@ -163,7 +168,7 @@
                             <input type="hidden" name="items[{{ $index }}][goods_receipt_item_id]" value="{{ $row['goods_receipt_item_id'] }}">
                             <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $row['product_id'] ?? '' }}">
                         @endif
-                        <select name="items[{{ $index }}][product_id]" class="line-product" @disabled($isReceiptRow)>
+                        <select name="items[{{ $index }}][product_id]" class="line-product" data-product-picker data-product-mode="purchasable" @disabled($isReceiptRow)>
                             <option value="">Choisir</option>
                             @foreach ($products as $product)
                                 <option value="{{ $product->id }}" data-name="{{ $product->display_name }}" data-cost="{{ $product->purchase_price }}" data-purchase-description="{{ $product->purchase_description ?: ($product->description ?: $product->display_name) }}" data-unit-summary="{{ $product->purchaseUnitSummary() ?: $product->unit }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
@@ -172,7 +177,7 @@
                             @endforeach
                         </select>
                     </td>
-                    <td><input type="text" name="items[{{ $index }}][description]" value="{{ $row['description'] ?? '' }}" class="line-description" placeholder="Description interne ou libelle fournisseur"></td>
+                    <td><input type="text" name="items[{{ $index }}][description]" value="{{ $row['description'] ?? '' }}" class="line-description" placeholder="Description interne ou libelle {{ strtolower($supplierLabel) }}"></td>
                     <td><input type="number" step="0.001" min="0" name="items[{{ $index }}][qty]" value="{{ $row['qty'] ?? '' }}" class="line-qty" inputmode="decimal" @readonly($isReceiptRow)></td>
                     <td><input type="number" step="0.01" min="0" name="items[{{ $index }}][unit_cost]" value="{{ $row['unit_cost'] ?? '' }}" class="line-cost" inputmode="decimal"></td>
                     <td><input type="text" value="0" class="line-total" disabled></td>
@@ -183,7 +188,7 @@
     </div>
 
     @if ($errors->has('items') || collect($errors->keys())->contains(fn ($key) => str_starts_with($key, 'items.')))
-        <div class="field-error" style="margin-top:12px;">Certaines lignes d'achat doivent etre corrigees avant enregistrement.</div>
+        <div class="field-error" style="margin-top:12px;">Certaines lignes doivent etre corrigees avant enregistrement.</div>
     @endif
 
     <div class="table-foot-note">
@@ -193,7 +198,7 @@
 
     <div class="actions">
         <a href="{{ route('purchases.index') }}" class="button button-secondary">Annuler</a>
-        <button type="submit" class="button button-primary">Enregistrer la facture fournisseur</button>
+        <button type="submit" class="button button-primary">Enregistrer</button>
     </div>
 </div>
 
@@ -282,10 +287,7 @@
     'pricingHintId' => 'purchase-supplier-pricing',
     'lineAmountClass' => 'line-cost',
     'priceDataKey' => 'cost',
-    'partnerKind' => 'fournisseur',
-    'defaultPricingText' => 'Aucune liste de prix fournisseur specifique: le cout catalogue sera propose.',
+    'partnerKind' => strtolower($supplierLabel),
+    'defaultPricingText' => 'Aucune liste de prix '.strtolower($supplierLabel).' specifique: le cout catalogue sera propose.',
 ])
-
-
-
 

@@ -1,15 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'Modifier un fournisseur - Nema ERP')
-@section('page-title', 'Modifier le fournisseur')
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+@endphp
+
+@section('title', 'Modifier un '.$supplierLabel.' - Nema ERP')
+@section('page-title', 'Modifier le '.$supplierLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Fournisseurs',
+        'eyebrow' => $suppliersLabel,
         'title' => 'Modifier '.$partner->name,
-        'description' => 'Mets a jour les coordonnees, les conditions de paiement et le statut du fournisseur.',
+        'description' => 'Mets a jour les coordonnees, les conditions de paiement et le statut du dossier.',
         'actions' => [
-            ['label' => 'Retour au fournisseur', 'url' => route('suppliers.show', $partner), 'style' => 'secondary'],
+            ['label' => 'Retour au dossier', 'url' => route('suppliers.show', $partner), 'style' => 'secondary'],
         ],
         'chips' => [
             ['type' => 'activity', 'value' => $partner->is_active ? 'active' : 'inactive'],

@@ -96,7 +96,7 @@ class AccountProfileController extends Controller
             'password' => [
                 'required',
                 'confirmed',
-                Password::min(10)->mixedCase()->numbers()->symbols(),
+                Password::defaults(),
             ],
         ]);
 

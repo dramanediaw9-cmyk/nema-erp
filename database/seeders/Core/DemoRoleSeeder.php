@@ -172,7 +172,18 @@ class DemoRoleSeeder extends Seeder
             'payments.view',
         ])->pluck('id')->all();
 
-        Company::query()->orderBy('id')->get()->each(function (Company $company) use ($allPermissions, $directorPermissions, $operationsPermissions, $cashierPermissions): void {
+        $posSupervisorPermissions = Permission::query()->whereIn('slug', [
+            'dashboard.view',
+            'pos.view',
+            'pos.manage',
+            'pos.sessions.unlock',
+            'payments.view',
+            'cash_accounts.view',
+            'reports.view',
+            'activity_logs.view',
+        ])->pluck('id')->all();
+
+        Company::query()->orderBy('id')->get()->each(function (Company $company) use ($allPermissions, $directorPermissions, $operationsPermissions, $cashierPermissions, $posSupervisorPermissions): void {
             $companyAdmin = Role::query()->updateOrCreate(
                 ['company_id' => $company->id, 'slug' => 'company_admin'],
                 [
@@ -212,6 +223,16 @@ class DemoRoleSeeder extends Seeder
                 ]
             );
             $cashier->permissions()->sync($cashierPermissions);
+
+            $posSupervisor = Role::query()->updateOrCreate(
+                ['company_id' => $company->id, 'slug' => 'pos_supervisor'],
+                [
+                    'name' => 'Responsable de caisse',
+                    'description' => 'Supervision des caisses, sessions, paiements, rapports et ecarts',
+                    'is_system' => false,
+                ]
+            );
+            $posSupervisor->permissions()->sync($posSupervisorPermissions);
         });
     }
 }

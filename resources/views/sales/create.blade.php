@@ -1,15 +1,22 @@
 @extends('layouts.app')
 
-@section('title', 'Nouvelle facture - Nema ERP')
-@section('page-title', 'Nouvelle facture de vente')
+@php
+    $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+@endphp
+
+@section('title', 'Nouvelle '.$saleLabel.' - Nema ERP')
+@section('page-title', 'Nouvelle '.$saleLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
         'eyebrow' => 'Facturation',
-        'title' => 'Nouvelle facture client',
-        'description' => 'Renseigne le client, les lignes et l echeance. Le stock et la comptabilite se declencheront a la validation finale.',
+        'title' => 'Nouvelle '.$saleLabel,
+        'description' => 'Renseigne le '.$customerLabel.', les lignes et l echeance. Le '.$stockLabel.' et la comptabilite se declencheront a la validation finale.',
         'actions' => [
-            ['label' => 'Retour aux factures', 'url' => route('sales.index'), 'style' => 'secondary'],
+            ['label' => 'Retour aux '.$salesLabel, 'url' => route('sales.index'), 'style' => 'secondary'],
         ],
     ])
 
