@@ -1,15 +1,21 @@
 @extends('layouts.app')
 
-@section('title', 'Créer un fournisseur - Nema ERP')
-@section('page-title', 'Nouveau fournisseur')
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+@endphp
+
+@section('title', 'Créer un '.$supplierLabel.' - Nema ERP')
+@section('page-title', 'Nouveau '.$supplierLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Fournisseurs',
-        'title' => 'Nouveau fournisseur',
-        'description' => 'Renseigne le tiers une fois pour l utiliser ensuite en achat, depense et reglement fournisseur.',
+        'eyebrow' => $suppliersLabel,
+        'title' => 'Nouveau '.$supplierLabel,
+        'description' => 'Renseigne ce partenaire une fois pour l utiliser ensuite en '.$purchaseLabel.', depense et reglement.',
         'actions' => [
-            ['label' => 'Retour aux fournisseurs', 'url' => route('suppliers.index'), 'style' => 'secondary'],
+            ['label' => 'Retour', 'url' => route('suppliers.index'), 'style' => 'secondary'],
         ],
     ])
 

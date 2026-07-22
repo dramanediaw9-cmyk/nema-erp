@@ -1,6 +1,17 @@
+@php
+    $returnUrl = request('return_to') ?: ($ticket->display
+        ? route('pos.preparation.display', $ticket->display)
+        : route('pos.preparation.index'));
+    $returnLabel = request('return_label') ?: ($ticket->display ? 'Retour display' : 'Retour board');
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+        ? 'Client comptoir'
+        : $customerLabel.' comptoir';
+@endphp
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    @include('partials.security-csp-meta')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Preparation {{ $ticket->ticket_number }}</title>
@@ -21,8 +32,6 @@
     </style>
 </head>
 <body>
-    @php($returnUrl = request('return_to') ?: ($ticket->display ? route('pos.preparation.display', $ticket->display) : route('pos.preparation.index')))
-    @php($returnLabel = request('return_label') ?: ($ticket->display ? 'Retour display' : 'Retour board'))
     <div class="toolbar">
         <button type="button" class="button" onclick="window.nemaPreparationPrintTicket()">Imprimer</button>
         <a href="{{ $returnUrl }}" class="button">{{ $returnLabel }}</a>
@@ -38,7 +47,7 @@
         <div class="divider"></div>
         <div class="line"><span>Ticket POS</span><strong>{{ $ticket->invoice?->invoice_number }}</strong></div>
         <div class="line"><span>Session</span><strong>{{ $ticket->session?->session_number }}</strong></div>
-        <div class="line"><span>Client</span><strong>{{ $ticket->invoice?->customer?->name ?? 'Client comptoir' }}</strong></div>
+        <div class="line"><span>{{ $customerLabel }}</span><strong>{{ $ticket->invoice?->customer?->name ?? $counterCustomerLabel }}</strong></div>
         <div class="line"><span>Statut</span><strong>{{ str($ticket->status)->replace('_', ' ')->title() }}</strong></div>
         @if ($ticket->printer)<div class="line"><span>Imprimante</span><strong>{{ $ticket->printer->name }}</strong></div>@endif
         @if ($ticket->display)<div class="line"><span>Display</span><strong>{{ $ticket->display->name }}</strong></div>@endif

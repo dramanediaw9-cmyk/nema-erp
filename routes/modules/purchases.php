@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/reapprovisionnements', [ReplenishmentController::class, 'index'])->middleware('permission:purchase_requests.view')->name('replenishments.index');
+    Route::get('/reapprovisionnements/export', [ReplenishmentController::class, 'export'])->middleware('permission:purchase_requests.view')->name('replenishments.export');
+    Route::get('/reapprovisionnements/imprimer', [ReplenishmentController::class, 'print'])->middleware('permission:purchase_requests.view')->name('replenishments.print');
+    Route::post('/reapprovisionnements/activer-produits', [ReplenishmentController::class, 'activateProducts'])->middleware('permission:purchase_requests.manage')->name('replenishments.activate-products');
     Route::post('/reapprovisionnements/generer', [ReplenishmentController::class, 'generate'])->middleware('permission:purchase_requests.manage')->name('replenishments.generate');
     Route::get('/demandes-achats', [PurchaseRequestController::class, 'index'])->middleware('permission:purchase_requests.view')->name('purchase-requests.index');
     Route::get('/demandes-achats/creer', [PurchaseRequestController::class, 'create'])->middleware('permission:purchase_requests.manage')->name('purchase-requests.create');
@@ -39,10 +42,12 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::post('/commandes-fournisseurs', [PurchaseOrderController::class, 'store'])->middleware('permission:purchase_orders.manage')->name('purchase-orders.store');
     Route::post('/commandes-fournisseurs/{purchaseOrder}/confirmer', [PurchaseOrderController::class, 'confirm'])->middleware('permission:purchase_orders.manage')->name('purchase-orders.confirm');
     Route::post('/commandes-fournisseurs/{purchaseOrder}/annuler', [PurchaseOrderController::class, 'cancel'])->middleware('permission:purchase_orders.manage')->name('purchase-orders.cancel');
+    Route::get('/commandes-fournisseurs/{purchaseOrder}/imprimer', [PurchaseOrderController::class, 'print'])->middleware('permission:purchase_orders.view')->name('purchase-orders.print');
     Route::get('/commandes-fournisseurs/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->middleware('permission:purchase_orders.view')->name('purchase-orders.show');
 
     Route::get('/receptions-fournisseurs', [GoodsReceiptController::class, 'index'])->middleware('permission:goods_receipts.view')->name('goods-receipts.index');
     Route::get('/receptions-fournisseurs/creer', [GoodsReceiptController::class, 'create'])->middleware('permission:goods_receipts.manage')->name('goods-receipts.create');
     Route::post('/receptions-fournisseurs', [GoodsReceiptController::class, 'store'])->middleware('permission:goods_receipts.manage')->name('goods-receipts.store');
+    Route::get('/receptions-fournisseurs/{goodsReceipt}/imprimer', [GoodsReceiptController::class, 'print'])->middleware('permission:goods_receipts.view')->name('goods-receipts.print');
     Route::get('/receptions-fournisseurs/{goodsReceipt}', [GoodsReceiptController::class, 'show'])->middleware('permission:goods_receipts.view')->name('goods-receipts.show');
 });

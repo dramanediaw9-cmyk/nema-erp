@@ -7,10 +7,7 @@
         <div>
             <div class="doc-chip">Facture client</div>
             <h1>{{ $invoice->invoice_number }}</h1>
-            <div><strong>{{ $invoice->company?->legal_name ?: $invoice->company?->name }}</strong></div>
-            <div class="meta">{{ $invoice->company?->address }}</div>
-            <div class="meta">Tel : {{ $invoice->company?->phone ?: 'N/A' }} @if($invoice->company?->email)· {{ $invoice->company?->email }} @endif</div>
-            <div class="meta">NIF : {{ $invoice->company?->nif ?: 'N/A' }} · RCCM : {{ $invoice->company?->rccm ?: 'N/A' }}</div>
+            @include('partials.print-company-block', ['company' => $invoice->company])
         </div>
         <div class="right">
             <div><strong>Date :</strong> {{ $invoice->invoice_date?->format('d/m/Y') }}</div>
@@ -102,5 +99,4 @@
         <div class="signature-box">Signature client</div>
     </div>
 @endsection
-
 

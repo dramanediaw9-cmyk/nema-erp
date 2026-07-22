@@ -4,12 +4,18 @@
 @section('page-title', 'Analyse POS')
 
 @section('content')
+    @php
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    @endphp
+
     <div class="grid" style="gap:18px;">
         @include('pos.partials.backoffice-nav')
 
         <div class="page-head">
             <div>
-                <h2 style="margin:0;">Analyse commandes, ventes et preparation</h2>
+                <h2 style="margin:0;">Analyse commandes, {{ strtolower($salesLabel) }} et preparation</h2>
                 <div class="muted">Lecture rapide des indicateurs de caisse, du rapport de session et des objectifs de preparation.</div>
             </div>
             <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier detaille</a>
@@ -17,15 +23,15 @@
 
         <div class="grid stats-grid">
             <div class="card"><div class="muted">Tickets du jour</div><div class="stat-value">{{ $data['report']['sales_count'] }}</div></div>
-            <div class="card"><div class="muted">Brut articles</div><div class="stat-value">{{ number_format($data['report']['gross_sales'], 0, ',', ' ') }}</div></div>
-            <div class="card"><div class="muted">Ventes nettes</div><div class="stat-value">{{ number_format($data['report']['net_sales'], 0, ',', ' ') }}</div></div>
+            <div class="card"><div class="muted">Brut {{ strtolower($productsLabel) }}</div><div class="stat-value">{{ number_format($data['report']['gross_sales'], 0, ',', ' ') }}</div></div>
+            <div class="card"><div class="muted">{{ $salesLabel }} nettes</div><div class="stat-value">{{ number_format($data['report']['net_sales'], 0, ',', ' ') }}</div></div>
             <div class="card"><div class="muted">Ticket moyen</div><div class="stat-value">{{ number_format($data['report']['average_ticket'], 0, ',', ' ') }}</div></div>
             <div class="card"><div class="muted">Objectif prep moyen</div><div class="stat-value">{{ $data['prep']['average_target_minutes'] ? number_format($data['prep']['average_target_minutes'], 1, ',', ' ') . ' min' : 'n/a' }}</div></div>
         </div>
 
         <div class="split">
             <section class="card">
-                <h3 class="section-title">Top produits du jour</h3>
+                <h3 class="section-title">Top {{ strtolower($productsLabel) }} du jour</h3>
                 <div class="summary-stack">
                     @forelse ($data['report']['top_products'] as $product)
                         <div class="summary-box">
@@ -33,7 +39,7 @@
                             <div class="muted" style="margin-top:8px;">{{ number_format((float) $product->qty, 0, ',', ' ') }} unite(s) · {{ number_format((float) $product->amount, 0, ',', ' ') }} XOF</div>
                         </div>
                     @empty
-                        <div class="muted">Aucune vente POS aujourd hui.</div>
+                        <div class="muted">Aucune {{ strtolower($salesLabel) }} POS aujourd hui.</div>
                     @endforelse
                 </div>
             </section>

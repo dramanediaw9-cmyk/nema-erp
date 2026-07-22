@@ -10,7 +10,6 @@ use App\Modules\Core\Company\Services\DocumentNumberService;
 use App\Modules\Core\Company\Services\PricingService;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Partners\Models\Partner;
-use App\Modules\Pos\Services\PosSessionLockService;
 use App\Modules\Sales\Models\SalesInvoice;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -26,7 +25,6 @@ class SalesInvoiceService
         private readonly PeriodLockService $periodLockService,
         private readonly PricingService $pricingService,
         private readonly IntegrationOutboxService $integrationOutboxService,
-        private readonly PosSessionLockService $posSessionLockService,
     ) {
     }
 
@@ -114,12 +112,10 @@ class SalesInvoiceService
     {
         return DB::transaction(function () use ($invoice, $user, $reason) {
             $invoice = SalesInvoice::query()
-                ->with(['approvalSteps', 'paymentAllocations', 'posSession'])
+                ->with(['approvalSteps', 'paymentAllocations'])
                 ->whereKey($invoice->id)
                 ->lockForUpdate()
                 ->firstOrFail();
-
-            $this->posSessionLockService->assertInvoiceEditable($invoice, 'annuler ou supprimer cette facture POS');
 
             if ($invoice->status === 'cancelled') {
                 throw ValidationException::withMessages([
@@ -421,6 +417,7 @@ class SalesInvoiceService
                         movementDate: $payload['invoice_date'],
                         user: $user,
                         warehouseId: $resolvedWarehouseId,
+                        allowNegative: (bool) ($payload['allow_negative_stock'] ?? false),
                     );
                     $stockMovementCreated = true;
                 }
@@ -649,7 +646,6 @@ class SalesInvoiceService
         return $providedPrice;
     }
 }
-
 
 
 

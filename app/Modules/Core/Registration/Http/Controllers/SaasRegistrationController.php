@@ -43,7 +43,7 @@ class SaasRegistrationController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email:rfc', 'max:190', Rule::unique('users', 'email')],
             'phone' => ['nullable', 'string', 'max:40'],
-            'password' => ['required', 'confirmed', Password::min(8)],
+            'password' => ['required', 'confirmed', Password::defaults()],
         ]);
 
         $registration = $this->registration($request);

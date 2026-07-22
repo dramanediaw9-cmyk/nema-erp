@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Pos\Models\PosDraft;
 use App\Modules\Pos\Models\PosSession;
@@ -24,6 +25,7 @@ class PosDraftFlowTest extends TestCase
         $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
         $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
         $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
+        $vocabulary = app(SectorProfileService::class)->businessVocabularyForCompany($user->company_id);
 
         $this->openSession($user, $cashAccount, $warehouse);
         $session = $this->currentSession($user);
@@ -65,7 +67,7 @@ class PosDraftFlowTest extends TestCase
             ->withSession($this->workspaceSession($user))
             ->get(route('pos.show', $session))
             ->assertOk()
-            ->assertSeeText('Commandes en attente')
+            ->assertSeeText($vocabulary['sales'].' en attente')
             ->assertSeeText('Commande test brouillon')
             ->assertSeeText('Reprendre');
 

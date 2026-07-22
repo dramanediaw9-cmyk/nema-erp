@@ -48,7 +48,7 @@
                         <div class="muted" style="margin-top:8px;">Imprimer, confirmer, convertir, livrer ou declencher l achat depuis la meme vue de pilotage.</div>
                     </div>
                     <div class="premium-detail-panel__actions">
-                        <a href="{{ route('orders.print', $order) }}" class="button button-secondary" target="_blank">PDF</a>
+                        <a href="{{ route('orders.print', $order) }}" class="button button-secondary" target="_blank">Imprimer la commande</a>
                         <a href="{{ route('orders.index') }}" class="button button-secondary">Retour liste</a>
                         @if (in_array($order->status, ['confirmed', 'partial_delivered'], true) && $hasRemainingDelivery)
                             <a href="{{ route('delivery-notes.create', ['order' => $order->id]) }}" class="button button-primary">Generer un bon de livraison</a>
@@ -383,5 +383,4 @@
     </section>
     </div>
 @endsection
-
 

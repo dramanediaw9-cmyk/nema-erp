@@ -22,6 +22,13 @@
                     @endforeach
                 </select>
             </div>
+            <div>
+                <label for="product_search">Rechercher les produits</label>
+                <input id="product_search" name="q" type="search" value="{{ $productSearch }}" placeholder="Nom, SKU ou code-barres">
+            </div>
+            <div style="align-self:end;">
+                <button type="submit" class="button button-secondary">Afficher</button>
+            </div>
         </div>
     </form>
 
@@ -41,7 +48,14 @@
             </div>
         </div>
 
-        <div class="table-wrap" style="margin-top:20px;">
+        <div class="help" style="margin-top:14px;">
+            {{ number_format($matchTotal, 0, ',', ' ') }} produit(s) correspondent sur {{ number_format($catalogTotal, 0, ',', ' ') }}.
+            @if ($isLimited)
+                Les 200 premiers sont affiches : precise la recherche ou utilise l inventaire rapide pour scanner les autres sans charger une page geante.
+            @endif
+        </div>
+
+        <div class="table-wrap" style="margin-top:12px;">
             <table>
                 <thead>
                 <tr>
@@ -51,16 +65,18 @@
                 </tr>
                 </thead>
                 <tbody>
-                @foreach ($products as $index => $product)
+                @forelse ($products as $index => $product)
                     <tr>
                         <td>
                             <strong>{{ $product['sku'] }}</strong> - {{ $product['name'] }}
                             <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $product['id'] }}">
                         </td>
                         <td>{{ number_format((float) $product['expected_qty'], 3, ',', ' ') }} {{ $product['unit'] }}</td>
-                        <td><input type="number" min="0" step="0.001" name="items[{{ $index }}][counted_qty]" value="{{ old('items.'.$index.'.counted_qty') }}"></td>
+                        <td><input type="number" min="0" step="0.001" name="items[{{ $index }}][counted_qty]" value="{{ old('items.'.$index.'.counted_qty') }}" aria-label="Quantite comptee pour {{ $product['name'] }}"></td>
                     </tr>
-                @endforeach
+                @empty
+                    <tr><td colspan="3" class="muted">Aucun produit ne correspond a cette recherche.</td></tr>
+                @endforelse
                 </tbody>
             </table>
         </div>

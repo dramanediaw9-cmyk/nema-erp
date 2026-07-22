@@ -1,7 +1,13 @@
 @extends('layouts.app')
 
-@section('title', 'Stock - Nema ERP')
-@section('page-title', 'Stock par agence')
+@php
+    $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+@endphp
+
+@section('title', $stockLabel.' - Nema ERP')
+@section('page-title', $stockLabel.' par agence')
 @section('layout-mode', 'compact')
 
 @push('page-styles')
@@ -236,12 +242,18 @@
                 <a href="{{ route('stock.index', ['stock_state' => 'zero']) }}" class="button button-secondary">Ruptures</a>
                 <a href="{{ route('stock.index', ['stock_state' => 'low']) }}" class="button button-secondary">A surveiller</a>
                 <a href="{{ route('stock.movements') }}" class="button button-secondary">Mouvements</a>
+                @allowed('purchase_requests.view')
+                    <a href="{{ route('replenishments.index') }}" class="button button-secondary">Reappro auto</a>
+                @endallowed
                 @unless ($isMerchantMode)
                     <a href="{{ route('stock.export', request()->query()) }}" class="button button-secondary">Exporter</a>
                     @allowed('transfers.view')
                         <a href="{{ route('transfers.index') }}" class="button button-secondary">Transferts</a>
                     @endallowed
                 @endunless
+                @allowed('stock_counts.manage')
+                    <a href="{{ route('stock-counts.quick') }}" class="button button-secondary">Inventaire rapide</a>
+                @endallowed
                 @allowed('stock.manage')
                     <a href="{{ route('stock.adjustments.create') }}" class="button button-primary">Ajuster</a>
                 @endallowed
@@ -251,35 +263,35 @@
         <section class="premium-metric-grid erp-kpi-strip">
             @if ($isMerchantMode)
                 <article class="premium-metric-card erp-kpi-card">
-                    <div class="label">Articles visibles</div>
+                    <div class="label">{{ $productsLabel }} visibles</div>
                     <div class="value">{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</div>
                     <div class="hint">References affichees sur cette page.</div>
                 </article>
                 <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Ruptures visibles</div>
                     <div class="value">{{ number_format($visibleZeroCount, 0, ',', ' ') }}</div>
-                    <div class="hint">Articles a zero ou en dessous.</div>
+                    <div class="hint">{{ $productsLabel }} a zero ou en dessous.</div>
                 </article>
                 <article class="premium-metric-card erp-kpi-card">
                     <div class="label">A surveiller</div>
                     <div class="value">{{ number_format($visibleAlertCount, 0, ',', ' ') }}</div>
-                    <div class="hint">Articles au seuil mini ou en dessous.</div>
+                    <div class="hint">{{ $productsLabel }} au seuil mini ou en dessous.</div>
                 </article>
                 <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Encore en stock</div>
                     <div class="value">{{ number_format($visibleHealthyCount, 0, ',', ' ') }}</div>
-                    <div class="hint">Articles avec stock au-dessus du minimum.</div>
+                    <div class="hint">{{ $productsLabel }} avec stock au-dessus du minimum.</div>
                 </article>
             @else
                 <article class="premium-metric-card erp-kpi-card">
-                    <div class="label">Articles visibles</div>
+                    <div class="label">{{ $productsLabel }} visibles</div>
                     <div class="value">{{ number_format($visibleProducts->count(), 0, ',', ' ') }}</div>
                     <div class="hint">Nombre de references affichees sur cette page.</div>
                 </article>
                 <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Stock a surveiller</div>
                     <div class="value">{{ number_format($visibleAlertCount, 0, ',', ' ') }}</div>
-                    <div class="hint">Articles au seuil mini ou en dessous.</div>
+                    <div class="hint">{{ $productsLabel }} au seuil mini ou en dessous.</div>
                 </article>
                 <article class="premium-metric-card erp-kpi-card">
                     <div class="label">Valorisation visible</div>
@@ -320,7 +332,7 @@
 
                 <form method="GET" action="{{ route('stock.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <div style="grid-column:span 2; min-width:220px;">
-                    <label for="search">{{ $isMerchantMode ? 'Recherche article' : 'Recherche produit' }}</label>
+                    <label for="search">Recherche {{ strtolower($productLabel) }}</label>
                     <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="{{ $isMerchantMode ? 'Nom, code ou code-barres...' : 'Nom ou SKU...' }}">
                 </div>
                 <div>
@@ -336,7 +348,7 @@
                     <label for="tracking_type">Tracabilite</label>
                     <select id="tracking_type" name="tracking_type">
                         <option value="">Toutes</option>
-                        <option value="tracked" @selected(($filters['tracking_type'] ?? null) === 'tracked')>Produits traces</option>
+                        <option value="tracked" @selected(($filters['tracking_type'] ?? null) === 'tracked')>{{ $productsLabel }} traces</option>
                         <option value="lot" @selected(($filters['tracking_type'] ?? null) === 'lot')>Suivi par lot</option>
                         <option value="serial" @selected(($filters['tracking_type'] ?? null) === 'serial')>Suivi par serie</option>
                         <option value="none" @selected(($filters['tracking_type'] ?? null) === 'none')>Non trace</option>
@@ -406,7 +418,7 @@
                     @unless ($isMerchantMode)
                         <th>SKU</th>
                     @endunless
-                    <th>Produit</th>
+                    <th>{{ $productLabel }}</th>
                     @unless ($isMerchantMode)
                         <th class="col-optional-md">Categorie</th>
                     @endunless

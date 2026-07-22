@@ -1,18 +1,25 @@
 @extends('layouts.app')
 
-@section('title', 'Detail fournisseur - Nema ERP')
-@section('page-title', 'Fournisseur '.$supplier->code)
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+    $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
+@endphp
+
+@section('title', 'Detail '.$supplierLabel.' - Nema ERP')
+@section('page-title', $supplierLabel.' '.$supplier->code)
 
 @section('content')
     @php
         $headerActions = [
-            ['label' => 'Retour aux fournisseurs', 'url' => route('suppliers.index', ['search' => $supplier->code]), 'style' => 'secondary'],
+            ['label' => 'Retour aux '.$suppliersLabel, 'url' => route('suppliers.index', ['search' => $supplier->code]), 'style' => 'secondary'],
         ];
         $openBalance = (float) ($stats['open_balance'] ?? 0);
         $portfolioState = $openBalance > 0 ? 'open' : 'clear';
 
         if (auth()->user()?->hasPermission('purchases.manage')) {
-            $headerActions[] = ['label' => 'Nouvel achat', 'url' => route('purchases.create'), 'style' => 'primary'];
+            $headerActions[] = ['label' => 'Nouveau '.$purchaseLabel, 'url' => route('purchases.create'), 'style' => 'primary'];
         }
 
         if (auth()->user()?->hasPermission('expenses.manage')) {
@@ -21,7 +28,7 @@
     @endphp
 
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Fournisseur',
+        'eyebrow' => $supplierLabel,
         'title' => $supplier->name,
         'description' => $supplier->code.' · '.($supplier->city ?: 'Ville non renseignee').' · '.($supplier->phone ?: 'Telephone non renseigne'),
         'actions' => $headerActions,
@@ -34,12 +41,12 @@
     <section class="card" style="margin-bottom:20px;">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
             <a href="#purchase-documents" class="card" style="padding:16px; display:block;">
-                <strong>Factures fournisseurs</strong>
-                <div class="muted" style="margin-top:8px;">Voir les achats et les soldes ouverts de ce fournisseur.</div>
+                <strong>Factures {{ strtolower($supplierLabel) }}</strong>
+                <div class="muted" style="margin-top:8px;">Voir les {{ strtolower($purchasesLabel) }} et les soldes ouverts de ce {{ strtolower($supplierLabel) }}.</div>
             </a>
             <a href="#expense-documents" class="card" style="padding:16px; display:block;">
                 <strong>Depenses liees</strong>
-                <div class="muted" style="margin-top:8px;">Suivre les charges rattachees au fournisseur.</div>
+                <div class="muted" style="margin-top:8px;">Suivre les charges rattachees a ce {{ strtolower($supplierLabel) }}.</div>
             </a>
             <a href="#supplier-payments" class="card" style="padding:16px; display:block;">
                 <strong>Reglements</strong>
@@ -47,13 +54,13 @@
             </a>
             <a href="#accounting-effects" class="card" style="padding:16px; display:block;">
                 <strong>Ecritures comptables liees</strong>
-                <div class="muted" style="margin-top:8px;">Suivre la trace comptable du fournisseur.</div>
+                <div class="muted" style="margin-top:8px;">Suivre la trace comptable du {{ strtolower($supplierLabel) }}.</div>
             </a>
         </div>
     </section>
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Achats valides</div><div class="stat-value">{{ number_format($stats['purchase_total'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">{{ $purchasesLabel }} valides</div><div class="stat-value">{{ number_format($stats['purchase_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Reste a payer</div><div class="stat-value">{{ number_format($stats['open_balance'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Reglements</div><div class="stat-value">{{ number_format($stats['payments_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Depenses</div><div class="stat-value">{{ number_format($stats['expenses_total'], 0, ',', ' ') }}</div></div>
@@ -62,7 +69,7 @@
     <section class="card" style="margin-bottom:20px;">
         <div class="page-head" style="margin-bottom:14px;">
             <div>
-                <h2 style="margin:0;">Performance fournisseur</h2>
+                <h2 style="margin:0;">Performance {{ strtolower($supplierLabel) }}</h2>
                 <div class="muted">Score calcule sur la ponctualite, l execution des commandes et l exposition financiere.</div>
             </div>
         </div>
@@ -116,14 +123,14 @@
         </section>
 
         <section class="card">
-            <h2 style="margin-top:0;">Lecture relation fournisseur</h2>
+            <h2 style="margin-top:0;">Lecture relation {{ strtolower($supplierLabel) }}</h2>
             <div class="grid">
                 <div><strong>Dettes ouvertes</strong><div class="muted">{{ $stats['open_balance'] > 0 ? 'Reglements a planifier' : 'Aucune dette ouverte' }}</div></div>
-                <div><strong>Historique achats</strong><div class="muted">{{ $bills->count() }} facture(s) affichee(s)</div></div>
+                <div><strong>Historique {{ strtolower($purchasesLabel) }}</strong><div class="muted">{{ $bills->count() }} facture(s) affichee(s)</div></div>
                 <div><strong>Historique depenses</strong><div class="muted">{{ $expenses->count() }} depense(s) affichee(s)</div></div>
                 <div><strong>Comptabilite</strong><div class="muted">{{ $journalEntries->count() }} ecriture(s) recente(s)</div></div>
                 <div><strong>Derniere reception</strong><div class="muted">{{ $performance['last_receipt_date'] ? \Illuminate\Support\Carbon::parse($performance['last_receipt_date'])->format('d/m/Y') : 'Aucune' }}</div></div>
-                <div><strong>Exposition dettes / achats</strong><div class="muted">{{ $performance['open_balance_ratio'] !== null ? number_format((float) $performance['open_balance_ratio'], 1, ',', ' ') . ' %' : 'n.c.' }}</div></div>
+                <div><strong>Exposition dettes / {{ strtolower($purchasesLabel) }}</strong><div class="muted">{{ $performance['open_balance_ratio'] !== null ? number_format((float) $performance['open_balance_ratio'], 1, ',', ' ') . ' %' : 'n.c.' }}</div></div>
             </div>
             @if ($supplier->notes)
                 <div class="muted" style="margin-top:14px;">{{ $supplier->notes }}</div>
@@ -134,13 +141,13 @@
     @include('partials.activity-history', [
         'activities' => $recentActivities,
         'title' => 'Historique des actions',
-        'description' => 'Creation du fournisseur, achats, depenses, reglements et autres actions recentes visibles sur ce dossier.',
+        'description' => 'Creation du '.$supplierLabel.', '.$purchasesLabel.', depenses, reglements et autres actions recentes visibles sur ce dossier.',
         'sectionId' => 'activity-history',
     ])
 
     <div class="split" style="margin-top:20px;">
         <section class="card" id="purchase-documents">
-            <h2 style="margin-top:0;">Factures fournisseurs</h2>
+            <h2 style="margin-top:0;">Factures {{ strtolower($supplierLabel) }}</h2>
             @forelse ($bills as $bill)
                 <div style="padding-bottom:14px; border-bottom:1px solid #efe4d3; margin-bottom:14px;">
                     <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
@@ -153,7 +160,7 @@
                     </div>
                 </div>
             @empty
-                <p class="muted">Aucune facture fournisseur liee pour le moment.</p>
+                <p class="muted">Aucune facture {{ strtolower($supplierLabel) }} liee pour le moment.</p>
             @endforelse
         </section>
 
@@ -171,7 +178,7 @@
                     </div>
                 </div>
             @empty
-                <p class="muted">Aucune depense liee a ce fournisseur.</p>
+                <p class="muted">Aucune depense liee a ce {{ strtolower($supplierLabel) }}.</p>
             @endforelse
         </section>
     </div>
@@ -191,7 +198,7 @@
                     </div>
                 </div>
             @empty
-                <p class="muted">Aucun reglement enregistre pour ce fournisseur.</p>
+                <p class="muted">Aucun reglement enregistre pour ce {{ strtolower($supplierLabel) }}.</p>
             @endforelse
         </section>
 
@@ -211,14 +218,13 @@
                     </div>
                 </div>
             @empty
-                <p class="muted">Aucune ecriture comptable liee a ce fournisseur pour le moment.</p>
+                <p class="muted">Aucune ecriture comptable liee a ce {{ strtolower($supplierLabel) }} pour le moment.</p>
             @endforelse
         </section>
     </div>
 
     @include('partials.partner-directory', ['partner' => $supplier])
 @endsection
-
 
 
 

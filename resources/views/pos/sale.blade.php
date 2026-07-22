@@ -2,9 +2,19 @@
 
 @section('title', 'Point de vente - Caisse detail')
 @section('page-title', 'Point de vente')
-@section('hide-global-shortcuts', '1')
 
 @section('content')
+    @php
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+            ? 'Client comptoir'
+            : $customerLabel.' comptoir';
+    @endphp
     <style>
         html, body {
             min-height: 100%;
@@ -1360,21 +1370,6 @@
             background: linear-gradient(180deg, #9a6a2f 0%, #7a5121 100%);
             border-color: rgba(251, 191, 36, 0.45);
         }
-        .pos-training-card {
-            margin-top: 10px;
-            border: 1px dashed rgba(255, 255, 255, 0.25);
-            border-radius: 14px;
-            padding: 10px 12px;
-            background: rgba(18, 23, 42, 0.5);
-            display: grid;
-            gap: 8px;
-        }
-        .pos-training-card ol {
-            margin: 0;
-            padding-left: 18px;
-            display: grid;
-            gap: 4px;
-        }
         .pos-help-chip {
             display: inline-flex;
             align-items: center;
@@ -1389,15 +1384,605 @@
             margin-left: 6px;
             cursor: help;
         }
+        .pos-kicker {
+            padding: 8px 12px !important;
+            min-height: 0;
+        }
+        .pos-kicker .muted {
+            display: none;
+        }
+        .pos-kicker-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .pos-kicker-actions .button,
+        .pos-mode-button {
+            min-height: 38px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .pos-mode-button {
+            border: 1px solid rgba(181, 240, 232, 0.18);
+            background: linear-gradient(180deg, #1f8b8a 0%, #14696c 100%);
+            color: #ffffff;
+            cursor: pointer;
+        }
+        .pos-status-strip {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .pos-status-item {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            column-gap: 8px;
+            row-gap: 2px;
+            align-items: center;
+            min-height: 44px;
+            padding: 8px 10px;
+            border: 1px solid rgba(181, 240, 232, 0.12);
+            border-radius: 10px;
+            background: rgba(9, 17, 29, 0.72);
+        }
+        .pos-status-item strong {
+            color: #ffffff;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pos-status-item small {
+            grid-column: 2;
+            color: var(--pos-muted);
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pos-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #9ef0c0;
+            box-shadow: 0 0 0 4px rgba(158, 240, 192, 0.10);
+        }
+        .pos-status-item.is-warning .pos-status-dot {
+            background: #ffcf8b;
+            box-shadow: 0 0 0 4px rgba(255, 207, 139, 0.10);
+        }
+        .pos-status-item.is-muted .pos-status-dot {
+            background: #95a1d5;
+            box-shadow: 0 0 0 4px rgba(149, 161, 213, 0.10);
+        }
+        body.pos-fullscreen-mode .pos-kicker {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            box-shadow: 0 12px 28px rgba(3, 9, 18, 0.35);
+        }
+        body.pos-fullscreen-mode .pos-shell {
+            min-height: 100vh;
+        }
+        body.pos-fullscreen-mode .pos-browser {
+            padding-top: 8px;
+        }
+        @media (max-width: 920px) {
+            .pos-status-strip {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 760px) {
+            .pos-status-strip {
+                grid-template-columns: 1fr;
+            }
+        }
+        /* Desktop caisse: toutes les commandes essentielles restent dans le viewport. */
+        @media (min-width: 921px) {
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                overflow: hidden !important;
+                overscroll-behavior: none;
+            }
+            .shell,
+            .main {
+                width: 100%;
+                height: 100dvh;
+                min-height: 0 !important;
+                max-height: 100dvh;
+                overflow: hidden !important;
+            }
+            .pos-shell {
+                width: 100%;
+                height: 100dvh;
+                min-height: 0;
+                grid-template-rows: auto minmax(0, 1fr);
+                overflow: hidden;
+            }
+            .pos-kicker {
+                min-height: 50px;
+                padding: 6px 10px !important;
+                flex-wrap: nowrap;
+            }
+            .pos-kicker-actions {
+                flex-wrap: nowrap;
+            }
+            .pos-kicker-actions .button,
+            .pos-mode-button {
+                min-height: 34px;
+                padding: 6px 10px;
+                white-space: nowrap;
+            }
+            .pos-workspace {
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                grid-template-columns: minmax(500px, 580px) minmax(0, 1fr);
+                overflow: hidden;
+            }
+            .pos-browser {
+                height: 100%;
+                min-height: 0;
+                padding: 6px 8px 8px;
+                gap: 3px;
+                grid-template-rows: auto auto auto auto auto auto auto auto auto minmax(0, 1fr);
+                overflow: hidden;
+            }
+            .pos-quick-actions {
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 4px;
+                margin: 0;
+            }
+            .pos-quick-btn {
+                min-height: 32px;
+                padding: 5px 7px;
+                border-radius: 8px;
+                font-size: 11px;
+            }
+            .pos-session-strip {
+                display: flex !important;
+                gap: 4px;
+                flex-wrap: nowrap;
+                overflow: hidden;
+            }
+            .pos-meta-chip {
+                min-width: 0;
+                padding: 3px 6px;
+                font-size: 9px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .pos-status-strip {
+                display: grid !important;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 4px;
+            }
+            .pos-status-item {
+                min-height: 30px;
+                padding: 3px 5px;
+                column-gap: 5px;
+            }
+            .pos-status-item strong {
+                font-size: 9px;
+                letter-spacing: .03em;
+            }
+            .pos-status-item small {
+                font-size: 8px;
+            }
+            .pos-status-dot {
+                width: 7px;
+                height: 7px;
+                box-shadow: none;
+            }
+            .pos-sync-strip {
+                display: flex !important;
+                min-height: 32px;
+                gap: 6px;
+                padding: 3px 6px;
+                flex-wrap: nowrap;
+            }
+            .pos-sync-badge {
+                min-width: 72px;
+                padding: 3px 6px;
+                font-size: 9px;
+            }
+            .pos-sync-copy {
+                gap: 0;
+            }
+            .pos-sync-summary {
+                font-size: 10px;
+            }
+            .pos-sync-last {
+                font-size: 8px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .pos-sync-strip .button {
+                min-height: 28px;
+                padding: 4px 7px;
+                font-size: 9px;
+                white-space: nowrap;
+            }
+            .pos-sync-queue {
+                display: grid !important;
+                max-height: 36px;
+                gap: 3px;
+                overflow: hidden;
+            }
+            .pos-sync-item {
+                padding: 3px 6px;
+                font-size: 9px;
+            }
+            .pos-shortcuts {
+                display: flex !important;
+                gap: 4px;
+                flex-wrap: nowrap;
+                overflow: hidden;
+            }
+            .pos-shortcuts span {
+                padding: 2px 5px;
+                font-size: 8px;
+                white-space: nowrap;
+            }
+            .pos-toolbar {
+                gap: 8px;
+            }
+            .pos-search {
+                gap: 2px;
+            }
+            .pos-search input {
+                padding: 9px 11px;
+                font-size: 14px;
+            }
+            .pos-summary-card {
+                min-width: 120px;
+                padding: 7px 9px;
+            }
+            .pos-summary-card .value {
+                font-size: 18px;
+            }
+            .pos-summary-card .help {
+                display: none;
+            }
+            .pos-touch-strip {
+                gap: 5px;
+            }
+            .pos-touch-btn,
+            .pos-chip {
+                padding: 7px 8px;
+                min-height: 34px;
+                font-size: 12px;
+            }
+            .pos-chip-row {
+                gap: 5px;
+                flex-wrap: nowrap;
+                overflow: hidden;
+            }
+            #pos-product-grid {
+                height: 100%;
+                min-height: 190px;
+                padding: 6px;
+                overflow: hidden;
+            }
+            #pos-product-grid > .pos-grid + .pos-empty {
+                display: none;
+            }
+            .pos-grid {
+                height: 100%;
+                min-height: 0;
+                grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+                grid-auto-rows: minmax(0, 1fr);
+                gap: 6px;
+                overflow: hidden;
+            }
+            .pos-product {
+                min-height: 0;
+                height: 100%;
+                padding: 6px;
+                gap: 4px;
+                overflow: hidden;
+            }
+            .pos-product-thumb {
+                height: 54px;
+            }
+            .pos-product strong {
+                font-size: 11px;
+                line-height: 1.15;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .pos-product .meta {
+                display: none;
+            }
+            .pos-product .price {
+                font-size: 12px;
+            }
+            .pos-cart {
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                grid-template-rows: auto minmax(0, 1fr);
+                overflow: hidden;
+            }
+            .pos-cart-head {
+                padding: 6px 9px 7px;
+            }
+            .pos-nav,
+            .pos-order-switcher,
+            .pos-cart-title-row {
+                margin-bottom: 5px;
+            }
+            .pos-nav-tab,
+            .pos-nav-counter {
+                min-height: 26px;
+                padding: 0 9px;
+                font-size: 11px;
+            }
+            .pos-order-tab,
+            .pos-order-add {
+                padding: 6px 9px;
+                font-size: 11px;
+            }
+            .doc-chip {
+                display: inline-flex;
+                margin: 0 0 4px;
+                padding: 3px 6px;
+                font-size: 8px;
+            }
+            .pos-cart-context {
+                display: flex;
+                gap: 3px;
+                flex-wrap: nowrap;
+                overflow: hidden;
+            }
+            .pos-cart-context-chip {
+                min-width: 0;
+                padding: 3px 5px;
+                font-size: 8px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .pos-cart-title-row h3 {
+                font-size: 14px;
+            }
+            .pos-cart-head .summary-box {
+                min-width: 112px;
+                padding: 6px 8px;
+            }
+            .pos-cart-head .summary-box .value {
+                font-size: 17px;
+            }
+            .pos-cart-head-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 5px;
+                margin-top: 4px;
+            }
+            .pos-cart-head-grid label,
+            .pos-cart-body label {
+                margin-bottom: 2px;
+                font-size: 9px;
+                letter-spacing: .05em;
+            }
+            .pos-cart-head-grid input,
+            .pos-cart-head-grid select,
+            .pos-cart-body input,
+            .pos-cart-body textarea,
+            .pos-cart-body select {
+                min-height: 32px;
+                padding: 6px 7px;
+                border-radius: 8px;
+                font-size: 11px;
+            }
+            .pos-sale-form {
+                height: 100%;
+                min-height: 0;
+                overflow: hidden;
+            }
+            .pos-cart-body {
+                position: relative;
+                height: 100%;
+                min-height: 0;
+                padding: 6px 9px 8px;
+                gap: 6px;
+                grid-template-columns: minmax(0, 1.12fr) minmax(150px, .88fr);
+                grid-template-rows: minmax(74px, 1fr) auto auto auto;
+                overflow: hidden;
+            }
+            .pos-cart-body > .alert-error {
+                grid-column: 1 / -1;
+            }
+            .pos-cart-body > div:has(#pos-lines) {
+                grid-column: 1;
+                grid-row: 1;
+                min-height: 0;
+                overflow: hidden;
+            }
+            .pos-lines {
+                height: 100%;
+                max-height: 100%;
+                min-height: 0;
+                overflow: auto;
+                scrollbar-width: thin;
+            }
+            .pos-empty {
+                padding: 12px 10px;
+                font-size: 11px;
+            }
+            .pos-line {
+                padding: 6px 7px;
+                gap: 4px;
+            }
+            .pos-line-title {
+                font-size: 11px;
+            }
+            .pos-keypad {
+                grid-column: 2;
+                grid-row: 1;
+                min-height: 0;
+                padding: 6px;
+                gap: 5px;
+                overflow: hidden;
+            }
+            .pos-keypad-head {
+                gap: 6px;
+            }
+            .pos-keypad-grid {
+                gap: 3px;
+            }
+            .pos-key {
+                min-height: 28px;
+                border-radius: 7px;
+                font-size: 13px;
+            }
+            .pos-summary {
+                grid-column: 1;
+                grid-row: 2;
+                padding: 6px 8px;
+                gap: 3px;
+            }
+            .pos-summary-row {
+                font-size: 10px;
+            }
+            .pos-summary-row strong {
+                font-size: 13px;
+            }
+            .pos-summary-controls {
+                grid-column: 2;
+                grid-row: 2;
+                grid-template-columns: 1fr;
+                gap: 4px;
+            }
+            .pos-inline-grid {
+                grid-template-columns: 1fr 74px;
+                gap: 4px;
+            }
+            .pos-note {
+                min-height: 32px;
+                height: 32px;
+                resize: none;
+            }
+            .pos-payment-panel {
+                grid-column: 1 / -1;
+                grid-row: 3;
+                padding: 6px 8px;
+                gap: 5px;
+                overflow: hidden;
+            }
+            .pos-payment-head .pos-payment-help,
+            .pos-payment-grid .pos-payment-help {
+                display: block;
+                font-size: 8px;
+                line-height: 1.15;
+            }
+            .pos-payment-line {
+                padding: 5px;
+                gap: 5px;
+            }
+            .pos-payment-grid {
+                gap: 6px;
+            }
+            .pos-payment-total-row {
+                padding: 2px 0;
+                font-size: 10px;
+            }
+            .pos-payment-total-row strong {
+                font-size: 11px;
+            }
+            .pos-payment-remove {
+                width: 32px;
+                height: 32px;
+            }
+            .pos-actions {
+                grid-column: 1 / -1;
+                grid-row: 4;
+                gap: 6px;
+            }
+            .pos-actions .button {
+                min-height: 36px;
+                padding: 8px 9px;
+                font-size: 12px;
+            }
+        }
+        @media (min-width: 921px) and (max-height: 700px) {
+            .pos-keypad-head,
+            .pos-search .help,
+            .pos-payment-head .pos-payment-help {
+                display: none;
+            }
+            .pos-key {
+                min-height: 24px;
+            }
+            .pos-cart-head-grid label,
+            .pos-cart-body label {
+                font-size: 8px;
+            }
+        }
+        /* Mode Odoo: panier fixe a gauche, catalogue prioritaire a droite. */
+        @media (min-width: 921px) {
+            .pos-workspace {
+                grid-template-columns: minmax(430px, 36vw) minmax(0, 1fr);
+            }
+            .pos-browser {
+                grid-template-rows: auto auto minmax(0, 1fr);
+                gap: 6px;
+            }
+            .pos-browser:not(.show-tools) .pos-quick-actions,
+            .pos-browser:not(.show-tools) .pos-touch-strip,
+            .pos-browser:not(.show-tools) .pos-status-strip,
+            .pos-browser:not(.show-tools) .pos-sync-strip,
+            .pos-browser:not(.show-tools) .pos-sync-queue,
+            .pos-browser:not(.show-tools) .pos-shortcuts {
+                display: none !important;
+            }
+            .pos-browser.show-tools {
+                grid-template-rows: auto auto auto auto auto auto auto auto auto minmax(190px, 1fr);
+            }
+            #pos-product-grid {
+                min-height: 0;
+            }
+            .pos-grid {
+                grid-template-columns: repeat(6, minmax(125px, 1fr));
+                grid-template-rows: repeat(2, minmax(0, 1fr));
+            }
+            #pos-tools-toggle[aria-expanded="true"] {
+                background: linear-gradient(135deg, var(--pos-accent) 0%, var(--pos-accent-strong) 100%);
+                color: #fff;
+            }
+        }
+        @media (min-width: 921px) and (max-width: 1450px) {
+            .pos-workspace {
+                grid-template-columns: minmax(410px, 42vw) minmax(0, 1fr);
+            }
+            .pos-grid {
+                grid-template-columns: repeat(4, minmax(120px, 1fr));
+            }
+        }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/pos-odoo.css') }}?v=20260721-3">
 
     <div class="pos-shell">
         <div class="pos-kicker">
             <div>
                 <h2>CAISSE {{ $session->id }} - ERP POS</h2>
-                <div class="muted">Session {{ $session->session_number }} / {{ $session->warehouse?->name }} / {{ $session->cashAccount?->name }}. Ecran caisse detail optimise pour vente rapide, tactile et scan code-barres.</div>
+                <div class="muted">Session {{ $session->session_number }} / {{ $session->warehouse?->name }} / {{ $session->cashAccount?->name }}. Ecran optimise pour {{ strtolower($saleLabel) }}, tactile et scan code-barres.</div>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="pos-kicker-actions">
+                <button type="button" id="pos-tools-toggle" class="pos-mode-button" aria-expanded="false">Outils</button>
+                <button type="button" id="pos-fullscreen-toggle" class="pos-mode-button"><span id="pos-fullscreen-label">Plein ecran caisse</span></button>
                 <a href="{{ route('pos.show', $session) }}" class="button button-secondary">Retour session</a>
                 <a href="{{ route('pos.report', ['date' => $session->opened_at?->toDateString(), 'warehouse_id' => $session->warehouse_id, 'cash_account_id' => $session->cash_account_id]) }}" class="button button-secondary">Rapport du jour</a>
             </div>
@@ -1407,23 +1992,23 @@
             <section class="pos-browser">
                 <div class="pos-toolbar">
                     <div class="pos-search">
-                        <input id="pos-search" type="text" placeholder="Scanner ou rechercher un article : code-barres, SKU, nom" autofocus>
-                        <div id="pos-feedback" class="help">Scanne un code-barres ou clique sur un article pour l ajouter au panier.</div>
+                        <input id="pos-search" type="text" placeholder="Scanner code-barres puis Entrée, ou rechercher {{ strtolower($productLabel) }}/SKU" autocomplete="off" inputmode="search" autofocus>
+                        <div id="pos-feedback" class="help">Douchette code-barres active : le scan ajoute directement au panier.</div>
                     </div>
                     <div class="pos-summary-card">
-                        <strong>Tickets session</strong>
+                        <strong>{{ $salesLabel }} session</strong>
                         <div class="value">{{ number_format($summary['sales_count'], 0, ',', ' ') }}</div>
-                        <div class="help">tickets deja saisis</div>
+                        <div class="help">document(s) deja saisi(s)</div>
                     </div>
                 </div>
                 <div class="pos-quick-actions">
-                    <button type="button" id="pos-quick-sell" class="pos-quick-btn is-primary">Vendre</button>
+                    <button type="button" id="pos-quick-sell" class="pos-quick-btn is-primary">{{ $saleLabel }}</button>
                     <button type="button" id="pos-quick-cash" class="pos-quick-btn is-accent">Encaisser</button>
                     <button type="button" id="pos-quick-receive" class="pos-quick-btn is-warm">Receptionner</button>
                 </div>
 
                 <div class="pos-touch-strip">
-                    <button type="button" class="pos-touch-btn" data-pos-action="focus-customer">Client</button>
+                    <button type="button" class="pos-touch-btn" data-pos-action="focus-customer">{{ $customerLabel }}</button>
                     <button type="button" class="pos-touch-btn" data-pos-action="focus-note">Note</button>
                     <button type="button" class="pos-touch-btn" data-pos-action="focus-search">Recherche</button>
                     <button type="button" class="pos-touch-btn" data-pos-action="target-qty">Qte</button>
@@ -1439,7 +2024,29 @@
                     @if ($activePosProfile)
                         <div class="pos-meta-chip">Profil <strong>{{ $activePosProfile['name'] }}</strong></div>
                     @endif
-                    <div class="pos-meta-chip" id="pos-filter-count">{{ count($productCatalog) }} / {{ count($productCatalog) }} articles</div>
+                    <div class="pos-meta-chip" id="pos-filter-count">{{ count($productCatalog) }} / {{ $productCatalogTotal }} {{ strtolower($productsLabel) }}</div>
+                </div>
+                <div class="pos-status-strip">
+                    <div class="pos-status-item">
+                        <span class="pos-status-dot"></span>
+                        <strong>Session ouverte</strong>
+                        <small>{{ $session->cashAccount?->name }} / {{ $session->warehouse?->name }}</small>
+                    </div>
+                    <div class="pos-status-item">
+                        <span class="pos-status-dot"></span>
+                        <strong>Scan pret</strong>
+                        <small id="pos-scan-status">Douchette active</small>
+                    </div>
+                    <div class="pos-status-item is-muted">
+                        <span class="pos-status-dot"></span>
+                        <strong>Paiement</strong>
+                        <small id="pos-cash-status">Aucun ticket en cours</small>
+                    </div>
+                    <div class="pos-status-item is-muted">
+                        <span class="pos-status-dot"></span>
+                        <strong>{{ $stockLabel }} controle</strong>
+                        <small>{{ $stockPolicy === 'block' ? 'Rupture bloquee' : 'Alerte rupture' }}</small>
+                    </div>
                 </div>
 
                 <div class="pos-sync-strip">
@@ -1449,7 +2056,6 @@
                         <div id="pos-sync-last" class="pos-sync-last">La caisse resynchronise automatiquement des que la connexion revient.</div>
                     </div>
                     <button type="button" id="pos-install-app" class="button button-secondary" hidden>Installer la caisse</button>
-                    <button type="button" id="pos-refresh-stock" class="button button-secondary">Actualiser stock</button>
                     <button type="button" id="pos-sync-now" class="button button-secondary">Synchroniser la file</button>
                 </div>
                 <div id="pos-sync-queue" class="pos-sync-queue"></div>
@@ -1462,7 +2068,7 @@
 
                 <div class="pos-shortcuts">
                     <span>F2 Recherche</span>
-                    <span>F4 Client</span>
+                    <span>F4 {{ $customerLabel }}</span>
                     <span>F6 Prix</span>
                     <span>F7 Remise ligne</span>
                     <span>F8 Remise ticket</span>
@@ -1476,26 +2082,17 @@
                 <div class="pos-cart-head">
                     <div class="pos-nav">
                         <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="pos-nav-tab is-active">Caisse</a>
-                        <a href="{{ route('pos.show', $session) }}#tickets-session" class="pos-nav-tab">Commandes</a>
+                        <a href="{{ route('pos.orders.index') }}" class="pos-nav-tab">Commandes</a>
                         <div class="pos-nav-counter">{{ number_format($summary['sales_count'], 0, ',', ' ') }}</div>
                     </div>
                     <div class="pos-order-switcher">
                         <div id="pos-order-tabs" class="pos-order-tabs"></div>
                         <button type="button" id="pos-new-order" class="pos-order-add">+ Nouvelle commande</button>
                     </div>
-                    <div class="doc-chip">Commande en cours</div>
+                    <div class="doc-chip">{{ $saleLabel }} en cours</div>
                     <div class="pos-cart-title-row">
                         <div>
                             <h3>Panier en cours</h3>
-                            <div class="help">Tous les produits ajoutes restent visibles a gauche pendant la commande, comme sur une vraie caisse detail.</div>
-                            <div class="pos-training-card">
-                                <strong>Formation rapide (30 sec)</strong>
-                                <ol>
-                                    <li><strong>Vendre:</strong> recherche un article puis clique dessus.</li>
-                                    <li><strong>Encaisser:</strong> verifie le total puis clique sur Encaisser.</li>
-                                    <li><strong>Receptionner:</strong> ouvre la reception fournisseur si stock vide.</li>
-                                </ol>
-                            </div>
                         </div>
                         <div class="summary-box">
                             <strong>Total ticket</strong>
@@ -1505,9 +2102,9 @@
 
                     <div class="pos-cart-head-grid">
                         <div>
-                            <label for="customer_id">Client <span class="pos-help-chip" title="Laisse Client comptoir si la personne n est pas enregistre.">?</span></label>
+                            <label for="customer_id">{{ $customerLabel }} <span class="pos-help-chip" title="Laisse {{ $counterCustomerLabel }} si le dossier n est pas enregistre.">?</span></label>
                             <select id="customer_id" name="customer_id" form="pos-sale-form">
-                                <option value="">Client comptoir</option>
+                                <option value="">{{ $counterCustomerLabel }}</option>
                                 @foreach ($customers as $customer)
                                     <option value="{{ $customer->id }}" @selected(old('customer_id') == $customer->id)>{{ $customer->name }}</option>
                                 @endforeach
@@ -1515,7 +2112,7 @@
                             @error('customer_id')<div class="field-error">{{ $message }}</div>@enderror
                         </div>
                         <div>
-                            <label for="sale_date">Date de vente</label>
+                            <label for="sale_date">Date {{ strtolower($saleLabel) }}</label>
                             <input id="sale_date" name="sale_date" type="date" form="pos-sale-form" value="{{ old('sale_date', now()->toDateString()) }}" required>
                             @error('sale_date')<div class="field-error">{{ $message }}</div>@enderror
                         </div>
@@ -1536,7 +2133,7 @@
                     </div>
 
                     <div class="pos-cart-context">
-                        <div class="pos-cart-context-chip">Client <strong id="pos-customer-chip">Client comptoir</strong></div>
+                        <div class="pos-cart-context-chip">{{ $customerLabel }} <strong id="pos-customer-chip">{{ $counterCustomerLabel }}</strong></div>
                         <div class="pos-cart-context-chip">Paiement <strong id="pos-method-chip">{{ $methods[old('method', 'cash')] ?? reset($methods) }}</strong></div>
                         <div class="pos-cart-context-chip">Date <strong id="pos-date-chip">{{ now()->format('d/m/Y') }}</strong></div>
                         <div class="pos-cart-context-chip">Lignes <strong id="pos-lines-chip">0 ligne</strong></div>
@@ -1558,7 +2155,7 @@
                         @endif
 
                         <div>
-                            <div id="pos-empty" class="pos-empty">Le panier est vide. Scanne un article ou clique sur une carte produit pour demarrer la vente.</div>
+                            <div id="pos-empty" class="pos-empty">Le panier est vide. Scanne un {{ strtolower($productLabel) }} ou clique sur une carte {{ strtolower($productLabel) }} pour demarrer la {{ strtolower($saleLabel) }}.</div>
                             <div id="pos-lines" class="pos-lines"></div>
                         </div>
 
@@ -1659,10 +2256,17 @@
     </div>
 
     <script>
-        const productCatalog = @json($productCatalog);
+        let productCatalog = @json($productCatalog);
+        const productCatalogTotal = Number(@json($productCatalogTotal));
+        const productSearchUrl = @json(route('pos.sales.products', [], false));
         const methods = @json($methods);
         const paymentMethodConfigs = @json($paymentMethodConfigs);
         const activePosProfile = @json($activePosProfile);
+        const stockPolicy = @json($stockPolicy);
+        const showStockQuantity = @json($showStockQuantity);
+        const quickCashPayment = @json($quickCashPayment);
+        const cashRoundingEnabled = @json($cashRoundingEnabled);
+        const cashRoundingPrecision = Number(@json($cashRoundingPrecision));
         const allowDraftOrders = @json($allowDraftOrders);
         const posSessionId = @json($session->id);
         const paymentAccounts = @json($paymentAccounts);
@@ -1675,6 +2279,15 @@
         const initialPosSyncKey = @json(old('pos_sync_key'));
         const hasOldPosForm = @json($hasOldPosForm ?? false);
         const sessionWarehouseName = @json($session->warehouse?->name ?? 'depot actif');
+        const posVocabulary = {
+            customer: @json($customerLabel),
+            counterCustomer: @json($counterCustomerLabel),
+            product: @json($productLabel),
+            products: @json($productsLabel),
+            sale: @json($saleLabel),
+            sales: @json($salesLabel),
+            stock: @json($stockLabel),
+        };
         const money = (value) => new Intl.NumberFormat('fr-FR').format(Math.round(Number(value) || 0)) + ' XOF';
         const searchInput = document.getElementById('pos-search');
         const feedback = document.getElementById('pos-feedback');
@@ -1723,11 +2336,15 @@
         const syncLast = document.getElementById('pos-sync-last');
         const syncQueueWrap = document.getElementById('pos-sync-queue');
         const syncNowButton = document.getElementById('pos-sync-now');
-        const refreshStockButton = document.getElementById('pos-refresh-stock');
         const installAppButton = document.getElementById('pos-install-app');
         const quickSellButton = document.getElementById('pos-quick-sell');
         const quickCashButton = document.getElementById('pos-quick-cash');
         const quickReceiveButton = document.getElementById('pos-quick-receive');
+        const toolsToggleButton = document.getElementById('pos-tools-toggle');
+        const fullscreenButton = document.getElementById('pos-fullscreen-toggle');
+        const fullscreenLabel = document.getElementById('pos-fullscreen-label');
+        const scanStatusOutput = document.getElementById('pos-scan-status');
+        const cashStatusOutput = document.getElementById('pos-cash-status');
         const csrfToken = saleForm.querySelector('input[name="_token"]').value;
         const queueStorageKey = `nema-erp-pos-offline:${@json($session->id)}:queue`;
         const offlineDbName = 'nema-erp-pos-offline';
@@ -1736,18 +2353,116 @@
         const serviceWorkerUrl = @json(parse_url(asset('pos-sw.js'), PHP_URL_PATH) ?: '/pos-sw.js');
         let pendingQueue = [];
         let syncInFlight = false;
-        let stockRefreshInFlight = false;
-        let lastStockRefreshAt = 0;
         let deferredInstallPrompt = null;
         let lastSyncMessage = '';
+        const setScanStatus = (message) => {
+            if (scanStatusOutput) {
+                scanStatusOutput.textContent = message;
+            }
+        };
+        const setFullscreenUi = () => {
+            const active = Boolean(document.fullscreenElement);
+            document.body.classList.toggle('pos-fullscreen-mode', active);
+            if (fullscreenLabel) {
+                fullscreenLabel.textContent = active ? 'Quitter plein ecran' : 'Plein ecran caisse';
+            }
+        };
+        const focusCashSearch = () => {
+            window.setTimeout(() => {
+                searchInput?.focus();
+                searchInput?.select();
+            }, 80);
+        };
+        if (toolsToggleButton) {
+            toolsToggleButton.addEventListener('click', () => {
+                const expanded = document.querySelector('.pos-browser')?.classList.toggle('show-tools') || false;
+                toolsToggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                toolsToggleButton.textContent = expanded ? 'Fermer outils' : 'Outils';
+                window.requestAnimationFrame(() => renderProducts());
+            });
+        }
+        if (fullscreenButton && document.fullscreenEnabled) {
+            fullscreenButton.addEventListener('click', async () => {
+                try {
+                    if (document.fullscreenElement) {
+                        await document.exitFullscreen();
+                    } else {
+                        await document.documentElement.requestFullscreen();
+                    }
+                } catch (error) {
+                    feedback.textContent = 'Le navigateur a refuse le plein ecran. Reessaie depuis le bouton.';
+                }
+                setFullscreenUi();
+                focusCashSearch();
+            });
+            document.addEventListener('fullscreenchange', () => {
+                setFullscreenUi();
+                focusCashSearch();
+            });
+        } else if (fullscreenButton) {
+            fullscreenButton.hidden = true;
+        }
 
         const byId = Object.fromEntries(productCatalog.map((product) => [String(product.id), product]));
+        let remoteProductTotal = productCatalogTotal;
+        let remoteProductPage = 1;
+        let remoteProductPages = 1;
+        let productSearchSequence = 0;
         const accountsById = Object.fromEntries(paymentAccounts.map((account) => [String(account.id), account]));
         const hardwareThreads = Number(window.navigator.hardwareConcurrency || 0);
         const deviceMemoryGb = Number(window.navigator.deviceMemory || 0);
         const isNarrowScreen = window.matchMedia('(max-width: 820px)').matches;
         const isLowPowerDevice = isNarrowScreen || (hardwareThreads > 0 && hardwareThreads <= 4) || (deviceMemoryGb > 0 && deviceMemoryGb <= 4);
-        const maxVisibleProducts = isLowPowerDevice ? 60 : 140;
+        const maxVisibleProducts = isNarrowScreen
+            ? 8
+            : (window.innerWidth >= 1600 ? 20 : 12);
+        remoteProductPages = Math.max(Math.ceil(productCatalogTotal / maxVisibleProducts), 1);
+        const loadRemoteProducts = async ({ focusFirst = false } = {}) => {
+            const sequence = ++productSearchSequence;
+            const url = new URL(productSearchUrl, window.location.origin);
+            url.searchParams.set('session', String(posSessionId));
+            url.searchParams.set('limit', String(maxVisibleProducts));
+            url.searchParams.set('page', String(remoteProductPage));
+            if (state.search.trim()) {
+                url.searchParams.set('q', state.search.trim());
+            }
+            if (state.category) {
+                url.searchParams.set('category', state.category);
+            }
+
+            productGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Chargement des articles...</div>';
+            try {
+                const response = await fetch(url.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const payload = await response.json();
+                if (sequence !== productSearchSequence) {
+                    return [];
+                }
+                productCatalog = Array.isArray(payload.products) ? payload.products : [];
+                remoteProductTotal = Number(payload.total || productCatalog.length);
+                remoteProductPage = Number(payload.page || 1);
+                remoteProductPages = Number(payload.pages || 1);
+                productCatalog.forEach((product) => {
+                    byId[String(product.id)] = product;
+                });
+                renderProducts();
+                if (focusFirst) {
+                    productGrid.querySelector('[data-product-id]')?.focus();
+                }
+                return productCatalog;
+            } catch (error) {
+                if (sequence === productSearchSequence) {
+                    productGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Le catalogue ne peut pas etre charge. Verifie la connexion puis reessaie.</div>';
+                    feedback.textContent = 'Chargement des articles impossible. La caisse reste ouverte; reessaie la recherche.';
+                }
+                return [];
+            }
+        };
         const simplifyErrorMessage = (message) => {
             const text = String(message || '').trim();
             if (!text) {
@@ -1803,16 +2518,7 @@
                 return fallback;
             }
         };
-        const preserveViewport = (callback) => {
-            const scrollX = window.scrollX;
-            const scrollY = window.scrollY;
-            callback();
-            requestAnimationFrame(() => {
-                window.scrollTo(scrollX, scrollY);
-            });
-        };
         const saleStoreUrl = toAppRelativeUrl(saleForm.getAttribute('action') || saleForm.action, '/point-de-vente/vente');
-        const stockAvailabilityUrl = toAppRelativeUrl(@json(route('pos.stock-availability', ['session' => $session->id], false)), '/point-de-vente/stock-disponible');
         const draftStoreUrl = toAppRelativeUrl(@json(route('pos.drafts.store', [], false)), '/point-de-vente/brouillons');
         const draftDestroyUrlTemplate = toAppRelativeUrl(@json(route('pos.drafts.destroy', ['draft' => '__DRAFT__'], false)), '/point-de-vente/brouillons/__DRAFT__');
         const todayValue = saleDateInput.value || new Date().toISOString().slice(0, 10);
@@ -1846,7 +2552,7 @@
         };
         const stockMessage = (product, availableQty) => {
             const unit = product?.unit ? ` ${product.unit}` : '';
-            return `${product?.name || 'Cet article'} dispose de ${formatQty(availableQty)}${unit} en stock vendable dans ${sessionWarehouseName}.`;
+            return `${product?.name || 'Ce '+String(posVocabulary.product || 'article').toLowerCase()} dispose de ${formatQty(availableQty)}${unit} en ${String(posVocabulary.stock || 'stock').toLowerCase()} vendable dans ${sessionWarehouseName}.`;
         };
         const lineStockIssue = (line) => {
             const product = byId[String(line?.product_id || '')];
@@ -1857,7 +2563,7 @@
             const availableQty = availableProductQty(line.product_id, line.uid);
             const requestedQty = n(line.qty, 0);
 
-            if (requestedQty <= availableQty + 0.0001) {
+            if (requestedQty <= availableQty + 0.0001 || stockPolicy === 'allow') {
                 return null;
             }
 
@@ -1871,7 +2577,7 @@
             const product = byId[String(line?.product_id || '')];
             const sanitizedQty = Math.max(0.001, n(desiredQty, 0));
 
-            if (!product || product.type !== 'stockable') {
+            if (!product || product.type !== 'stockable' || stockPolicy !== 'block') {
                 return sanitizedQty;
             }
 
@@ -1941,7 +2647,6 @@
                 uid: seed.uid || `payment-${Date.now()}-${Math.random()}`,
                 method,
                 amount: Number(seed.amount || 0),
-                amount_touched: Boolean(seed.amount_touched || seed.amount !== undefined),
                 cash_account_id: seed.cash_account_id ? Number(seed.cash_account_id) : defaultAccountIdForMethod(method),
                 label: seed.label || '',
             };
@@ -2122,19 +2827,13 @@
             if (payments.length === 1) {
                 payments[0].method = order.method || payments[0].method || defaultMethod;
                 payments[0].cash_account_id = payments[0].cash_account_id || defaultAccountIdForMethod(payments[0].method);
-                if (!payments[0].amount_touched) {
-                    payments[0].amount = total;
-                }
+                payments[0].amount = total;
             }
 
             const paid = payments.reduce((carry, payment) => carry + n(payment.amount, 0), 0);
             const cashAllocated = payments.filter((payment) => payment.method === 'cash').reduce((carry, payment) => carry + n(payment.amount, 0), 0);
             const hasCashLine = payments.some((payment) => payment.method === 'cash');
             let cashReceived = Math.max(n(order.cash_received_amount, 0), 0);
-            const cashReceivedBlank = order.cash_received_touched && String(order.cash_received_raw ?? '') === '';
-            if (hasCashLine && cashAllocated > 0 && cashReceived <= 0 && !cashReceivedBlank && !order.cash_received_touched) {
-                cashReceived = cashAllocated;
-            }
             if (!hasCashLine) {
                 cashReceived = 0;
                 order.cash_received_raw = '';
@@ -2152,7 +2851,6 @@
                 paid,
                 remaining: Math.max(total - paid, 0),
                 overpaid: Math.max(paid - total, 0),
-                hasTouchedPayment: payments.some((payment) => payment.amount_touched),
                 cashAllocated,
                 hasCashLine,
                 cashReceived,
@@ -2239,10 +2937,10 @@
                     remainingInvalid: true,
                 };
             }
-            if (snapshot.payment.paid <= 0.01 && snapshot.payment.hasTouchedPayment) {
+            if (snapshot.payment.remaining > 0.01) {
                 return {
                     valid: false,
-                    message: 'Saisis au moins un reglement positif pour ce ticket.',
+                    message: `Il reste ${money(snapshot.payment.remaining)} a regler sur ce ticket.`,
                     cashInvalid: false,
                     remainingInvalid: true,
                 };
@@ -2271,12 +2969,14 @@
             remainingOutput.closest('.pos-payment-total-row')?.classList.toggle('is-invalid', validation.remainingInvalid);
             const blocked = !state.items.length || !validation.valid;
             if (!syncInFlight) {
-                submitButton.disabled = false;
+                submitButton.disabled = blocked;
             }
             submitButton.classList.toggle('is-blocked', blocked && !syncInFlight);
             submitButton.setAttribute('aria-disabled', blocked ? 'true' : 'false');
             submitButton.dataset.blocked = blocked ? 'true' : 'false';
-            submitButton.title = validation.valid ? '' : validation.message;
+            submitButton.title = !state.items.length
+                ? `Ajoute au moins un ${String(posVocabulary.product || 'article').toLowerCase()} avant de valider.`
+                : (validation.valid ? '' : validation.message);
             return validation;
         };
         const revealSubmitIssue = (options = {}) => {
@@ -2628,10 +3328,6 @@
                 syncNowButton.disabled = syncInFlight || !online || !pendingQueue.length;
                 syncNowButton.textContent = syncInFlight ? 'Synchronisation...' : 'Synchroniser la file';
             }
-            if (refreshStockButton) {
-                refreshStockButton.disabled = stockRefreshInFlight || !online;
-                refreshStockButton.textContent = stockRefreshInFlight ? 'Stock...' : 'Actualiser stock';
-            }
             if (installAppButton) {
                 installAppButton.hidden = !deferredInstallPrompt;
                 installAppButton.disabled = !deferredInstallPrompt || syncInFlight;
@@ -2648,51 +3344,6 @@
         const savePendingQueue = () => {
             persistPendingQueue();
             updateOfflineUi();
-        };
-        const refreshStockAvailability = async ({ silent = false } = {}) => {
-            if (stockRefreshInFlight || !window.navigator.onLine) {
-                return;
-            }
-
-            stockRefreshInFlight = true;
-            updateOfflineUi();
-
-            try {
-                const url = `${stockAvailabilityUrl}${stockAvailabilityUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
-                const response = await fetch(url, {
-                    headers: {
-                        Accept: 'application/json',
-                    },
-                    cache: 'no-store',
-                });
-
-                if (!response.ok) {
-                    throw new Error('stock-refresh-failed');
-                }
-
-                const data = await response.json();
-                const products = Array.isArray(data.products) ? data.products : [];
-                products.forEach((row) => {
-                    const product = byId[String(row.id)];
-                    if (product) {
-                        product.available_qty = Number(row.available_qty || 0);
-                    }
-                });
-
-                lastStockRefreshAt = Date.now();
-                renderProducts();
-                renderCart();
-                if (!silent) {
-                    feedback.textContent = `Stock actualise pour ${data.warehouse_name || sessionWarehouseName}.`;
-                }
-            } catch (error) {
-                if (!silent) {
-                    feedback.textContent = 'Impossible d actualiser le stock maintenant. Recharge la caisse si besoin.';
-                }
-            } finally {
-                stockRefreshInFlight = false;
-                updateOfflineUi();
-            }
         };
         const dropQueuedSale = (syncKey) => {
             pendingQueue = pendingQueue.filter((queued) => queued.sync_key !== syncKey);
@@ -2885,6 +3536,17 @@
             const payment = snapshot.payment;
             cashReceivedInput.disabled = !payment.hasCashLine;
             cashReceivedInput.value = payment.hasCashLine ? payment.cashReceivedDisplay : '';
+            if (cashStatusOutput) {
+                if (!snapshot.total) {
+                    cashStatusOutput.textContent = 'Aucun ticket en cours';
+                } else if (!payment.hasCashLine) {
+                    cashStatusOutput.textContent = 'Paiement sans especes';
+                } else if (payment.cashReceived > 0) {
+                    cashStatusOutput.textContent = `${money(payment.cashReceived)} recu`;
+                } else {
+                    cashStatusOutput.textContent = 'Saisir le cash recu';
+                }
+            }
             paidOutput.textContent = money(payment.paid);
             if (payment.overpaid > 0.01) {
                 remainingLabelOutput.textContent = 'Trop saisi';
@@ -2969,7 +3631,7 @@
         const saveCurrentOrder = async () => {
             const order = syncActiveOrderFromForm();
             if (!order.items.length) {
-                feedback.textContent = 'Ajoute au moins un article avant de mettre la commande en attente.';
+                feedback.textContent = `Ajoute au moins un ${String(posVocabulary.product || 'article').toLowerCase()} avant de mettre la commande en attente.`;
                 searchInput.focus();
                 return;
             }
@@ -3068,7 +3730,6 @@
             }
             if (key === 'amount') {
                 payment.amount = paymentAmount(value, 0);
-                payment.amount_touched = true;
                 refreshPaymentAmounts(order);
                 return;
             }
@@ -3222,12 +3883,13 @@
         const updateContext = () => {
             if (filterCountOutput) {
                 const visible = productGrid.querySelectorAll('[data-product-id]').length;
-                filterCountOutput.textContent = `${visible} / ${productCatalog.length} articles`;
+                const total = state.search || state.category ? remoteProductTotal : productCatalogTotal;
+                filterCountOutput.textContent = `${visible} / ${total} ${String(posVocabulary.products || 'articles').toLowerCase()}`;
             }
             if (customerChip) {
                 customerChip.textContent = customerInput.value
-                    ? (customerInput.selectedOptions[0]?.textContent.trim() || 'Client')
-                    : 'Client comptoir';
+                    ? (customerInput.selectedOptions[0]?.textContent.trim() || posVocabulary.customer)
+                    : posVocabulary.counterCustomer;
             }
             if (methodChip) {
                 const order = activeOrder();
@@ -3239,16 +3901,16 @@
             }
             if (linesChip) {
                 const order = activeOrder();
-                linesChip.textContent = `${order?.label || 'Commande'} · ${state.items.length} ligne${state.items.length > 1 ? 's' : ''}`;
+                linesChip.textContent = `${order?.label || posVocabulary.sale} · ${state.items.length} ligne${state.items.length > 1 ? 's' : ''}`;
             }
         };
 
         const addProduct = (product) => {
             if (product.type === 'stockable' && availableProductQty(product.id) <= 0.0001) {
                 feedback.textContent = `${product.name} est en rupture sur ${sessionWarehouseName}.`;
-                preserveViewport(() => {
-                    renderProducts();
-                });
+                setScanStatus('Article en rupture');
+                renderProducts();
+                searchInput.focus();
 
                 return;
             }
@@ -3275,12 +3937,14 @@
                 state.selectedLine = line.uid;
                 feedback.textContent = `${product.name} ajoute au panier.`;
             }
+            setScanStatus(`${product.sku || product.barcode || 'Article'} ajoute`);
             resetBuffer();
-            preserveViewport(() => {
-                renderCart();
-                renderProducts();
-            });
+            renderCart();
+            renderProducts();
             searchInput.value = '';
+            state.search = '';
+            void loadRemoteProducts();
+            searchInput.focus();
         };
 
         const updateLine = (uid, key, value) => {
@@ -3452,7 +4116,7 @@
             });
 
             if (!prioritizedProducts.length) {
-                productGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Aucun article ne correspond a cette recherche.</div>';
+                productGrid.innerHTML = `<div class="pos-empty" style="grid-column:1 / -1;">Aucun ${String(posVocabulary.product || 'article').toLowerCase()} ne correspond a cette recherche.</div>`;
                 updateContext();
                 return;
             }
@@ -3460,15 +4124,23 @@
             const visibleProducts = prioritizedProducts.slice(0, maxVisibleProducts);
             const hiddenCount = Math.max(0, prioritizedProducts.length - visibleProducts.length);
 
-            productGrid.innerHTML = `<div class="pos-grid">${visibleProducts.map((product) => {
+            const pager = remoteProductPages > 1
+                ? `<div class="pos-catalog-pager">
+                    <button type="button" data-catalog-page="${Math.max(remoteProductPage - 1, 1)}" ${remoteProductPage <= 1 ? 'disabled' : ''}>Precedent</button>
+                    <strong>Page ${remoteProductPage} / ${remoteProductPages}</strong>
+                    <button type="button" data-catalog-page="${Math.min(remoteProductPage + 1, remoteProductPages)}" ${remoteProductPage >= remoteProductPages ? 'disabled' : ''}>Suivant</button>
+                </div>`
+                : '';
+
+            productGrid.innerHTML = `<div class="pos-grid ${pager ? 'has-pager' : ''}">${visibleProducts.map((product) => {
                 const availableQty = product.type === 'stockable' ? n(product.available_qty, 0) : null;
                 const isUnavailable = product.type === 'stockable' && availableQty <= 0.0001;
                 const stockBadge = product.type === 'service'
                     ? '<span class="badge badge-success">Service</span>'
-                    : `<span class="badge ${isUnavailable ? 'badge-danger' : 'badge-warning'}">${isUnavailable ? 'Rupture' : 'Stock'}</span>`;
-                const stockMeta = product.type === 'stockable'
-                    ? `<div class="meta pos-stock-line ${isUnavailable ? 'is-empty' : ''}">Stock dispo ${formatQty(availableQty)} ${esc(product.unit || '')}</div>`
-                    : `<div class="meta pos-stock-line">Disponible immediatement</div>`;
+                    : `<span class="badge ${isUnavailable ? 'badge-danger' : 'badge-warning'}">${isUnavailable ? 'Rupture' : esc(posVocabulary.stock || 'Stock')}</span>`;
+                const stockMeta = product.type === 'stockable' && showStockQuantity
+                    ? `<div class="meta pos-stock-line ${isUnavailable ? 'is-empty' : ''}">${esc(posVocabulary.stock || 'Stock')} dispo ${formatQty(availableQty)} ${esc(product.unit || '')}</div>`
+                    : '';
                 const menuMeta = (product.menu_category_names || []).length
                     ? `<div class="meta">${esc(product.menu_category_names.join(' · '))}</div>`
                     : '';
@@ -3481,7 +4153,7 @@
                     .join('');
 
                 return `
-                <button type="button" class="pos-product ${isUnavailable ? 'is-unavailable' : ''}" data-product-id="${product.id}" ${isUnavailable ? 'disabled' : ''}>
+                <button type="button" class="pos-product ${isUnavailable ? 'is-unavailable' : ''}" data-product-id="${product.id}" ${isUnavailable && stockPolicy === 'block' ? 'disabled' : ''}>
                     <div class="pos-product-top">
                         <div class="pos-product-thumb ${product.image_url ? 'has-image' : `tone-${tone(product)}`}">${thumbHtml(product)}</div>
                         ${stockBadge}
@@ -3497,7 +4169,7 @@
                     <div class="price">${money(product.price)}</div>
                 </button>
             `;
-            }).join('')}</div>${hiddenCount > 0 ? `<div class="pos-empty" style="margin-top:10px;">${hiddenCount} article${hiddenCount > 1 ? 's' : ''} masque(s) pour garder la caisse fluide. Affine la recherche pour les afficher.</div>` : ''}`;
+            }).join('')}</div>${pager}${hiddenCount > 0 ? `<div class="pos-empty" style="margin-top:10px;">${hiddenCount} ${String(posVocabulary.product || 'article').toLowerCase()}${hiddenCount > 1 ? 's' : ''} masque(s) pour garder la caisse fluide. Affine la recherche pour les afficher.</div>` : ''}`;
             updateContext();
         };
 
@@ -3516,7 +4188,7 @@
                 const stockIssue = lineStockIssue(item);
                 const baseTag = item.uid === active?.uid ? 'Ligne active' : 'Toucher pour selectionner';
                 const stockTag = product.type === 'stockable'
-                    ? `Stock dispo ${formatQty(availableProductQty(item.product_id, item.uid))} ${esc(product.unit || '')}`
+                    ? `${esc(posVocabulary.stock || 'Stock')} dispo ${formatQty(availableProductQty(item.product_id, item.uid))} ${esc(product.unit || '')}`
                     : 'Disponible immediatement';
                 return `
                     <div class="pos-line ${activeClass}" data-line-card="${item.uid}">
@@ -3597,7 +4269,7 @@
             if (action === 'counter-customer') {
                 customerInput.value = '';
                 updateContext();
-                feedback.textContent = 'Client comptoir active pour ce ticket.';
+                feedback.textContent = `${posVocabulary.counterCustomer} active pour ce ticket.`;
                 return;
             }
             if (action === 'clear-cart') {
@@ -3620,6 +4292,12 @@
         };
 
         productGrid.addEventListener('click', (event) => {
+            const pagerButton = event.target.closest('[data-catalog-page]');
+            if (pagerButton && !pagerButton.disabled) {
+                remoteProductPage = Number(pagerButton.dataset.catalogPage || 1);
+                void loadRemoteProducts();
+                return;
+            }
             const button = event.target.closest('[data-product-id]');
             if (!button) {
                 return;
@@ -3636,8 +4314,9 @@
                 return;
             }
             state.category = String(button.dataset.category || '');
+            remoteProductPage = 1;
             categoryRow.querySelectorAll('[data-category]').forEach((chip) => chip.classList.toggle('is-active', chip === button));
-            renderProducts();
+            void loadRemoteProducts();
         });
 
         if (orderTabsWrap) {
@@ -3674,11 +4353,6 @@
         if (syncNowButton) {
             syncNowButton.addEventListener('click', async () => {
                 await syncPendingSales();
-            });
-        }
-        if (refreshStockButton) {
-            refreshStockButton.addEventListener('click', async () => {
-                await refreshStockAvailability();
             });
         }
         if (installAppButton) {
@@ -3737,11 +4411,6 @@
             }
             loadPendingQueue();
             updateOfflineUi();
-        });
-        window.addEventListener('focus', () => {
-            if (Date.now() - lastStockRefreshAt > 30000) {
-                void refreshStockAvailability({ silent: true });
-            }
         });
 
         if ('serviceWorker' in navigator) {
@@ -3840,15 +4509,16 @@
         let searchDebounceTimer = null;
         searchInput.addEventListener('input', (event) => {
             state.search = event.target.value;
-            feedback.textContent = state.search ? 'Resultats filtres en direct.' : 'Scanne un code-barres ou clique sur un article pour l ajouter au panier.';
+            remoteProductPage = 1;
+            feedback.textContent = state.search ? 'Resultats filtres en direct. Appuie sur Entree pour ajouter le meilleur resultat.' : `Scanne un code-barres ou clique sur un ${String(posVocabulary.product || 'article').toLowerCase()} pour l ajouter au panier.`;
             if (searchDebounceTimer) {
                 window.clearTimeout(searchDebounceTimer);
             }
             searchDebounceTimer = window.setTimeout(() => {
-                renderProducts();
+                void loadRemoteProducts();
             }, isLowPowerDevice ? 120 : 60);
         });
-        searchInput.addEventListener('keydown', (event) => {
+        searchInput.addEventListener('keydown', async (event) => {
             if (event.key !== 'Enter') {
                 return;
             }
@@ -3857,7 +4527,11 @@
             if (!query) {
                 return;
             }
-            const exact = productCatalog.find((product) => [product.barcode, product.sku].some((field) => norm(field) === query));
+            let exact = productCatalog.find((product) => [product.barcode, product.sku].some((field) => norm(field) === query));
+            if (!exact) {
+                const results = await loadRemoteProducts();
+                exact = results.find((product) => [product.barcode, product.sku].some((field) => norm(field) === query));
+            }
             if (exact) {
                 addProduct(exact);
                 return;
@@ -3867,18 +4541,36 @@
                 addProduct(match);
                 return;
             }
-            feedback.textContent = 'Aucun article trouve pour ce scan ou cette recherche.';
+            feedback.textContent = `Aucun ${String(posVocabulary.product || 'article').toLowerCase()} trouve pour ce scan ou cette recherche.`;
+            setScanStatus('Article introuvable');
         });
         if (quickSellButton) {
             quickSellButton.addEventListener('click', () => {
                 searchInput.focus();
                 searchInput.select();
-                feedback.textContent = 'Mode vendre actif: scanne ou recherche un article.';
+                feedback.textContent = `Mode ${String(posVocabulary.sale || 'vente').toLowerCase()} actif: scanne ou recherche un ${String(posVocabulary.product || 'article').toLowerCase()}.`;
+                setScanStatus('Douchette active');
             });
         }
         if (quickCashButton) {
             quickCashButton.addEventListener('click', () => {
-                saleForm.requestSubmit();
+                if (quickCashPayment) {
+                    const order = syncActiveOrderFromForm();
+                    const snapshot = orderSnapshot(order);
+                    order.method = 'cash';
+                    order.payments = [createPaymentLine({ method: 'cash', amount: snapshot.total }, 'cash')];
+                    const received = cashRoundingEnabled && cashRoundingPrecision > 0
+                        ? Math.ceil(snapshot.total / cashRoundingPrecision) * cashRoundingPrecision
+                        : snapshot.total;
+                    order.cash_received_amount = received;
+                    order.cash_received_raw = String(received);
+                    order.cash_received_touched = true;
+                    loadOrderIntoForm(order);
+                    renderCart();
+                }
+                paymentPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                cashReceivedInput?.focus();
+                feedback.textContent = 'Paiement prepare. Verifie le montant recu puis valide le ticket.';
             });
         }
         if (quickReceiveButton) {
@@ -4021,15 +4713,18 @@
                 posSyncKeyInput.value = normalizeSyncKey(order.sync_key || generateSyncKey());
             }
             if (!state.items.length) {
-                feedback.textContent = 'Ajoute au moins un article avant de valider le ticket.';
+            feedback.textContent = `Ajoute au moins un ${String(posVocabulary.product || 'article').toLowerCase()} avant de valider le ticket.`;
                 revealSubmitIssue({ target: emptyState || productGrid || searchInput, focus: searchInput });
                 searchInput.focus();
                 return;
             }
             const stockIssue = currentOrderStockIssue();
-            if (stockIssue) {
+            if (stockIssue && stockPolicy === 'block') {
                 feedback.textContent = stockMessage(stockIssue.product, stockIssue.availableQty);
                 revealSubmitIssue({ target: linesWrap });
+                return;
+            }
+            if (stockIssue && stockPolicy === 'warn' && !window.confirm(`${stockMessage(stockIssue.product, stockIssue.availableQty)} Continuer quand meme ?`)) {
                 return;
             }
             const paymentValidation = applyPaymentValidation(snapshot);

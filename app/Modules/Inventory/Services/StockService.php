@@ -258,7 +258,7 @@ class StockService
         );
     }
 
-    public function recordSale(Product $product, int $companyId, int $branchId, float $quantity, float $unitCost, ?string $referenceType, ?int $referenceId, ?User $user, CarbonInterface|string|null $movementDate = null, ?int $warehouseId = null): Collection
+    public function recordSale(Product $product, int $companyId, int $branchId, float $quantity, float $unitCost, ?string $referenceType, ?int $referenceId, ?User $user, CarbonInterface|string|null $movementDate = null, ?int $warehouseId = null, bool $allowNegative = false): Collection
     {
         return $this->recordStockOut(
             product: $product,
@@ -273,6 +273,7 @@ class StockService
             warehouseId: $warehouseId,
             reason: 'Facture de vente',
             context: 'vente',
+            allowNegative: $allowNegative,
         );
     }
 
@@ -370,9 +371,12 @@ class StockService
         ?int $warehouseId,
         string $reason,
         string $context,
+        bool $allowNegative = false,
     ): Collection {
         if (! $this->usesTrackedLots($product)) {
-            $this->ensureAvailableStock($companyId, $branchId, $product->id, $quantity, $warehouseId, $context);
+            if (! $allowNegative) {
+                $this->ensureAvailableStock($companyId, $branchId, $product->id, $quantity, $warehouseId, $context);
+            }
 
             return collect([
                 $this->recordMovement(

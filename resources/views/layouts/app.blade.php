@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    @include('partials.security-csp-meta')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="product-options-url" content="{{ route('products.options') }}">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#f4ede2">
-    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="apple-touch-icon" href="{{ asset('icons/pos-192.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/nema-technologies-mark.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/nema-technologies-mark.png') }}">
     @if (request()->routeIs('pos.*'))
         <meta name="theme-color" content="#102730">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -810,6 +812,57 @@
                 overflow: visible;
             }
         }
+        @media print {
+            @page { size: A4; margin: 12mm; }
+            body { background: #fff !important; color: #111 !important; }
+            .sidebar,
+            .shell-backdrop,
+            .topbar,
+            .erp-module-bar,
+            .alert,
+            .premium-anchor-grid,
+            .actions,
+            .button,
+            button,
+            form,
+            [data-sidebar-toggle],
+            [data-sidebar-collapse-toggle] {
+                display: none !important;
+            }
+            .shell,
+            .main,
+            .premium-detail-page,
+            .pos-session {
+                display: block !important;
+                width: 100% !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+            }
+            .card,
+            .premium-detail-hero,
+            .premium-detail-panel,
+            .premium-stat-card,
+            .pos-session-hero,
+            .pos-session-panel,
+            .pos-stat-card,
+            .pos-session-quick-card {
+                color: #111 !important;
+                background: #fff !important;
+                box-shadow: none !important;
+                border-color: #bbb !important;
+                break-inside: avoid;
+            }
+            .muted,
+            .help,
+            .hint,
+            .pos-history-meta { color: #444 !important; }
+            .table-wrap { overflow: visible !important; }
+            table { width: 100% !important; font-size: 10pt; }
+            a { color: #111 !important; text-decoration: none !important; }
+        }
     </style>
     <style>
         .shell-backdrop {
@@ -1151,7 +1204,16 @@
             }
         }
     </style>
+    <style>
+        .brand-mark__logo {
+            object-fit: contain;
+            padding: 6px;
+            background: #ffffff;
+        }
+    </style>
     @stack('page-styles')
+    <link rel="stylesheet" href="{{ asset('css/product-picker.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/erp-compact.css') }}?v=20260721-7">
 </head>
 <body>
 @php
@@ -1184,6 +1246,19 @@
         ? 'Recherche simple : produit, client, ticket, paiement...'
         : 'Recherche globale : client, produit, vente, achat, paiement...';
     $layoutBreadcrumbs = $erpNavigation['breadcrumbs'] ?? [];
+    $printableDetail = request()->routeIs(
+        'sales.show',
+        'quotes.show',
+        'orders.show',
+        'delivery-notes.show',
+        'credit-notes.show',
+        'purchases.show',
+        'purchase-credit-notes.show',
+        'purchase-orders.show',
+        'goods-receipts.show',
+        'payments.show',
+        'pos.show'
+    );
     if ($pageTitle !== '' && ($layoutBreadcrumbs === [] || ($layoutBreadcrumbs[array_key_last($layoutBreadcrumbs)]['label'] ?? null) !== $pageTitle)) {
         $layoutBreadcrumbs[] = ['label' => $pageTitle, 'url' => null];
     }
@@ -1216,7 +1291,7 @@
         <div class="brand">
             <div class="brand-kicker">Nema Suite</div>
             <div class="brand-mark">
-                <div class="brand-mark__glyph">N</div>
+                <img class="brand-mark__glyph brand-mark__logo" src="{{ asset('images/nema-technologies-mark.png') }}" alt="Nema Technologies">
                 <div class="brand-mark__copy">
                     <h1>Nema ERP</h1>
                     <small>Socle ERP PME maliennes</small>
@@ -1333,10 +1408,13 @@
                 </div>
             </div>
             <div class="topbar-actions">
+                @if ($printableDetail)
+                    <button type="button" class="button button-secondary" onclick="window.print()">Imprimer</button>
+                @endif
                 @allowed('dashboard.view')
                     <div class="topbar-search">
                         <form method="GET" action="{{ route('search.index') }}" class="global-search-form">
-                            <input type="search" name="q" value="{{ request()->routeIs('search.index') ? request('q') : '' }}" placeholder="{{ $globalSearchPlaceholder }}">
+                            <input id="global_search" type="search" name="q" value="{{ request()->routeIs('search.index') ? request('q') : '' }}" placeholder="{{ $globalSearchPlaceholder }}" aria-label="Recherche globale dans l ERP">
                             <button class="button button-secondary" type="submit">Rechercher</button>
                         </form>
                     </div>
@@ -1433,7 +1511,7 @@
             } catch (error) {
                 return null;
             }
-        }());
+        })();
 
         let sidebarState = storedSidebarState || (layoutMode === 'normal' ? 'expanded' : 'collapsed');
         let focusActive = shell.dataset.focusActive === 'true';
@@ -1593,7 +1671,9 @@
     } else {
         boot();
     }
-}());
+})();
 </script>
+<script src="{{ asset('js/product-picker.js') }}" defer></script>
+<script src="{{ asset('js/form-safety.js') }}" defer></script>
 </body>
 </html>

@@ -44,11 +44,12 @@ class PurchaseRequestController extends Controller
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
+        $defaultRows = old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'estimated_unit_cost' => '']));
 
         return view('purchase-requests.create', [
             'warehouses' => Warehouse::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
-            'products' => Product::query()->where('company_id', $companyId)->purchasable()->orderBy('name')->get(),
-            'defaultRows' => old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'estimated_unit_cost' => ''])),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'purchasable', collect($defaultRows)->pluck('product_id')->all()),
+            'defaultRows' => $defaultRows,
             'branch' => $workspace->branch(),
         ]);
     }

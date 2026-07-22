@@ -95,7 +95,7 @@
                     <tr>
                         <td>{{ $index + 1 }}</td>
                         <td>
-                            <select name="items[{{ $index }}][product_id]" class="line-product">
+                            <select name="items[{{ $index }}][product_id]" class="line-product" data-product-picker data-product-mode="purchasable">
                                 <option value="">Choisir</option>
                                 @foreach ($products as $product)
                                     <option value="{{ $product->id }}" data-name="{{ $product->display_name }}" data-cost="{{ $product->purchase_price }}" data-purchase-description="{{ $product->purchase_description ?: ($product->description ?: $product->display_name) }}" data-unit-summary="{{ $product->purchaseUnitSummary() ?: $product->unit }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>{{ $product->sku }} - {{ $product->display_name }}{{ $product->purchaseUnitSummary() ? ' · '.$product->purchaseUnitSummary() : '' }}</option>
@@ -189,5 +189,4 @@
     'defaultPricingText' => 'Aucune liste de prix fournisseur specifique: le cout catalogue sera propose.',
 ])
 @endsection
-
 

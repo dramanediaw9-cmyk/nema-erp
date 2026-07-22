@@ -1,18 +1,24 @@
 @extends('layouts.app')
 
-@section('title', 'Detail client - Nema ERP')
-@section('page-title', 'Client '.$customer->code)
+@php
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+@endphp
+
+@section('title', 'Detail '.$customerLabel.' - Nema ERP')
+@section('page-title', $customerLabel.' '.$customer->code)
 
 @section('content')
     @php
         $headerActions = [
-            ['label' => 'Retour aux clients', 'url' => route('customers.index', ['search' => $customer->code]), 'style' => 'secondary'],
+            ['label' => 'Retour', 'url' => route('customers.index', ['search' => $customer->code]), 'style' => 'secondary'],
         ];
         $openBalance = (float) ($stats['open_balance'] ?? 0);
         $portfolioState = $openBalance > 0 ? 'open' : 'clear';
 
         if (auth()->user()?->hasPermission('sales.manage')) {
-            $headerActions[] = ['label' => 'Nouvelle vente', 'url' => route('sales.create'), 'style' => 'primary'];
+            $headerActions[] = ['label' => 'Nouvelle '.$businessVocabulary['sale'], 'url' => route('sales.create'), 'style' => 'primary'];
         }
 
         if (auth()->user()?->hasPermission('payments.manage')) {
@@ -25,7 +31,7 @@
     @endphp
 
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Client',
+        'eyebrow' => $customerLabel,
         'title' => $customer->name,
         'description' => $customer->code.' · '.($customer->city ?: 'Ville non renseignee').' · '.($customer->phone ?: 'Telephone non renseigne'),
         'actions' => $headerActions,
@@ -38,8 +44,8 @@
     <section class="card" style="margin-bottom:20px;">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
             <a href="#sales-documents" class="card" style="padding:16px; display:block;">
-                <strong>Factures clients</strong>
-                <div class="muted" style="margin-top:8px;">Voir les ventes et les soldes ouverts de ce client.</div>
+                <strong>{{ $salesLabel }}</strong>
+                <div class="muted" style="margin-top:8px;">Voir les documents et les soldes ouverts de ce dossier.</div>
             </a>
             <a href="#customer-payments" class="card" style="padding:16px; display:block;">
                 <strong>Paiements recus</strong>
@@ -48,7 +54,7 @@
             @allowed('collections.view')
                 <a href="{{ route('collections.index', ['customer_id' => $customer->id]) }}" class="card" style="padding:16px; display:block;">
                     <strong>Recouvrement</strong>
-                    <div class="muted" style="margin-top:8px;">Voir les echeances, promesses et relances de ce client.</div>
+                    <div class="muted" style="margin-top:8px;">Voir les echeances, promesses et relances de ce dossier.</div>
                 </a>
             @endallowed
             <a href="#accounting-effects" class="card" style="padding:16px; display:block;">
@@ -105,13 +111,13 @@
     @include('partials.activity-history', [
         'activities' => $recentActivities,
         'title' => 'Historique des actions',
-        'description' => 'Creation du client, ventes, encaissements et autres operations recentes rattachees a ce dossier.',
+        'description' => 'Creation du dossier, ventes, encaissements et autres operations recentes rattachees.',
         'sectionId' => 'activity-history',
     ])
 
     <div class="split" style="margin-top:20px;">
         <section class="card" id="sales-documents">
-            <h2 style="margin-top:0;">Factures clients</h2>
+            <h2 style="margin-top:0;">{{ $salesLabel }}</h2>
             @forelse ($invoices as $invoice)
                 <div style="padding-bottom:14px; border-bottom:1px solid #efe4d3; margin-bottom:14px;">
                     <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
@@ -169,5 +175,4 @@
 
     @include('partials.partner-directory', ['partner' => $customer])
 @endsection
-
 

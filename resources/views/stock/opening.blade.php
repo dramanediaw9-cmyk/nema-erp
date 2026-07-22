@@ -33,7 +33,7 @@
                 </div>
                 <div>
                     <label for="product_id">Produit</label>
-                    <select id="product_id" name="product_id" required>
+                    <select id="product_id" name="product_id" required data-product-picker data-product-mode="stockable">
                         <option value="">Selectionner un produit</option>
                         @foreach ($products as $product)
                             <option value="{{ $product->id }}" @selected((string) old('product_id') === (string) $product->id)>{{ $product->sku }} - {{ $product->name }}</option>

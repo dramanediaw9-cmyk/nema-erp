@@ -6,12 +6,21 @@
 @section('layout-mode', 'focus')
 
 @section('content')
-    @php($openingCashBreakdown = is_array($session->opening_cash_breakdown) ? $session->opening_cash_breakdown : [])
-    @php($openingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($openingCashBreakdown[$denomination] ?? 0)) > 0)
-    @php($closingCashBreakdown = is_array($session->closing_cash_breakdown) ? $session->closing_cash_breakdown : [])
-    @php($closingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($closingCashBreakdown[$denomination] ?? 0)) > 0)
-    @php($ticketRows = collect($ticketRows ?? []))
-    @php($sessionLockLabel = $session->isOpen() ? 'Ouverte' : 'Fermee / verrouillee')
+    @php
+        $openingCashBreakdown = is_array($session->opening_cash_breakdown) ? $session->opening_cash_breakdown : [];
+        $openingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($openingCashBreakdown[$denomination] ?? 0)) > 0;
+        $closingCashBreakdown = is_array($session->closing_cash_breakdown) ? $session->closing_cash_breakdown : [];
+        $closingHasBreakdown = collect(array_keys($cashDenominations))->sum(fn ($denomination) => (int) ($closingCashBreakdown[$denomination] ?? 0)) > 0;
+        $ticketRows = collect($ticketRows ?? []);
+        $sessionLockLabel = $session->isOpen() ? 'Ouverte' : 'Fermee / verrouillee';
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $cashierLabel = $businessVocabulary['cashier'] ?? 'Caissier';
+    @endphp
 
     <style>
         .pos-session {
@@ -637,25 +646,26 @@
                 @else
                     <a href="{{ route('pos.index') }}" class="pos-command-tab">Caisse</a>
                 @endif
-                <span class="pos-command-tab is-active">Commandes</span>
+                <span class="pos-command-tab is-active">{{ $salesLabel }}</span>
                 <span class="pos-command-session">{{ $session->session_number }}</span>
                 <span class="pos-command-count">{{ $summary['sales_count'] }}</span>
                 <a href="{{ route('pos.preparation.index') }}" class="pos-command-tab">Prep</a>
                 <a href="{{ route('pos.report', ['date' => $session->opened_at?->toDateString(), 'warehouse_id' => $session->warehouse_id, 'cash_account_id' => $session->cash_account_id]) }}" class="pos-command-tab">Rapport</a>
                 <a href="{{ route('pos.count-sheet', $session) }}" class="pos-command-tab">Comptage</a>
+                <a href="{{ route('pos.session.print', $session) }}" class="pos-command-tab">Imprimer</a>
                 @if ($session->status === 'open')
-                    <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="pos-command-tab">+ Vente</a>
+                        <a href="{{ route('pos.sales.create', ['session' => $session->id]) }}" class="pos-command-tab">+ {{ $saleLabel }}</a>
                 @endif
                 <span class="pos-command-lock">{{ $sessionLockLabel }}</span>
             </div>
             <div class="pos-command-search">
                 <div class="pos-command-search-icon">F2</div>
-                <input id="pos-command-search" type="search" autocomplete="off" placeholder="Rechercher des commandes..." data-pos-command-search>
+                <input id="pos-command-search" type="search" autocomplete="off" placeholder="Rechercher..." data-pos-command-search>
                 <div class="pos-command-search-hint">F2 recherche · F4 paiement · ENTER ouvrir · ESC annuler</div>
             </div>
             @if ($pendingDrafts->isNotEmpty())
                 <div class="pos-draft-strip">
-                    <div class="pos-draft-strip-title">Commandes en attente</div>
+                    <div class="pos-draft-strip-title">{{ $salesLabel }} en attente</div>
                     @foreach ($pendingDrafts as $draft)
                         <a href="{{ route('pos.sales.create', ['session' => $session->id, 'draft' => $draft->id]) }}" class="pos-draft-pill">
                             {{ $draft->label }}
@@ -672,7 +682,7 @@
                         <tr>
                             <th style="width:96px;">Date / heure</th>
                             <th style="width:142px;">Facture / ticket</th>
-                            <th style="width:170px;">Client</th>
+                            <th style="width:170px;">{{ $customerLabel }}</th>
                             <th style="width:104px; text-align:right;">Montant</th>
                             <th style="width:88px;">Statut</th>
                             <th style="width:126px; text-align:right;">Actions</th>
@@ -704,7 +714,7 @@
                         @empty
                             <tr>
                                 <td colspan="6">
-                                    <div class="pos-command-empty">Aucune commande sur cette session.</div>
+                                    <div class="pos-command-empty">Aucune operation sur cette session.</div>
                                 </td>
                             </tr>
                         @endforelse
@@ -714,7 +724,7 @@
                 <aside class="pos-ticket-detail" data-pos-ticket-detail>
                     <div class="pos-ticket-detail-head">
                         <h3>Session {{ $session->session_number }}</h3>
-                        <div class="muted">{{ $sessionLockLabel }} · {{ $summary['sales_count'] }} commande(s)</div>
+                        <div class="muted">{{ $sessionLockLabel }} · {{ $summary['sales_count'] }} operation(s)</div>
                     </div>
                     <div class="pos-ticket-detail-body">
                         <div class="pos-detail-card">
@@ -722,7 +732,7 @@
                             <div class="pos-detail-total">
                                 <div><span>Ouverte par</span><strong>{{ $session->opener?->name ?? 'Operateur' }}</strong></div>
                                 <div><span>Montant initial</span><strong>{{ number_format((float) $session->opening_amount, 0, ',', ' ') }} XOF</strong></div>
-                                <div><span>Ventes nettes</span><strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
+                                <div><span>{{ $salesLabel }} nettes</span><strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
                                 <div><span>Retours</span><strong>{{ number_format($summary['return_total'], 0, ',', ' ') }} XOF</strong></div>
                                 <div><span>Flux net</span><strong>{{ number_format($summary['net_cash'], 0, ',', ' ') }} XOF</strong></div>
                             </div>
@@ -756,9 +766,9 @@
 
         <div class="pos-stat-grid">
             <div class="pos-stat-card"><div class="label">Montant initial</div><div class="value">{{ number_format((float) $session->opening_amount, 0, ',', ' ') }}</div></div>
-            <div class="pos-stat-card"><div class="label">Brut articles</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
+            <div class="pos-stat-card"><div class="label">Brut {{ strtolower($productsLabel) }}</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Remises</div><div class="value">{{ number_format($summary['discount_total'], 0, ',', ' ') }}</div></div>
-            <div class="pos-stat-card"><div class="label">Ventes nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
+            <div class="pos-stat-card"><div class="label">{{ $salesLabel }} nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Retours</div><div class="value">{{ number_format($summary['return_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Flux net caisse</div><div class="value">{{ number_format($summary['net_cash'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Ecart</div><div class="value">{{ number_format((float) ($session->variance_amount ?? 0), 0, ',', ' ') }}</div></div>
@@ -767,7 +777,7 @@
         <section class="pos-session-quick-grid">
             <article class="pos-session-quick-card">
                 <div>
-                    <div class="label">Commandes</div>
+                    <div class="label">{{ $salesLabel }}</div>
                     <div class="value">{{ $summary['sales_count'] }}</div>
                 </div>
                 <a href="#tickets-session" class="button button-secondary">Voir</a>
@@ -795,6 +805,13 @@
             </article>
             <article class="pos-session-quick-card">
                 <div>
+                    <div class="label">Fiche session</div>
+                    <div class="value">{{ $session->status === 'closed' ? 'Archive' : 'Controle' }}</div>
+                </div>
+                <a href="{{ route('pos.session.print', $session) }}" class="button button-secondary">Imprimer</a>
+            </article>
+            <article class="pos-session-quick-card">
+                <div>
                     <div class="label">Rapport</div>
                     <div class="value">{{ number_format($summary['net_cash'], 0, ',', ' ') }}</div>
                 </div>
@@ -814,15 +831,15 @@
                     <div class="pos-kpi-row" style="margin-bottom:18px;">
                         <div class="pos-kpi"><div class="label">Ouverte le</div><div class="value">{{ $session->opened_at?->format('d/m H:i') }}</div></div>
                         <div class="pos-kpi"><div class="label">Ouverte par</div><div class="value">{{ $session->opener?->name }}</div></div>
-                        <div class="pos-kpi"><div class="label">Tickets</div><div class="value">{{ $summary['sales_count'] }}</div></div>
+                        <div class="pos-kpi"><div class="label">Documents</div><div class="value">{{ $summary['sales_count'] }}</div></div>
                         <div class="pos-kpi"><div class="label">Retours</div><div class="value">{{ $summary['return_count'] }}</div></div>
                     </div>
 
                     <ul class="pos-detail-list">
                         <li><span>Statut</span><span>{{ $session->status === 'open' ? 'OPEN' : 'CLOSED' }}</span></li>
                         <li><span>Montant initial</span><span>{{ number_format((float) $session->opening_amount, 0, ',', ' ') }} XOF</span></li>
-                        <li><span>Articles vendus</span><span>{{ $summary['items_count'] }}</span></li>
-                        <li><span>Articles retournes</span><span>{{ $summary['returned_items_count'] }}</span></li>
+                        <li><span>{{ $productsLabel }} vendus</span><span>{{ $summary['items_count'] }}</span></li>
+                        <li><span>{{ $productsLabel }} retournes</span><span>{{ $summary['returned_items_count'] }}</span></li>
                         <li><span>Remises accordees</span><span>{{ number_format($summary['discount_total'], 0, ',', ' ') }} XOF</span></li>
                         <li><span>Fond de caisse detaille</span><span>{{ $openingHasBreakdown ? 'Oui' : 'Non' }}</span></li>
                         @if ($session->closed_at)
@@ -853,8 +870,10 @@
                 </div>
                 <div class="pos-session-body">
                     @if ($session->status === 'open')
-                        @php($closingBreakdown = old('closing_cash_breakdown', []))
-                        @php($closingBreakdownTotal = collect(array_keys($cashDenominations))->sum(fn ($denomination) => ((int) ($closingBreakdown[$denomination] ?? 0)) * (int) $denomination))
+                        @php
+                            $closingBreakdown = old('closing_cash_breakdown', []);
+                            $closingBreakdownTotal = collect(array_keys($cashDenominations))->sum(fn ($denomination) => ((int) ($closingBreakdown[$denomination] ?? 0)) * (int) $denomination);
+                        @endphp
                         <form method="POST" action="{{ route('pos.close', $session) }}" class="form-grid">
                             @csrf
                             <div class="full" style="padding:16px; border:1px solid #eadfcd; border-radius:16px; background:#fcfaf6;">
@@ -882,12 +901,12 @@
                                 <div class="help" style="margin-top:10px;">Total especes comptees : <strong id="closing-breakdown-total">{{ number_format($closingBreakdownTotal, 0, ',', ' ') }} XOF</strong></div>
                             </div>
                             @foreach ($methodOptions as $method => $label)
-                                @php($isCashMethod = $method === 'cash')
-                                @php(
+                                @php
+                                    $isCashMethod = $method === 'cash';
                                     $defaultCountedValue = $isCashMethod && $closingBreakdownTotal > 0
                                         ? number_format($closingBreakdownTotal, 2, '.', '')
-                                        : old('counted_methods.'.$method, number_format($summary['expected_breakdown'][$method] ?? 0, 2, '.', ''))
-                                )
+                                        : old('counted_methods.'.$method, number_format($summary['expected_breakdown'][$method] ?? 0, 2, '.', ''));
+                                @endphp
                                 <div>
                                     <label for="counted_methods_{{ $method }}">{{ $label }}</label>
                                     @if ($isCashMethod)
@@ -1001,6 +1020,7 @@
         const rows = Array.from(document.querySelectorAll('[data-ticket-row]'));
         const searchInput = document.querySelector('[data-pos-command-search]');
         const detail = document.querySelector('[data-pos-ticket-detail]');
+        const cashierLabel = @json($cashierLabel);
         let selectedId = rows[0]?.dataset.ticketId || null;
 
         const ticketById = Object.fromEntries(tickets.map((ticket) => [String(ticket.id), ticket]));
@@ -1091,10 +1111,10 @@
                             <div><span>Paye</span><strong>${money(ticket.amount_paid)}</strong></div>
                             <div><span>Reste</span><strong>${money(ticket.balance_due)}</strong></div>
                             <div><span>Rembourse</span><strong>${money(ticket.returned_amount)}</strong></div>
-                            <div><span>Caissier</span><strong>${esc(ticket.cashier)}</strong></div>
+                            <div><span>${esc(cashierLabel)}</span><strong>${esc(ticket.cashier)}</strong></div>
                         </div>
                     </div>
-                    ${renderLines('Produits', items, 'Aucun produit trouve.')}
+                    ${renderLines(@json($productsLabel), items, 'Aucune ligne trouvee.')}
                     ${renderLines('Paiements', payments, 'Aucun paiement enregistre.')}
                     ${renderLines('Remboursements', returns, 'Aucun remboursement sur ce ticket.')}
                     ${renderLines('Historique', history, 'Aucun historique disponible.')}
@@ -1213,5 +1233,3 @@
     });
     </script>
 @endsection
-
-

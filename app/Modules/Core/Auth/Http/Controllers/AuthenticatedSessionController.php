@@ -17,7 +17,7 @@ class AuthenticatedSessionController extends Controller
     public function create(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect()->route($this->homeRoute(Auth::user()));
         }
 
         return view('auth.login');
@@ -72,7 +72,7 @@ class AuthenticatedSessionController extends Controller
 
         $this->activityLogger->log('auth.login', 'Connexion utilisateur');
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended(route($this->homeRoute($user)));
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -95,5 +95,10 @@ class AuthenticatedSessionController extends Controller
         }
 
         return in_array($domain, config('nema.demo_email_domains', []), true);
+    }
+
+    private function homeRoute(?\App\Models\User $user): string
+    {
+        return $user?->hasRole('cashier') ? 'pos.index' : 'dashboard';
     }
 }

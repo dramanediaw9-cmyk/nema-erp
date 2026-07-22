@@ -1,0 +1,47 @@
+name: Nema ERP quality and smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  static-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+      - name: Install test dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Lint PHP sources
+        run: find app bootstrap config database resources routes scripts tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Check public JavaScript syntax
+        run: find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Run isolated Laravel regression tests
+        run: php artisan test --testsuite=Feature
+
+  production-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl
+      - name: Verify public production contracts
+        run: php scripts/verify-production.php --base-url=https://erp.nematechnologies.com --json

@@ -3,6 +3,8 @@
 namespace App\Modules\Core\Imports\Services;
 
 use App\Models\User;
+use App\Modules\Core\Company\Models\PaymentTerm;
+use App\Modules\Core\Company\Models\PriceList;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductCategory;
 use App\Modules\Inventory\Services\StockService;
@@ -20,6 +22,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use ZipArchive;
 
 class ImportService
 {
@@ -33,17 +36,7 @@ class ImportService
 
     public function importCustomers(UploadedFile $file, int $companyId, User $user): array
     {
-        $rows = $this->parseCsv($file, [
-            'code',
-            'name',
-            'phone',
-            'email',
-            'city',
-            'nif',
-            'address',
-            'opening_balance',
-            'notes',
-        ]);
+        $rows = $this->parseTabular($file, $this->partnerImportHeaders(), allowExtraColumns: true);
 
         $imported = DB::transaction(function () use ($rows, $companyId) {
             $count = 0;
@@ -65,17 +58,7 @@ class ImportService
 
     public function importSuppliers(UploadedFile $file, int $companyId, User $user): array
     {
-        $rows = $this->parseCsv($file, [
-            'code',
-            'name',
-            'phone',
-            'email',
-            'city',
-            'nif',
-            'address',
-            'opening_balance',
-            'notes',
-        ]);
+        $rows = $this->parseTabular($file, $this->partnerImportHeaders(), allowExtraColumns: true);
 
         $imported = DB::transaction(function () use ($rows, $companyId) {
             $count = 0;
@@ -95,9 +78,24 @@ class ImportService
         ];
     }
 
-    public function importProducts(UploadedFile $file, int $companyId, User $user): array
+    public function importProducts(UploadedFile $file, int $companyId, int $branchId, User $user): array
     {
-        $rows = $this->parseCsv($file, [
+        $headers = [
+            'sku',
+            'barcode',
+            'name',
+            'category',
+            'unit',
+            'type',
+            'sale_price',
+            'purchase_price',
+            'min_stock',
+            'opening_quantity',
+            'opening_unit_cost',
+            'description',
+        ];
+
+        $legacyHeaders = [
             'sku',
             'name',
             'category',
@@ -107,23 +105,36 @@ class ImportService
             'purchase_price',
             'min_stock',
             'description',
-        ]);
+        ];
 
-        $imported = DB::transaction(function () use ($rows, $companyId) {
+        $rows = $this->parseTabular($file, $headers, [$legacyHeaders]);
+
+        [$imported, $stockLines] = DB::transaction(function () use ($rows, $companyId, $branchId, $user) {
             $count = 0;
+            $stockCount = 0;
 
             foreach ($rows as $row) {
                 $sku = $this->nullable($row['sku'] ?? null);
+                $barcode = $this->nullable($row['barcode'] ?? null);
                 $type = $this->nullable($row['type'] ?? null) ?: 'stockable';
+                $existingProductId = $this->existingProductId($companyId, $sku, $barcode, $this->nullable($row['name'] ?? null));
+                if (! $barcode && $sku) {
+                    $barcode = $this->defaultBarcodeFromSku($companyId, $sku, $existingProductId);
+                    $row['barcode'] = $barcode;
+                }
 
                 $validator = Validator::make($row, [
                     'sku' => [
                         'nullable',
                         'string',
                         'max:50',
-                        Rule::unique('products', 'sku')->where(fn ($query) => $query->where('company_id', $companyId))->ignore(
-                            $sku ? Product::query()->where('company_id', $companyId)->where('sku', $sku)->value('id') : null
-                        ),
+                        Rule::unique('products', 'sku')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($existingProductId),
+                    ],
+                    'barcode' => [
+                        'nullable',
+                        'string',
+                        'max:100',
+                        Rule::unique('products', 'barcode')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($existingProductId),
                     ],
                     'name' => ['required', 'string', 'max:255'],
                     'category' => ['nullable', 'string', 'max:255'],
@@ -132,6 +143,8 @@ class ImportService
                     'sale_price' => ['required', 'numeric', 'min:0'],
                     'purchase_price' => ['required', 'numeric', 'min:0'],
                     'min_stock' => ['nullable', 'numeric', 'min:0'],
+                    'opening_quantity' => ['nullable', 'numeric', 'min:0'],
+                    'opening_unit_cost' => ['nullable', 'numeric', 'min:0'],
                     'description' => ['nullable', 'string'],
                 ]);
 
@@ -157,6 +170,13 @@ class ImportService
                     'name' => trim((string) $row['name']),
                     'unit' => trim((string) $row['unit']),
                     'type' => $type,
+                    'barcode' => $barcode,
+                    'sale_ok' => true,
+                    'purchase_ok' => true,
+                    'sale_blocked' => false,
+                    'purchase_blocked' => false,
+                    'invoice_policy' => 'ordered',
+                    'tracking_type' => 'none',
                     'sale_price' => (float) $row['sale_price'],
                     'purchase_price' => (float) $row['purchase_price'],
                     'min_stock' => (float) ($row['min_stock'] ?: 0),
@@ -166,33 +186,49 @@ class ImportService
 
                 $product = null;
 
-                if ($sku) {
-                    $product = Product::query()->where('company_id', $companyId)->where('sku', $sku)->first();
-                }
-
-                if (! $product) {
-                    $product = Product::query()->where('company_id', $companyId)->where('name', trim((string) $row['name']))->first();
+                if ($existingProductId) {
+                    $product = Product::query()->where('company_id', $companyId)->find($existingProductId);
                 }
 
                 if ($product) {
+                    $resolvedSku = $sku ?: $product->sku;
                     $product->update(array_merge($attributes, [
-                        'sku' => $sku ?: $product->sku,
+                        'sku' => $resolvedSku,
+                        'barcode' => $barcode ?: $this->defaultBarcodeFromSku($companyId, $resolvedSku, $product->id),
                     ]));
                 } else {
-                    Product::query()->create(array_merge($attributes, [
-                        'sku' => $sku ?: $this->generateSku($companyId),
+                    $resolvedSku = $sku ?: $this->generateSku($companyId);
+                    $product = Product::query()->create(array_merge($attributes, [
+                        'sku' => $resolvedSku,
+                        'barcode' => $barcode ?: $this->defaultBarcodeFromSku($companyId, $resolvedSku),
                     ]));
+                }
+
+                $openingQuantity = (float) ($row['opening_quantity'] ?? 0);
+                if ($type === 'stockable' && $openingQuantity > 0) {
+                    $this->stockService->recordOpening(
+                        product: $product,
+                        companyId: $companyId,
+                        branchId: $branchId,
+                        quantity: $openingQuantity,
+                        unitCost: (float) (($row['opening_unit_cost'] ?? null) ?: $product->purchase_price),
+                        notes: 'Import produits - stock initial',
+                        user: $user,
+                    );
+                    $stockCount++;
                 }
 
                 $count++;
             }
 
-            return $count;
+            return [$count, $stockCount];
         });
 
         return [
             'count' => $imported,
+            'stock_count' => $stockLines,
             'type' => 'products',
+            'branch_id' => $branchId,
             'user_id' => $user->id,
         ];
     }
@@ -436,25 +472,50 @@ class ImportService
     public function customerTemplate(): array
     {
         return [
-            ['code', 'name', 'phone', 'email', 'city', 'nif', 'address', 'opening_balance', 'notes'],
-            ['CLI-1001', 'Boutique Bamako Centre', '70000000', 'client@example.com', 'Bamako', '', 'Hamdallaye ACI 2000', '0', 'Client de demonstration'],
+            ['code', 'nom', 'telephone', 'email', 'ville', 'nif', 'adresse', 'solde_initial', 'condition_paiement', 'liste_prix', 'actif', 'notes'],
+            ['CLI-1001', 'Boutique Bamako Centre', '70000000', 'client@example.com', 'Bamako', '', 'Hamdallaye ACI 2000', '0', '', '', 'oui', 'Client de demonstration'],
         ];
     }
 
     public function supplierTemplate(): array
     {
         return [
-            ['code', 'name', 'phone', 'email', 'city', 'nif', 'address', 'opening_balance', 'notes'],
-            ['FOU-1001', 'Fournisseur Import Demo', '76000000', 'fournisseur@example.com', 'Bamako', '', 'Zone industrielle', '0', 'Fournisseur de demonstration'],
+            ['code', 'nom', 'telephone', 'email', 'ville', 'nif', 'adresse', 'solde_initial', 'condition_paiement', 'liste_prix', 'actif', 'notes'],
+            ['FOU-1001', 'Fournisseur Import Demo', '76000000', 'fournisseur@example.com', 'Bamako', '', 'Zone industrielle', '0', '', '', 'oui', 'Fournisseur de demonstration'],
         ];
     }
 
     public function productTemplate(): array
     {
         return [
-            ['sku', 'name', 'category', 'unit', 'type', 'sale_price', 'purchase_price', 'min_stock', 'description'],
-            ['PRD-1001', 'Riz 25 kg', 'Produits alimentaires', 'sac', 'stockable', '17500', '15000', '10', 'Article de demonstration'],
+            ['sku', 'barcode', 'name', 'category', 'unit', 'type', 'sale_price', 'purchase_price', 'min_stock', 'opening_quantity', 'opening_unit_cost', 'description'],
+            ['PRD-1001', '6181000000012', 'Riz 25 kg', 'Produits alimentaires', 'sac', 'stockable', '17500', '15000', '10', '25', '15000', 'Article de demonstration'],
+            ['PRD-1002', '6181000000029', 'Huile 5 L', 'Produits alimentaires', 'bidon', 'stockable', '8500', '7600', '6', '12', '7600', 'Article de demonstration'],
         ];
+    }
+
+    public function xlsxFromRows(array $rows): string
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw ValidationException::withMessages([
+                'file' => 'La generation Excel necessite ZipArchive sur le serveur.',
+            ]);
+        }
+
+        $temporary = tempnam(sys_get_temp_dir(), 'nema-xlsx-');
+        $zip = new ZipArchive();
+        $zip->open($temporary, ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Produits" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', $this->xlsxSheetXml($rows));
+        $zip->close();
+
+        $content = file_get_contents($temporary);
+        @unlink($temporary);
+
+        return $content ?: '';
     }
 
     public function openingStockTemplate(): array
@@ -721,6 +782,9 @@ class ImportService
             'nif' => ['nullable', 'string', 'max:100'],
             'address' => ['nullable', 'string'],
             'opening_balance' => ['nullable', 'numeric', 'min:0'],
+            'payment_term' => ['nullable', 'string', 'max:255'],
+            'price_list' => ['nullable', 'string', 'max:255'],
+            'is_active' => ['nullable', 'string', 'max:20'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -741,8 +805,18 @@ class ImportService
             'address' => $this->nullable($row['address'] ?? null),
             'opening_balance' => (float) ($row['opening_balance'] ?: 0),
             'notes' => $this->nullable($row['notes'] ?? null),
-            'is_active' => true,
+            'is_active' => $this->booleanValue($row['is_active'] ?? 'oui', $row['_line'] ?? 0, 'actif'),
         ];
+
+        $paymentTermId = $this->resolvePaymentTermId($companyId, $row['payment_term'] ?? null, $row['_line'] ?? 0);
+        if ($paymentTermId !== null) {
+            $attributes['payment_term_id'] = $paymentTermId;
+        }
+
+        $priceListId = $this->resolvePriceListId($companyId, $row['price_list'] ?? null, $row['_line'] ?? 0);
+        if ($priceListId !== null) {
+            $attributes['price_list_id'] = $priceListId;
+        }
 
         $partner = null;
 
@@ -771,7 +845,91 @@ class ImportService
         }
     }
 
-    private function parseCsv(UploadedFile $file, array $expectedHeaders): array
+    private function resolvePaymentTermId(int $companyId, mixed $value, int $line): ?int
+    {
+        $name = $this->nullable($value);
+
+        if (! $name) {
+            return null;
+        }
+
+        $paymentTerm = PaymentTerm::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($name): void {
+                $query->where('name', $name)->orWhere('code', $name);
+            })
+            ->first();
+
+        if (! $paymentTerm) {
+            throw ValidationException::withMessages([
+                'import' => 'Ligne '.$line.': condition de paiement introuvable pour "'.$name.'".',
+            ]);
+        }
+
+        return (int) $paymentTerm->id;
+    }
+
+    private function resolvePriceListId(int $companyId, mixed $value, int $line): ?int
+    {
+        $name = $this->nullable($value);
+
+        if (! $name) {
+            return null;
+        }
+
+        $priceList = PriceList::query()
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($name): void {
+                $query->where('name', $name)->orWhere('code', $name);
+            })
+            ->first();
+
+        if (! $priceList) {
+            throw ValidationException::withMessages([
+                'import' => 'Ligne '.$line.': liste de prix introuvable pour "'.$name.'".',
+            ]);
+        }
+
+        return (int) $priceList->id;
+    }
+
+    private function booleanValue(mixed $value, int $line, string $label): bool
+    {
+        $normalized = $this->nullable($value);
+
+        if ($normalized === null) {
+            return true;
+        }
+
+        $normalized = Str::of($normalized)->ascii()->lower()->trim()->value();
+
+        if (in_array($normalized, ['1', 'oui', 'yes', 'true', 'vrai', 'actif', 'active'], true)) {
+            return true;
+        }
+
+        if (in_array($normalized, ['0', 'non', 'no', 'false', 'faux', 'inactif', 'inactive'], true)) {
+            return false;
+        }
+
+        throw ValidationException::withMessages([
+            'import' => 'Ligne '.$line.': valeur invalide pour '.$label.'. Utilise oui/non.',
+        ]);
+    }
+
+    private function parseTabular(UploadedFile $file, array $expectedHeaders, array $alternativeHeaders = [], bool $allowExtraColumns = false): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        if ($extension === 'xlsx') {
+            return $this->parseXlsx($file, $expectedHeaders, $alternativeHeaders, $allowExtraColumns);
+        }
+
+        return $this->parseCsv($file, $expectedHeaders, $alternativeHeaders, $allowExtraColumns);
+    }
+
+    private function parseCsv(UploadedFile $file, array $expectedHeaders, array $alternativeHeaders = [], bool $allowExtraColumns = false): array
     {
         $handle = fopen($file->getRealPath(), 'rb');
 
@@ -788,7 +946,8 @@ class ImportService
         $headers = fgetcsv($handle, 0, $delimiter) ?: [];
         $headers = array_map(fn ($header) => $this->normalizeHeader((string) $header), $headers);
 
-        if ($headers !== $expectedHeaders) {
+        $acceptedHeaders = array_merge([$expectedHeaders], $alternativeHeaders);
+        if (! $this->headersAccepted($headers, $acceptedHeaders, $allowExtraColumns)) {
             fclose($handle);
 
             throw ValidationException::withMessages([
@@ -823,6 +982,103 @@ class ImportService
         return $rows;
     }
 
+    private function parseXlsx(UploadedFile $file, array $expectedHeaders, array $alternativeHeaders = [], bool $allowExtraColumns = false): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw ValidationException::withMessages([
+                'file' => 'Le serveur ne peut pas lire les fichiers Excel XLSX pour le moment.',
+            ]);
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($file->getRealPath()) !== true) {
+            throw ValidationException::withMessages([
+                'file' => 'Impossible de lire le fichier Excel importe.',
+            ]);
+        }
+
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+        $zip->close();
+
+        if (! $sheetXml) {
+            throw ValidationException::withMessages([
+                'file' => 'Le fichier Excel ne contient pas de feuille lisible.',
+            ]);
+        }
+
+        $sharedStrings = $this->xlsxSharedStrings($sharedStringsXml ?: '');
+        $sheet = simplexml_load_string($sheetXml);
+        $sheet->registerXPathNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $rowNodes = $sheet->xpath('//x:sheetData/x:row') ?: [];
+        $rawRows = [];
+
+        foreach ($rowNodes as $rowNode) {
+            $rowIndex = (int) $rowNode['r'];
+            $values = [];
+
+            foreach ($rowNode->c as $cell) {
+                $reference = (string) $cell['r'];
+                $columnIndex = $this->xlsxColumnIndex($reference);
+                $type = (string) $cell['t'];
+                $value = (string) ($cell->v ?? '');
+
+                if ($type === 's') {
+                    $value = $sharedStrings[(int) $value] ?? '';
+                } elseif ($type === 'inlineStr') {
+                    $value = (string) ($cell->is->t ?? '');
+                }
+
+                $values[$columnIndex] = trim($value);
+            }
+
+            if ($values !== []) {
+                ksort($values);
+                $rawRows[$rowIndex] = $values;
+            }
+        }
+
+        if ($rawRows === []) {
+            throw ValidationException::withMessages([
+                'file' => 'Le fichier Excel importe est vide.',
+            ]);
+        }
+
+        $firstRow = array_shift($rawRows);
+        $headers = array_map(fn ($header) => $this->normalizeHeader((string) $header), array_values($firstRow));
+        $acceptedHeaders = array_merge([$expectedHeaders], $alternativeHeaders);
+
+        if (! $this->headersAccepted($headers, $acceptedHeaders, $allowExtraColumns)) {
+            throw ValidationException::withMessages([
+                'file' => 'Le fichier ne correspond pas au modele attendu. Colonnes attendues : '.implode(', ', $expectedHeaders).'.',
+            ]);
+        }
+
+        $rows = [];
+        foreach ($rawRows as $line => $values) {
+            $data = [];
+            for ($index = 0; $index < count($headers); $index++) {
+                $data[] = $values[$index] ?? null;
+            }
+
+            if (collect($data)->filter(fn ($value) => filled($value))->isEmpty()) {
+                continue;
+            }
+
+            $row = array_combine($headers, array_map(fn ($value) => is_string($value) ? trim($value) : $value, $data));
+            $row['_line'] = $line;
+            $rows[] = $row;
+        }
+
+        if ($rows === []) {
+            throw ValidationException::withMessages([
+                'file' => 'Le fichier Excel importe est vide.',
+            ]);
+        }
+
+        return $rows;
+    }
+
     private function detectDelimiter(string $line): string
     {
         $delimiters = [';' => substr_count($line, ';'), ',' => substr_count($line, ','), "\t" => substr_count($line, "\t")];
@@ -833,12 +1089,162 @@ class ImportService
 
     private function normalizeHeader(string $header): string
     {
-        return Str::of($header)
+        $normalized = Str::of($header)
             ->ascii()
             ->lower()
-            ->replace([' ', '-'], '_')
+            ->replace([' ', '-', '/', '.'], '_')
+            ->replace('__', '_')
             ->trim()
             ->value();
+
+        return $this->headerAliases()[$normalized] ?? $normalized;
+    }
+
+    private function headersAccepted(array $headers, array $acceptedHeaders, bool $allowExtraColumns = false): bool
+    {
+        foreach ($acceptedHeaders as $expected) {
+            if ($headers === $expected) {
+                return true;
+            }
+
+            if ($allowExtraColumns && empty(array_diff($expected, $headers))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function partnerImportHeaders(): array
+    {
+        return [
+            'code',
+            'name',
+            'phone',
+            'email',
+            'city',
+            'nif',
+            'address',
+            'opening_balance',
+            'notes',
+        ];
+    }
+
+    private function headerAliases(): array
+    {
+        return [
+            'nom' => 'name',
+            'raison_sociale' => 'name',
+            'client' => 'name',
+            'fournisseur' => 'name',
+            'telephone' => 'phone',
+            'tel' => 'phone',
+            'mobile' => 'phone',
+            'whatsapp' => 'phone',
+            'ville' => 'city',
+            'commune' => 'city',
+            'adresse' => 'address',
+            'solde_initial' => 'opening_balance',
+            'solde_ouverture' => 'opening_balance',
+            'balance_initiale' => 'opening_balance',
+            'condition_paiement' => 'payment_term',
+            'conditions_paiement' => 'payment_term',
+            'delai_paiement' => 'payment_term',
+            'payment_terms' => 'payment_term',
+            'payment_term_name' => 'payment_term',
+            'liste_prix' => 'price_list',
+            'liste_de_prix' => 'price_list',
+            'tarif' => 'price_list',
+            'price_list_name' => 'price_list',
+            'actif' => 'is_active',
+            'active' => 'is_active',
+            'statut' => 'is_active',
+            'remarque' => 'notes',
+            'commentaire' => 'notes',
+        ];
+    }
+
+    private function existingProductId(int $companyId, ?string $sku, ?string $barcode, ?string $name): ?int
+    {
+        if ($sku) {
+            $id = Product::query()->where('company_id', $companyId)->where('sku', $sku)->value('id');
+            if ($id) {
+                return (int) $id;
+            }
+        }
+
+        if ($barcode) {
+            $id = Product::query()->where('company_id', $companyId)->where('barcode', $barcode)->value('id');
+            if ($id) {
+                return (int) $id;
+            }
+        }
+
+        if ($name) {
+            $id = Product::query()->where('company_id', $companyId)->where('name', trim($name))->value('id');
+            if ($id) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    private function xlsxSheetXml(array $rows): string
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+
+        foreach ($rows as $rowIndex => $row) {
+            $rowNumber = $rowIndex + 1;
+            $xml .= '<row r="'.$rowNumber.'">';
+            foreach (array_values($row) as $columnIndex => $value) {
+                $cell = $this->xlsxColumnName($columnIndex + 1).$rowNumber;
+                $xml .= '<c r="'.$cell.'" t="inlineStr"><is><t>'.htmlspecialchars((string) $value, ENT_XML1).'</t></is></c>';
+            }
+            $xml .= '</row>';
+        }
+
+        return $xml.'</sheetData></worksheet>';
+    }
+
+    private function xlsxSharedStrings(string $xml): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $shared = simplexml_load_string($xml);
+        $shared->registerXPathNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+        return collect($shared->xpath('//x:si') ?: [])
+            ->map(fn ($node) => (string) collect($node->xpath('.//x:t') ?: [])->map(fn ($text) => (string) $text)->implode(''))
+            ->values()
+            ->all();
+    }
+
+    private function xlsxColumnIndex(string $reference): int
+    {
+        preg_match('/^([A-Z]+)/i', $reference, $matches);
+        $letters = strtoupper($matches[1] ?? 'A');
+        $index = 0;
+
+        foreach (str_split($letters) as $letter) {
+            $index = ($index * 26) + (ord($letter) - 64);
+        }
+
+        return max(0, $index - 1);
+    }
+
+    private function xlsxColumnName(int $index): string
+    {
+        $name = '';
+        while ($index > 0) {
+            $index--;
+            $name = chr(65 + ($index % 26)).$name;
+            $index = intdiv($index, 26);
+        }
+
+        return $name;
     }
 
     private function nullable(mixed $value): ?string
@@ -868,5 +1274,22 @@ class ImportService
     {
         return app(\App\Modules\Core\Company\Services\DocumentNumberService::class)
             ->nextNumber($companyId, 'product_sku');
+    }
+
+    private function defaultBarcodeFromSku(int $companyId, ?string $sku, ?int $ignoreId = null): ?string
+    {
+        $barcode = trim((string) $sku);
+
+        if ($barcode === '') {
+            return null;
+        }
+
+        $exists = Product::query()
+            ->where('company_id', $companyId)
+            ->where('barcode', $barcode)
+            ->when($ignoreId, fn ($query, int $productId) => $query->whereKeyNot($productId))
+            ->exists();
+
+        return $exists ? null : $barcode;
     }
 }

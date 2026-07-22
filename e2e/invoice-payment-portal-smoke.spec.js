@@ -25,7 +25,7 @@ test('manager can collect a portal payment notice and open the prefilled receipt
     await page.locator('input[name="items[0][qty]"]').fill('2');
     await page.locator('input[name="items[0][unit_price]"]').fill('900');
 
-    await page.getByRole('button', { name: 'Enregistrer la facture' }).click();
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
 
     await expect(page).toHaveURL(/\/ventes\/\d+$/);
     await expect(page.getByText('Portail de reglement client')).toBeVisible();

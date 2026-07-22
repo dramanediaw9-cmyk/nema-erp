@@ -139,7 +139,9 @@
     </form>
 
     <script>
-        const exchangeCatalog = @json($exchangeCatalog);
+        let exchangeCatalog = @json($exchangeCatalog);
+        const exchangeSearchUrl = @json(route('pos.sales.products', [], false));
+        const exchangeSessionId = @json($session->id);
         const initialExchangeItems = @json($initialExchangeItems);
         const exchangeGrid = document.getElementById('exchange-grid');
         const exchangeLines = document.getElementById('exchange-lines');
@@ -152,6 +154,8 @@
         const returnNetBox = document.getElementById('return-net-box');
         const returnNetLabel = document.getElementById('return-net-label');
         const catalogById = Object.fromEntries(exchangeCatalog.map((product) => [String(product.id), product]));
+        let exchangeSearchSequence = 0;
+        let exchangeSearchTimer = null;
         const state = {
             search: '',
             category: '',
@@ -182,6 +186,31 @@
         const lineDiscount = (item) => item.discount_type === 'fixed' ? Math.min(lineSubtotal(item), Number(item.discount_value || 0)) : item.discount_type === 'percent' ? lineSubtotal(item) * Math.min(Number(item.discount_value || 0), 100) / 100 : 0;
         const lineTotal = (item) => Math.max(lineSubtotal(item) - lineDiscount(item), 0);
 
+        async function loadExchangeCatalog() {
+            const sequence = ++exchangeSearchSequence;
+            const url = new URL(exchangeSearchUrl, window.location.origin);
+            url.searchParams.set('session', String(exchangeSessionId));
+            url.searchParams.set('limit', '40');
+            if (state.search.trim()) url.searchParams.set('q', state.search.trim());
+            if (state.category) url.searchParams.set('category', `catalog:${state.category}`);
+            exchangeGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Chargement des articles...</div>';
+            try {
+                const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const payload = await response.json();
+                if (sequence !== exchangeSearchSequence) return [];
+                exchangeCatalog = Array.isArray(payload.products) ? payload.products : [];
+                exchangeCatalog.forEach((product) => { catalogById[String(product.id)] = product; });
+                renderExchangeGrid();
+                return exchangeCatalog;
+            } catch (error) {
+                if (sequence === exchangeSearchSequence) {
+                    exchangeGrid.innerHTML = '<div class="pos-empty" style="grid-column:1 / -1;">Catalogue indisponible. Verifie la connexion puis reessaie.</div>';
+                }
+                return [];
+            }
+        }
+
         function addExchangeProduct(product) {
             const existing = state.items.find((item) => item.product_id === String(product.id) && item.discount_type === 'none' && Number(item.discount_value || 0) === 0);
             if (existing) {
@@ -191,6 +220,8 @@
             }
             renderExchange();
             exchangeSearch.value = '';
+            state.search = '';
+            void loadExchangeCatalog();
             exchangeSearch.focus();
         }
 
@@ -278,18 +309,23 @@
             if (!button) return;
             state.category = String(button.dataset.category || '');
             exchangeCategoryRow.querySelectorAll('[data-category]').forEach((chip) => chip.classList.toggle('is-active', chip === button));
-            renderExchangeGrid();
+            void loadExchangeCatalog();
         });
 
         exchangeSearch.addEventListener('input', (event) => {
             state.search = event.target.value;
-            renderExchangeGrid();
+            if (exchangeSearchTimer) window.clearTimeout(exchangeSearchTimer);
+            exchangeSearchTimer = window.setTimeout(() => void loadExchangeCatalog(), 120);
         });
-        exchangeSearch.addEventListener('keydown', (event) => {
+        exchangeSearch.addEventListener('keydown', async (event) => {
             if (event.key !== 'Enter') return;
             event.preventDefault();
             const query = normalize(exchangeSearch.value);
-            const match = exchangeCatalog.find((product) => [product.barcode, product.sku, product.name].some((field) => normalize(field).includes(query)));
+            let match = exchangeCatalog.find((product) => [product.barcode, product.sku, product.name].some((field) => normalize(field).includes(query)));
+            if (!match) {
+                const results = await loadExchangeCatalog();
+                match = results.find((product) => [product.barcode, product.sku, product.name].some((field) => normalize(field).includes(query)));
+            }
             if (match) addExchangeProduct(match);
         });
         exchangeLines.addEventListener('input', (event) => {
@@ -313,4 +349,3 @@
         renderExchange();
     </script>
 @endsection
-

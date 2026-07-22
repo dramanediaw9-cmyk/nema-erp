@@ -34,19 +34,33 @@ test('cashier can open POS session, validate a sale, print the thermal ticket, a
 
     const submitButton = page.getByRole('button', { name: 'Valider et encaisser' });
     await expect(submitButton).toHaveAttribute('aria-disabled', 'false');
-    await submitButton.click();
-    await page.waitForURL(/\/point-de-vente\/(tickets\/\d+\/thermique|vente)/);
+    const printThermalInput = page.locator('input[name="print_thermal"]');
+    await printThermalInput.evaluate((input) => {
+        input.value = '0';
+        input.setAttribute('value', '0');
+    });
+    await expect(printThermalInput).toHaveValue('0');
 
-    if (/\/point-de-vente\/tickets\/\d+\/thermique/.test(page.url())) {
-        await expect(page.getByText('TICKET CAISSE')).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Ticket detaille' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Retour caisse' })).toBeVisible();
+    const saleResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
 
-        await page.evaluate(() => {
-            window.dispatchEvent(new Event('afterprint'));
-        });
-    }
+        return response.request().method() === 'POST' && url.pathname === '/point-de-vente/vente';
+    });
+    await submitButton.click({ noWaitAfter: true });
+    const saleResponse = await saleResponsePromise;
+    expect([302, 303]).toContain(saleResponse.status());
 
+    const receiptUrl = saleResponse.headers().location;
+    expect(receiptUrl).toMatch(/\/point-de-vente\/tickets\/\d+$/);
+    await page.goto(receiptUrl);
+    await expect(page).toHaveURL(/\/point-de-vente\/tickets\/\d+$/);
+
+    await page.getByRole('link', { name: 'Version thermique' }).click();
+    await expect(page).toHaveURL(/\/point-de-vente\/tickets\/\d+\/thermique$/);
+    await expect(page.getByText('Ticket de caisse')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ticket detaille' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Retour' }).click();
     await page.waitForURL(/\/point-de-vente\/vente/);
     await expect(page.getByRole('button', { name: 'Valider et encaisser' })).toBeVisible();
 });

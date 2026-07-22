@@ -116,11 +116,13 @@ class PurchaseBillController extends Controller
                 ->with('success', 'Cette reception fournisseur a deja genere une facture.');
         }
 
+        $defaultRows = old('items', $this->defaultRows($selectedReceipt));
+
         return view('purchases.create', [
             'suppliers' => Partner::query()->suppliers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'products' => Product::query()->with('parent')->where('company_id', $companyId)->purchasable()->orderBy('name')->get(),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'purchasable', collect($defaultRows)->pluck('product_id')->all()),
             'warehouses' => Warehouse::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
-            'defaultRows' => old('items', $this->defaultRows($selectedReceipt)),
+            'defaultRows' => $defaultRows,
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
             'selectedReceipt' => $selectedReceipt,

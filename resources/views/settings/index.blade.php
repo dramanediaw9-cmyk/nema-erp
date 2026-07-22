@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Parametres - Nema ERP')
-@section('page-title', 'Parametres societe')
+@section('title', 'Parametres generaux - Nema ERP')
+@section('page-title', 'Parametres generaux')
 
 @section('content')
     @php
@@ -11,24 +11,25 @@
             ['label' => 'Pays : '.($general->value['country'] ?? 'Mali'), 'tone' => 'muted'],
             ['label' => 'Fuseau : '.($general->value['timezone'] ?? 'Africa/Bamako'), 'tone' => 'muted'],
         ];
-
-        if (auth()->user()?->hasPermission('users.view')) {
-            $headerActions[] = ['label' => 'Utilisateurs', 'url' => route('users.index'), 'style' => 'secondary'];
-        }
-
-        if (auth()->user()?->hasPermission('roles.view')) {
-            $headerActions[] = ['label' => 'Roles', 'url' => route('roles.index'), 'style' => 'secondary'];
-        }
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+        $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
 
         if (auth()->user()?->hasPermission('imports.manage')) {
-            $headerActions[] = ['label' => 'Imports CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
+            $headerActions[] = ['label' => 'Imports Excel/CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
         }
     @endphp
 
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Parametres',
-        'title' => 'Pilotage parametres',
-        'description' => 'Societe, secteur, workflow, taxes, listes de prix et integrations dans un seul ecran de reglage.',
+        'eyebrow' => 'Administration',
+        'title' => 'Parametres generaux',
+        'description' => null,
         'actions' => $headerActions,
         'chips' => $headerChips,
     ])
@@ -41,47 +42,235 @@
         </div>
     @endif
 
-    <section class="card" style="margin-bottom:18px;">
-        <h2 style="margin-top:0;">Raccourcis reglages</h2>
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top:14px;">
-            <a href="#company-profile" class="summary-box" style="display:block;">
-                <strong>Profil societe</strong>
-                <div class="help" style="margin-top:8px;">Nom, devise, pays, fuseau et adresse.</div>
-            </a>
-            <a href="#document-sequences" class="summary-box" style="display:block;">
-                <strong>Sequences documents</strong>
-                <div class="help" style="margin-top:8px;">Prefixes, numerotation et padding.</div>
-            </a>
-            <a href="#sector-profile" class="summary-box" style="display:block;">
-                <strong>Profil secteur</strong>
-                <div class="help" style="margin-top:8px;">Pack metier actif et modules recommandes.</div>
-            </a>
-            <a href="#approval-workflows" class="summary-box" style="display:block;">
-                <strong>Workflow d approbation</strong>
-                <div class="help" style="margin-top:8px;">Seuils, SLA, affectations et notifications.</div>
-            </a>
-            <a href="#payment-terms" class="summary-box" style="display:block;">
-                <strong>Conditions et taxes</strong>
-                <div class="help" style="margin-top:8px;">Conditions de paiement et regles fiscales.</div>
-            </a>
-            <a href="#price-lists" class="summary-box" style="display:block;">
-                <strong>Listes de prix</strong>
-                <div class="help" style="margin-top:8px;">Tarifs et lignes de prix par produit.</div>
-            </a>
-            <a href="#integrations-api" class="summary-box" style="display:block;">
-                <strong>API et integrations</strong>
-                <div class="help" style="margin-top:8px;">Webhooks, passerelles et jetons API.</div>
-            </a>
+    <style>
+        .settings-admin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px;
+        }
+        .settings-admin-item {
+            display: grid;
+            gap: 10px;
+            padding: 14px;
+            border: 1px solid rgba(102, 82, 56, .14);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, .78);
+        }
+        .settings-admin-item__head,
+        .settings-admin-item__actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .settings-admin-item__count {
+            font-size: 22px;
+            font-weight: 800;
+        }
+        .settings-anchor-row {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-top: 12px;
+        }
+        .settings-anchor-row a {
+            white-space: nowrap;
+        }
+    </style>
+
+    <section class="card" style="margin-bottom:12px; padding:16px;">
+        <div class="settings-admin-grid">
+            <div class="settings-admin-item">
+                <div class="settings-admin-item__head">
+                    <strong>Societe</strong>
+                    <span class="badge {{ $company->is_active ? 'badge-success' : 'badge-warning' }}">{{ $company->is_active ? 'Active' : 'Inactive' }}</span>
+                </div>
+                <div>{{ $company->name }}</div>
+                <div class="settings-admin-item__actions">
+                    <a href="#company-profile" class="button button-secondary">Modifier</a>
+                </div>
+            </div>
+
+            @allowed('branches.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Agences</strong>
+                        <span class="settings-admin-item__count">{{ $adminSummary['branches_total'] }}</span>
+                    </div>
+                    <div class="muted">{{ $adminSummary['branches_active'] }} active(s)</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('branches.index') }}" class="button button-secondary">Gerer</a>
+                        @allowed('branches.manage')
+                            <a href="{{ route('branches.create') }}" class="button button-primary">Creer</a>
+                        @endallowed
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('users.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Utilisateurs</strong>
+                        <span class="settings-admin-item__count">{{ $adminSummary['users_total'] }}</span>
+                    </div>
+                    <div class="muted">{{ $adminSummary['users_active'] }} actif(s)</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('users.index') }}" class="button button-secondary">Gerer</a>
+                        @allowed('users.manage')
+                            <a href="{{ route('users.create') }}" class="button button-primary">Creer</a>
+                        @endallowed
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('roles.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Roles</strong>
+                        <span class="settings-admin-item__count">{{ $adminSummary['roles_total'] }}</span>
+                    </div>
+                    <div class="muted">Roles propres a la societe</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('roles.index') }}" class="button button-secondary">Gerer</a>
+                        @allowed('roles.manage')
+                            <a href="{{ route('roles.create') }}" class="button button-primary">Creer</a>
+                        @endallowed
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('warehouses.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Entrepots</strong>
+                        <span class="settings-admin-item__count">{{ $adminSummary['warehouses_total'] }}</span>
+                    </div>
+                    <div class="muted">{{ $adminSummary['warehouses_active'] }} actif(s)</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('warehouses.index') }}" class="button button-secondary">Gerer</a>
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('cash_accounts.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Caisses et comptes</strong>
+                        <span class="settings-admin-item__count">{{ $adminSummary['cash_accounts_total'] }}</span>
+                    </div>
+                    <div class="muted">{{ $adminSummary['cash_accounts_active'] }} actif(s)</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('cash-accounts.index') }}" class="button button-secondary">Gerer</a>
+                        @allowed('cash_accounts.manage')
+                            <a href="{{ route('cash-accounts.create') }}" class="button button-primary">Creer</a>
+                        @endallowed
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('pos.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Point de vente</strong>
+                        <span class="badge badge-success">POS</span>
+                    </div>
+                    <div class="muted">Caisses, modes de paiement, tickets et imprimantes</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('pos.settings.index') }}" class="button button-secondary">Configurer</a>
+                    </div>
+                </div>
+            @endallowed
+
+            <div class="settings-admin-item">
+                <div class="settings-admin-item__head">
+                    <strong>Documents</strong>
+                    <span class="settings-admin-item__count">{{ $adminSummary['document_sequences_total'] }}</span>
+                </div>
+                <div class="muted">Numerotation, logo et mentions imprimees</div>
+                <div class="settings-admin-item__actions">
+                    <a href="#document-sequences" class="button button-secondary">Regler</a>
+                    <a href="#company-profile" class="button button-secondary">Logo</a>
+                </div>
+            </div>
+
+            <div class="settings-admin-item">
+                <div class="settings-admin-item__head">
+                    <strong>Taxes</strong>
+                    <span class="settings-admin-item__count">{{ $adminSummary['tax_rules_total'] }}</span>
+                </div>
+                <div class="muted">TVA, retenues et regles par defaut</div>
+                <div class="settings-admin-item__actions">
+                    <a href="#tax-rules" class="button button-secondary">Regler</a>
+                </div>
+            </div>
+
+            @allowed('imports.manage')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Imports Excel</strong>
+                        <span class="badge badge-muted">Lot</span>
+                    </div>
+                    <div class="muted">{{ $productsLabel }}, {{ strtolower($customersLabel) }}, {{ strtolower($suppliersLabel) }} et donnees de depart</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('imports.index') }}" class="button button-secondary">Importer</a>
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('purchase_requests.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Reapprovisionnement</strong>
+                        <span class="badge badge-warning">{{ $stockLabel }}</span>
+                    </div>
+                    <div class="muted">{{ $productsLabel }} sous minimum et commandes {{ strtolower($supplierLabel) }} proposees</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('replenishments.index') }}" class="button button-secondary">Ouvrir</a>
+                    </div>
+                </div>
+            @endallowed
+
+            @allowed('activity_logs.view')
+                <div class="settings-admin-item">
+                    <div class="settings-admin-item__head">
+                        <strong>Journal d audit</strong>
+                        <span class="badge badge-muted">Trace</span>
+                    </div>
+                    <div class="muted">Prix, {{ strtolower($productsLabel) }}, caisse, utilisateurs et actions sensibles</div>
+                    <div class="settings-admin-item__actions">
+                        <a href="{{ route('activity-logs.index') }}" class="button button-secondary">Voir</a>
+                    </div>
+                </div>
+            @endallowed
         </div>
+
+        <nav class="settings-anchor-row" aria-label="Sections des parametres">
+            <a href="#company-profile" class="button button-secondary">Societe</a>
+            <a href="#document-sequences" class="button button-secondary">Numerotation</a>
+            <a href="#sector-profile" class="button button-secondary">Metier</a>
+            <a href="#approval-workflows" class="button button-secondary">Approbations</a>
+            <a href="#payment-terms" class="button button-secondary">Paiement et taxes</a>
+            <a href="#price-lists" class="button button-secondary">Prix</a>
+            <a href="#integrations-api" class="button button-secondary">Integrations</a>
+        </nav>
     </section>
 
     <div class="split">
         <section class="card" id="company-profile">
             <h2 style="margin-top:0;">Profil societe</h2>
-            <form method="POST" action="{{ route('settings.company.update') }}">
+            <form method="POST" action="{{ route('settings.company.update') }}" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
                 <div class="form-grid">
+                    <div class="full" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                        @if ($company->logo_path)
+                            <img src="{{ asset('storage/'.$company->logo_path) }}" alt="Logo {{ $company->name }}" style="width:78px; height:78px; object-fit:contain; border:1px solid rgba(102, 82, 56, .16); border-radius:8px; background:#fff; padding:8px;">
+                        @endif
+                        <div style="flex:1; min-width:260px;">
+                            <label for="logo">Logo documents</label>
+                            <input id="logo" type="file" name="logo" accept="image/png,image/jpeg,image/webp">
+                        </div>
+                    </div>
                     <div>
                         <label for="name">Nom commercial</label>
                         <input id="name" type="text" name="name" value="{{ old('name', $company->name) }}" required>
@@ -175,48 +364,46 @@
     <section class="card" id="sector-profile" style="margin-top:18px;">
         <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
             <div>
-                <h2 style="margin:0;">Profil secteur</h2>
-                <div class="help" style="margin-top:8px;">Nema ERP reste generaliste, mais ce pack met en avant les usages, modules et reglages qui collent le mieux a ton terrain.</div>
+                <h2 style="margin:0;">Metier de l'entreprise</h2>
+                    <div class="help" style="margin-top:8px;">Choisis le profil d'activite. Nema adapte les modules, le vocabulaire et les reglages de depart.</div>
             </div>
-            @include('partials.erp-status-badge', ['label' => 'Actif : '.$sectorProfile['label'], 'tone' => 'success'])
+            @include('partials.erp-status-badge', ['label' => 'Metier actif : '.$sectorProfile['label'], 'tone' => 'success'])
         </div>
 
-        <div class="grid" style="margin-top:18px; margin-bottom:20px;">
-            <div class="summary-box">
-                <strong>Terrains cibles</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['use_cases'] as $useCase)
-                        @include('partials.erp-status-badge', ['label' => $useCase, 'tone' => 'muted'])
-                    @endforeach
+        <div class="summary-box" style="margin-top:18px; margin-bottom:20px;">
+            <div style="display:flex; gap:14px; align-items:center;">
+                <span class="dashboard-icon-badge dashboard-icon-badge--success">
+                    @include('dashboard.partials.icon', ['name' => $sectorProfile['icon'] ?? 'building', 'size' => 22])
+                </span>
+                <div>
+                    <strong>{{ $sectorProfile['label'] }}</strong>
+                    <div class="help" style="margin-top:6px;">{{ $sectorProfile['description'] }}</div>
                 </div>
-                <div class="help" style="margin-top:10px;">{{ $sectorProfile['description'] }}</div>
             </div>
-            <div class="summary-box">
-                <strong>Unites conseillees</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['recommended_units'] as $unit)
-                        @include('partials.erp-status-badge', ['label' => $unit, 'tone' => 'muted'])
-                    @endforeach
+            <div class="grid" style="margin-top:16px;">
+                <div>
+                    <strong>Modules recommandes</strong>
+                    <div class="chip-row" style="margin-top:8px;">
+                        @foreach ($sectorProfile['recommended_modules'] as $module)
+                            @include('partials.erp-status-badge', ['label' => $module, 'tone' => 'muted'])
+                        @endforeach
+                    </div>
                 </div>
-                <div class="help" style="margin-top:10px;">Bon point de depart pour configurer le catalogue et les conditionnements.</div>
+                <div>
+                    <strong>Champs importants</strong>
+                    <div class="help" style="margin-top:8px;">{{ implode(' · ', $sectorProfile['specific_fields']) }}</div>
+                </div>
+                <div>
+                    <strong>Configuration de depart</strong>
+                    <div class="help" style="margin-top:8px;">{{ implode(' · ', $sectorProfile['starter']['categories']) }}</div>
+                </div>
+                <div>
+                    <strong>Alertes utiles</strong>
+                    <div class="help" style="margin-top:8px;">{{ implode(' · ', $sectorProfile['alerts']) }}</div>
+                </div>
             </div>
-            <div class="summary-box">
-                <strong>Paiements terrain</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['recommended_payments'] as $payment)
-                        @include('partials.erp-status-badge', ['label' => $payment, 'tone' => 'muted'])
-                    @endforeach
-                </div>
-                <div class="help" style="margin-top:10px;">Canaux conseilles pour garder une experience simple au comptoir ou en recouvrement.</div>
-            </div>
-            <div class="summary-box">
-                <strong>Catalogue de depart</strong>
-                <div class="chip-row" style="margin-top:10px;">
-                    @foreach ($sectorProfile['starter_catalog'] as $item)
-                        @include('partials.erp-status-badge', ['label' => $item, 'tone' => 'muted'])
-                    @endforeach
-                </div>
-                <div class="help" style="margin-top:10px;">Le dashboard utilisera ensuite ce profil pour recommander les bons modules.</div>
+            <div class="actions" style="margin-top:16px;">
+                <a href="{{ route('business-guide.index') }}" class="button button-secondary">Voir le guide metier</a>
             </div>
         </div>
 
@@ -232,9 +419,11 @@
                         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
                             <div style="display:flex; gap:10px; align-items:flex-start; text-transform:none; letter-spacing:0; font-weight:700;">
                                 <input type="radio" name="sector_profile" value="{{ $profile['key'] }}" @checked($isSelected)>
+                                <span class="dashboard-icon-badge dashboard-icon-badge--success">
+                                    @include('dashboard.partials.icon', ['name' => $profile['icon'] ?? 'building', 'size' => 20])
+                                </span>
                                 <span>
                                     <strong>{{ $profile['label'] }}</strong>
-                                    <span class="muted" style="display:block; margin-top:6px; font-weight:600;">{{ $profile['badge'] }}</span>
                                 </span>
                             </div>
                             @if ($sectorProfile['key'] === $profile['key'])
@@ -242,18 +431,13 @@
                             @endif
                         </div>
                         <div class="help" style="margin-top:12px;">{{ $profile['description'] }}</div>
-                        <div class="chip-row" style="margin-top:12px;">
-                            @foreach ($profile['use_cases'] as $useCase)
-                                @include('partials.erp-status-badge', ['label' => $useCase, 'tone' => 'muted'])
-                            @endforeach
-                        </div>
-                        <div class="help" style="margin-top:12px;"><strong>Focus terrain :</strong> {{ implode(' · ', $profile['operational_focus']) }}</div>
-                        <div class="help" style="margin-top:8px;"><strong>Modules conseilles :</strong> {{ collect($profile['recommended_modules'])->pluck('label')->implode(' · ') }}</div>
+                        <div class="help" style="margin-top:8px;"><strong>Modules :</strong> {{ implode(' · ', array_slice($profile['recommended_modules'], 0, 6)) }}</div>
+                        <div class="help" style="margin-top:8px;"><strong>Champs :</strong> {{ implode(' · ', array_slice($profile['specific_fields'], 0, 5)) }}</div>
                     </label>
                 @endforeach
             </div>
             <div class="actions">
-                <button type="submit" class="button button-primary">Appliquer le profil secteur</button>
+                <button type="submit" class="button button-primary">Appliquer ce metier</button>
             </div>
         </form>
     </section>
@@ -266,7 +450,7 @@
                 @csrf
                 @method('PUT')
                 <div class="grid">
-                    @foreach (['sales' => 'Ventes', 'purchases' => 'Achats', 'expenses' => 'Depenses'] as $key => $label)
+                    @foreach (['sales' => $salesLabel, 'purchases' => $businessVocabulary['purchases'] ?? 'Achats', 'expenses' => 'Depenses'] as $key => $label)
                         @php
                             $workflow = $approvalWorkflows[$key];
                             $branchAssignments = $workflow['branch_assignments'] ?? [];
@@ -536,7 +720,7 @@
                     </div>
                     <div>
                         <label>Produit</label>
-                        <select name="product_id" required>
+                        <select name="product_id" required data-product-picker data-product-mode="active">
                             <option value="">Choisir</option>
                             @foreach ($products as $product)
                                 <option value="{{ $product->id }}">{{ $product->name }}</option>
@@ -683,8 +867,3 @@
         </section>
     </div>
 @endsection
-
-
-
-
-

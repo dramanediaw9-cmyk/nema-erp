@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Modules\Core\Approvals\Services\ApprovalInboxService;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Notifications\Services\NotificationService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +27,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Password::defaults(fn () => Password::min(12)
+            ->mixedCase()
+            ->letters()
+            ->numbers()
+            ->symbols());
+
         if (str_starts_with(config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
@@ -38,6 +46,17 @@ class AppServiceProvider extends ServiceProvider
 
         $workspace = app(CurrentWorkspace::class);
         View::share('workspace', $workspace);
+
+        View::composer('*', function ($view) use ($workspace): void {
+            static $businessVocabulary = null;
+
+            if ($businessVocabulary === null) {
+                $businessVocabulary = app(SectorProfileService::class)
+                    ->businessVocabularyForCompany($workspace->companyId());
+            }
+
+            $view->with('businessVocabulary', $businessVocabulary);
+        });
 
         View::composer('layouts.app', function ($view) use ($workspace): void {
             $user = auth()->user();
@@ -70,7 +89,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with('erpNavigation', app(ErpNavigationService::class)->build(
                 $user,
                 request(),
-                session('ui_mode', 'full') === 'merchant',
+                false,
                 $workspace->companyId()
             ));
         });

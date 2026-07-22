@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Produits - Nema ERP')
-@section('page-title', 'Catalogue produits')
+@php
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+@endphp
+
+@section('title', $productsLabel.' - Nema ERP')
+@section('page-title', 'Catalogue '.$productsLabel)
 @section('layout-mode', 'compact')
 
 @push('page-styles')
@@ -241,10 +246,10 @@
             </div>
             <div class="erp-work-toolbar__actions">
                 @allowed('imports.manage')
-                    <a href="{{ route('imports.index') }}" class="button button-secondary">Importer CSV</a>
+                    <a href="{{ route('imports.index') }}" class="button button-secondary">Importer Excel</a>
                 @endallowed
                 @allowed('products.manage')
-                    <a href="{{ route('products.create') }}" class="button button-primary">Nouveau produit</a>
+                    <a href="{{ route('products.create') }}" class="button button-primary">Nouveau {{ $productLabel }}</a>
                 @endallowed
             </div>
         </section>
@@ -258,7 +263,7 @@
             <article class="premium-metric-card erp-kpi-card">
                 <div class="label">Actifs visibles</div>
                 <div class="value">{{ number_format($visibleActive, 0, ',', ' ') }}</div>
-                <div class="hint">Produits ou services actifs dans cette vue.</div>
+                <div class="hint">{{ $productsLabel }} actifs dans cette vue.</div>
             </article>
             <article class="premium-metric-card erp-kpi-card">
                 <div class="label">Services visibles</div>
@@ -275,7 +280,7 @@
         <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
             <summary>
                 <span>Filtres catalogue</span>
-                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Tous les produits' }}</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Tous les '.$productsLabel }}</span>
             </summary>
             <div class="erp-filter-panel__body">
                 <form method="GET" action="{{ route('products.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">

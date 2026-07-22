@@ -1,7 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'Achats - Nema ERP')
-@section('page-title', 'Factures fournisseurs')
+@php
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+    $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+@endphp
+
+@section('title', $purchasesLabel.' - Nema ERP')
+@section('page-title', $purchasesLabel)
 @section('layout-mode', 'compact')
 
 @push('page-styles')
@@ -219,8 +226,8 @@
     <div class="premium-page erp-work-page">
         <section class="erp-work-toolbar">
             <div class="erp-work-toolbar__context">
-                <span class="badge badge-muted">Achats</span>
-                <strong>{{ number_format($bills->count(), 0, ',', ' ') }} facture(s) visibles</strong>
+                <span class="badge badge-muted">{{ $purchasesLabel }}</span>
+                <strong>{{ number_format($bills->count(), 0, ',', ' ') }} document(s) visible(s)</strong>
             </div>
             <div class="erp-work-toolbar__actions">
                 @allowed('approvals.view')
@@ -228,7 +235,7 @@
                 @endallowed
                 <a href="{{ route('purchases.export', request()->query()) }}" class="button button-secondary">Exporter</a>
                 @allowed('purchases.manage')
-                    <a href="{{ route('purchases.create') }}" class="button button-primary">Nouvel achat</a>
+                    <a href="{{ route('purchases.create') }}" class="button button-primary">Nouveau {{ $purchaseLabel }}</a>
                 @endallowed
             </div>
         </section>
@@ -242,7 +249,7 @@
             <article class="metric-card erp-kpi-card">
                 <div class="label">Reste a regler</div>
                 <div class="value">{{ number_format($summary['open_balance'], 0, ',', ' ') }}</div>
-                <div class="hint">Montant encore attendu par les fournisseurs.</div>
+                <div class="hint">Montant encore attendu par les {{ strtolower($suppliersLabel) }}.</div>
             </article>
             <article class="metric-card erp-kpi-card">
                 <div class="label">En retard</div>
@@ -257,21 +264,21 @@
             <article class="metric-card erp-kpi-card">
                 <div class="label">En attente d approbation</div>
                 <div class="value">{{ number_format($summary['pending_approval_count'], 0, ',', ' ') }}</div>
-                <div class="hint">Achats encore bloques par le workflow.</div>
+                <div class="hint">{{ $purchasesLabel }} encore bloques par le workflow.</div>
             </article>
         </section>
 
         <details class="card premium-filter-card erp-filter-panel" @if ($hasActiveFilters) open @endif>
             <summary>
-                <span>Filtres achats</span>
-                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Toutes les factures' }}</span>
+                <span>Filtres {{ strtolower($purchasesLabel) }}</span>
+                <span class="muted">{{ $hasActiveFilters ? 'Filtres actifs' : 'Tous les documents' }}</span>
             </summary>
             <div class="erp-filter-panel__body">
                 <form method="GET" action="{{ route('purchases.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
                 <input type="hidden" name="view" value="{{ $currentView }}">
                 <div style="grid-column:span 2; min-width:220px;">
                     <label for="search">Recherche</label>
-                    <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, fournisseur, agence, note...">
+                    <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, {{ strtolower($supplierLabel) }}, agence, note...">
                 </div>
                 <div>
                     <label for="date_from">Date debut</label>
@@ -331,7 +338,7 @@
                 <strong>{{ number_format($bills->count(), 0, ',', ' ') }}</strong>
                 <span>facture(s) visibles sur cette page.</span>
                 @if ($currentView === 'list')
-                    <span>Mode d affichage memorise pour la liste des achats.</span>
+                    <span>Mode d affichage memorise pour la liste des {{ strtolower($purchasesLabel) }}.</span>
                 @else
                     <span>Lecture par cartes pour prioriser reglements et validations.</span>
                 @endif
@@ -339,7 +346,7 @@
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 @include('partials.erp-view-switcher', [
                     'view' => $currentView,
-                    'label' => 'Vue achats',
+                    'label' => 'Vue '.$purchasesLabel,
                     'listUrl' => route('purchases.index', array_merge(request()->query(), ['view' => 'list'])),
                     'kanbanUrl' => route('purchases.index', array_merge(request()->query(), ['view' => 'kanban'])),
                 ])
@@ -388,7 +395,7 @@
                         <div class="erp-kanban-head">
                             <div class="erp-kanban-copy">
                                 <div class="erp-kanban-code">{{ $bill->bill_number }}</div>
-                                <h3>{{ $bill->supplier?->name ?? 'Fournisseur non renseigne' }}</h3>
+                                <h3>{{ $bill->supplier?->name ?? $supplierLabel.' non renseigne' }}</h3>
                                 <p class="muted">{{ $bill->bill_date?->format('d/m/Y') }} · {{ $bill->branch?->name ?? 'Agence non renseignee' }}</p>
                             </div>
                             <div style="display:grid; gap:8px; justify-items:end;">
@@ -432,7 +439,7 @@
                             @elseif ($bill->notes)
                                 <p class="muted">{{ $bill->notes }}</p>
                             @else
-                                <p class="muted">{{ $followUpLabel }} · suivi fournisseur en cours.</p>
+                                <p class="muted">{{ $followUpLabel }} · suivi {{ strtolower($supplierLabel) }} en cours.</p>
                             @endif
                         </div>
                         <div class="erp-kanban-actions">
@@ -456,7 +463,7 @@
                     </section>
                 @empty
                     <section class="card empty-state" style="grid-column:1 / -1;">
-                        <h3>Aucune facture fournisseur ne correspond aux filtres selectionnes.</h3>
+                        <h3>Aucune facture {{ strtolower($supplierLabel) }} ne correspond aux filtres selectionnes.</h3>
                         <p class="muted">Ajuste la recherche, le workflow, le paiement ou l echeance.</p>
                     </section>
                 @endforelse
@@ -473,7 +480,7 @@
                         <th>Numero</th>
                         <th>Date</th>
                         <th class="col-optional-md">Echeance</th>
-                        <th>Fournisseur</th>
+                        <th>{{ $supplierLabel }}</th>
                         <th class="col-optional-lg">Agence</th>
                         <th>Workflow</th>
                         <th>Total</th>
@@ -568,7 +575,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="muted">Aucune facture fournisseur ne correspond aux filtres selectionnes.</td>
+                            <td colspan="10" class="muted">Aucune facture {{ strtolower($supplierLabel) }} ne correspond aux filtres selectionnes.</td>
                         </tr>
                     @endforelse
                     </tbody>

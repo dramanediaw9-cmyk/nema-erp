@@ -1,13 +1,22 @@
+@php
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+    $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+@endphp
+
 <div class="split">
     <section class="card">
-        <h2 class="section-title">Entete de la facture</h2>
-        <div class="muted" style="margin-bottom:16px;">Renseigne le client, l'entrepot de sortie, la date et l'echeance de recouvrement. Les lignes vides sont ignorees a l'enregistrement.</div>
+        <h2 class="section-title">Entete de la {{ strtolower($saleLabel) }}</h2>
+        <div class="muted" style="margin-bottom:16px;">Renseigne le {{ strtolower($customerLabel) }}, l'entrepot de sortie, la date et l'echeance de recouvrement. Les lignes vides sont ignorees a l'enregistrement.</div>
 
         <div class="form-grid">
             <div>
-                <label for="customer_id">Client</label>
+                <label for="customer_id">{{ $customerLabel }}</label>
                 <select id="customer_id" name="customer_id" required>
-                    <option value="">Selectionner un client</option>
+                    <option value="">Selectionner</option>
                     @foreach ($customers as $customer)
                         <option value="{{ $customer->id }}" data-price-list-id="{{ $customer->price_list_id ?? '' }}" data-price-list-name="{{ $customer->priceList?->name ?? '' }}" @selected((string) old('customer_id') === (string) $customer->id)>{{ $customer->code }} - {{ $customer->name }}</option>
                     @endforeach
@@ -23,11 +32,11 @@
                         <option value="{{ $warehouse->id }}" @selected((string) old('warehouse_id') === (string) $warehouse->id || (! old('warehouse_id') && $warehouse->is_default))>{{ $warehouse->code }} - {{ $warehouse->name }}</option>
                     @endforeach
                 </select>
-                <div class="help">Le stock sera reserve et sorti depuis cet entrepot au moment de l'approbation finale.</div>
+                <div class="help">Le {{ strtolower($stockLabel) }} sera reserve et sorti depuis cet entrepot au moment de l'approbation finale.</div>
                 @error('warehouse_id')<div class="field-error">{{ $message }}</div>@enderror
             </div>
             <div>
-                <label for="invoice_date">Date de facture</label>
+                <label for="invoice_date">Date</label>
                 <input id="invoice_date" type="date" name="invoice_date" value="{{ old('invoice_date', now()->format('Y-m-d')) }}" required>
                 @error('invoice_date')<div class="field-error">{{ $message }}</div>@enderror
             </div>
@@ -40,24 +49,24 @@
                     <button type="button" class="chip" data-due-days="15">+15 jours</button>
                     <button type="button" class="chip" data-due-days="30">+30 jours</button>
                 </div>
-                <div class="help">L'echeance alimente le suivi des relances sur la liste des ventes.</div>
+                <div class="help">L'echeance alimente le suivi des relances sur la liste des {{ strtolower($salesLabel) }}.</div>
                 @error('due_date')<div class="field-error">{{ $message }}</div>@enderror
             </div>
             <div>
                 <label>Agence active</label>
                 <input type="text" value="{{ $branch?->name }}" disabled>
-                <div class="help">La facture sera rattachee a cette agence.</div>
+                <div class="help">La {{ strtolower($saleLabel) }} sera rattachee a cette agence.</div>
             </div>
             <div class="full">
                 <label for="notes">Notes</label>
-                <textarea id="notes" name="notes" placeholder="Commentaire interne, reference client, remarque de livraison...">{{ old('notes') }}</textarea>
+                <textarea id="notes" name="notes" placeholder="Commentaire interne, reference {{ strtolower($customerLabel) }}, remarque de livraison...">{{ old('notes') }}</textarea>
                 @error('notes')<div class="field-error">{{ $message }}</div>@enderror
             </div>
         </div>
     </section>
 
     <aside class="card">
-        <h2 class="section-title">Resume de la facture</h2>
+        <h2 class="section-title">Resume de la {{ strtolower($saleLabel) }}</h2>
         <div class="summary-stack">
             <div class="summary-box">
                 <div class="muted">Montant estime</div>
@@ -76,7 +85,7 @@
             <div class="tip-grid">
                 <div class="tip-card">
                     <strong>Impact a l'approbation finale</strong>
-                    <div class="muted">Le stock de l'entrepot choisi est decremente et la creance client est ouverte.</div>
+                    <div class="muted">Le {{ strtolower($stockLabel) }} de l'entrepot choisi est decremente et la creance {{ strtolower($customerLabel) }} est ouverte.</div>
                 </div>
                 <div class="tip-card">
                     <strong>Bon reflexe</strong>
@@ -90,12 +99,12 @@
 <div class="card" style="margin-top:18px;">
     <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; align-items:flex-start;">
         <div>
-            <h2 class="section-title">Lignes de facture</h2>
-            <div class="muted">Choisis les produits, ajuste les quantites et les prix si besoin. Les lignes vides ne seront pas prises en compte.</div>
+            <h2 class="section-title">Lignes de {{ strtolower($saleLabel) }}</h2>
+            <div class="muted">Choisis les {{ strtolower($productsLabel) }}, ajuste les quantites et les prix si besoin. Les lignes vides ne seront pas prises en compte.</div>
         </div>
         <div class="tip-card" style="min-width:260px;">
             <strong>Conseil operateur</strong>
-            <div class="muted">Le prix de vente et la description se remplissent automatiquement des qu'un produit est choisi.</div>
+            <div class="muted">Le prix {{ strtolower($saleLabel) }} et la description se remplissent automatiquement des qu'un {{ strtolower($productLabel) }} est choisi.</div>
         </div>
     </div>
 
@@ -104,7 +113,7 @@
             <thead>
             <tr>
                 <th>#</th>
-                <th>Produit</th>
+                <th>{{ $productLabel }}</th>
                 <th>Description</th>
                 <th>Quantite</th>
                 <th>PU</th>
@@ -116,7 +125,7 @@
                 <tr data-line-index="{{ $index + 1 }}">
                     <td>{{ $index + 1 }}</td>
                     <td>
-                        <select name="items[{{ $index }}][product_id]" class="line-product">
+                        <select name="items[{{ $index }}][product_id]" class="line-product" data-product-picker data-product-mode="saleable">
                             <option value="">Choisir</option>
                             @foreach ($products as $product)
                                 <option value="{{ $product->id }}" data-name="{{ $product->display_name }}" data-price="{{ $product->sale_price }}" data-sale-description="{{ $product->sales_description ?: ($product->description ?: $product->display_name) }}" data-unit-summary="{{ $product->salesUnitSummary() ?: $product->unit }}" @selected((string) ($row['product_id'] ?? '') === (string) $product->id)>
@@ -125,7 +134,7 @@
                             @endforeach
                         </select>
                     </td>
-                    <td><input type="text" name="items[{{ $index }}][description]" value="{{ $row['description'] ?? '' }}" class="line-description" placeholder="Description visible sur la facture"></td>
+                    <td><input type="text" name="items[{{ $index }}][description]" value="{{ $row['description'] ?? '' }}" class="line-description" placeholder="Description visible sur le document"></td>
                     <td><input type="number" step="0.001" min="0" name="items[{{ $index }}][qty]" value="{{ $row['qty'] ?? '' }}" class="line-qty" inputmode="decimal"></td>
                     <td><input type="number" step="0.01" min="0" name="items[{{ $index }}][unit_price]" value="{{ $row['unit_price'] ?? '' }}" class="line-price" inputmode="decimal"></td>
                     <td><input type="text" value="0" class="line-total" disabled></td>
@@ -139,7 +148,7 @@
         $hasItemErrors = $errors->has('items') || collect($errors->keys())->contains(fn ($key) => str_starts_with($key, 'items.'));
     @endphp
     @if ($hasItemErrors)
-        <div class="field-error" style="margin-top:12px;">Certaines lignes de facture doivent etre corrigees avant enregistrement.</div>
+        <div class="field-error" style="margin-top:12px;">Certaines lignes doivent etre corrigees avant enregistrement.</div>
     @endif
 
     <div class="table-foot-note">
@@ -149,7 +158,7 @@
 
     <div class="actions">
         <a href="{{ route('sales.index') }}" class="button button-secondary">Annuler</a>
-        <button type="submit" class="button button-primary">Enregistrer la facture</button>
+        <button type="submit" class="button button-primary">Enregistrer</button>
     </div>
 </div>
 
@@ -238,10 +247,7 @@
     'pricingHintId' => 'sales-customer-pricing',
     'lineAmountClass' => 'line-price',
     'priceDataKey' => 'price',
-    'partnerKind' => 'client',
+    'partnerKind' => strtolower($customerLabel),
     'defaultPricingText' => 'Aucune liste de prix specifique: le prix catalogue sera propose.',
 ])
-
-
-
 

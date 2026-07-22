@@ -4,6 +4,7 @@ namespace App\Modules\Reporting\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Branch\Models\Branch;
+use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Dashboard\Services\ExecutiveBriefingService;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Purchases\Services\SupplierPerformanceService;
@@ -20,12 +21,15 @@ class ReportController extends Controller
         private readonly SupplierPerformanceService $supplierPerformanceService,
         private readonly ApplicationMonitoringService $applicationMonitoringService,
         private readonly ExecutiveBriefingService $executiveBriefingService,
+        private readonly SectorProfileService $sectorProfileService,
     ) {}
 
     public function index(Request $request, CurrentWorkspace $workspace): View
     {
         $companyId = $workspace->companyId();
         abort_if(! $companyId, 403);
+        $sectorProfile = $this->sectorProfileService->profileForCompany($companyId);
+        $businessVocabulary = $this->sectorProfileService->businessVocabularyForProfile($sectorProfile);
 
         $user = $request->user();
         $canViewMargin = (bool) $user?->hasPermission('reports.margin.view');
@@ -95,6 +99,7 @@ class ReportController extends Controller
             'filters' => ['date_from' => $dateFrom, 'date_to' => $dateTo, 'branch_id' => $selectedBranchId],
             'canViewMargin' => $canViewMargin,
             'appMonitoring' => $appMonitoring,
+            'businessVocabulary' => $businessVocabulary,
         ]);
 
         return view('reports.index', [
@@ -123,6 +128,9 @@ class ReportController extends Controller
             'salesByBranch' => $salesByBranch,
             'dormantProducts' => $dormantProducts,
             'supplierPerformance' => $supplierPerformance,
+            'sectorProfile' => $sectorProfile,
+            'reportBlueprint' => $this->reportBlueprint($sectorProfile, $businessVocabulary),
+            'executiveBrief' => $executiveBrief,
             'signals' => $this->pilotageSignals(
                 sales: $sales,
                 grossMargin: $grossMargin,
@@ -132,16 +140,43 @@ class ReportController extends Controller
                 supplierPerformance: $supplierPerformance,
                 filters: ['date_from' => $dateFrom, 'date_to' => $dateTo, 'branch_id' => $selectedBranchId],
                 canViewMargin: $canViewMargin,
+                businessVocabulary: $businessVocabulary,
             ),
         ]);
     }
 
-    private function pilotageSignals(array $sales, array $grossMargin, array $receivables, array $salesByBranch, array $dormantProducts, array $supplierPerformance, array $filters, bool $canViewMargin): array
+    private function reportBlueprint(array $sectorProfile, array $businessVocabulary): array
+    {
+        $profileLabel = $sectorProfile['label'] ?? 'Commerce general';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+        $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+
+        return [
+            'title' => 'Pilotage '.$profileLabel,
+            'subtitle' => 'Les rapports mettent en avant les chiffres utiles pour '.$profileLabel.'.',
+            'kpis' => array_slice($sectorProfile['kpis'] ?? [], 0, 6),
+            'alerts' => array_slice($sectorProfile['alerts'] ?? [], 0, 5),
+            'documents' => array_slice($sectorProfile['documents'] ?? [], 0, 5),
+            'quick_links' => [
+                ['label' => $salesLabel, 'url' => route('sales.index')],
+                ['label' => $stockLabel, 'url' => route('stock.index')],
+                ['label' => $customersLabel, 'url' => route('customers.index')],
+                ['label' => $suppliersLabel, 'url' => route('suppliers.index')],
+            ],
+        ];
+    }
+
+    private function pilotageSignals(array $sales, array $grossMargin, array $receivables, array $salesByBranch, array $dormantProducts, array $supplierPerformance, array $filters, bool $canViewMargin, array $businessVocabulary = []): array
     {
         $signals = [];
         $salesTotal = (float) ($sales['total'] ?? 0);
         $marginRate = (float) ($grossMargin['rate'] ?? 0);
         $dormantValue = collect($dormantProducts)->sum('stock_value');
+        $salesLabel = strtolower($businessVocabulary['sales'] ?? 'ventes');
+        $stockLabel = strtolower($businessVocabulary['stock'] ?? 'stock');
+        $supplierLabel = strtolower($businessVocabulary['supplier'] ?? 'fournisseur');
 
         if ($canViewMargin && $salesTotal > 0 && $marginRate < 20) {
             $signals[] = [
@@ -156,7 +191,7 @@ class ReportController extends Controller
             $signals[] = [
                 'level' => 'warning',
                 'title' => 'Recouvrement a accelerer',
-                'message' => 'Les creances ouvertes representent plus de 60 % du chiffre d affaires de la periode.',
+                'message' => 'Les creances ouvertes representent plus de 60 % du chiffre d affaires '.$salesLabel.' de la periode.',
                 'action_url' => route('collections.index'),
             ];
         }
@@ -164,8 +199,8 @@ class ReportController extends Controller
         if ($dormantValue >= 200000) {
             $signals[] = [
                 'level' => 'warning',
-                'title' => 'Stock dormant significatif',
-                'message' => 'Le stock dormant visible sur ce perimetre represente '.number_format($dormantValue, 0, ',', ' ').' XOF.',
+                'title' => ucfirst($stockLabel).' dormant significatif',
+                'message' => 'Le '.$stockLabel.' dormant visible sur ce perimetre represente '.number_format($dormantValue, 0, ',', ' ').' XOF.',
                 'action_url' => route('stock.index'),
             ];
         }
@@ -192,7 +227,7 @@ class ReportController extends Controller
         if ($weakSupplier && (float) $weakSupplier['score'] < 60) {
             $signals[] = [
                 'level' => 'warning',
-                'title' => 'Fournisseur a surveiller',
+                'title' => ucfirst($supplierLabel).' a surveiller',
                 'message' => $weakSupplier['supplier_name'].' descend a un score de '.number_format((float) $weakSupplier['score'], 1, ',', ' ').' / 100 avec '.$weakSupplier['score_label'].'.',
                 'action_url' => route('suppliers.show', $weakSupplier['supplier_id']),
             ];

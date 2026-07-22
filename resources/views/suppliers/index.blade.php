@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Fournisseurs - Nema ERP')
-@section('page-title', 'Fournisseurs')
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+@endphp
+
+@section('title', $suppliersLabel.' - Nema ERP')
+@section('page-title', $suppliersLabel)
 
 @section('content')
     @php
@@ -9,27 +14,27 @@
         $currentView = $filters['view'] ?? 'list';
 
         if (auth()->user()?->hasPermission('imports.manage')) {
-            $headerActions[] = ['label' => 'Importer CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
+            $headerActions[] = ['label' => 'Importer Excel/CSV', 'url' => route('imports.index'), 'style' => 'secondary'];
         }
 
         if (auth()->user()?->hasPermission('suppliers.manage')) {
-            $headerActions[] = ['label' => 'Nouveau fournisseur', 'url' => route('suppliers.create'), 'style' => 'primary'];
+            $headerActions[] = ['label' => 'Nouveau '.$supplierLabel, 'url' => route('suppliers.create'), 'style' => 'primary'];
         }
     @endphp
 
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Fournisseurs',
-        'title' => 'Portefeuille fournisseurs',
-        'description' => 'Lecture dettes fournisseurs et suivi des echeances.',
+        'eyebrow' => $suppliersLabel,
+        'title' => 'Portefeuille '.$suppliersLabel,
+        'description' => 'Lecture dettes et suivi des echeances.',
         'actions' => $headerActions,
     ])
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Fournisseurs</div><div class="stat-value">{{ $summary['supplier_count'] }}</div></div>
-        <div class="card"><div class="muted">Fournisseurs actifs</div><div class="stat-value">{{ $summary['active_count'] }}</div></div>
+        <div class="card"><div class="muted">{{ $suppliersLabel }}</div><div class="stat-value">{{ $summary['supplier_count'] }}</div></div>
+        <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active_count'] }}</div></div>
         <div class="card"><div class="muted">Dettes ouvertes</div><div class="stat-value">{{ number_format($summary['open_balance_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Dettes echues</div><div class="stat-value">{{ number_format($summary['overdue_balance_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Fournisseurs en retard</div><div class="stat-value">{{ $summary['overdue_supplier_count'] }}</div></div>
+        <div class="card"><div class="muted">En retard</div><div class="stat-value">{{ $summary['overdue_supplier_count'] }}</div></div>
     </div>
 
     <section class="card" style="margin-bottom:18px;">
@@ -76,7 +81,7 @@
         <div class="muted">Alterne entre lecture detaillee et vue portefeuille par cartes.</div>
         @include('partials.erp-view-switcher', [
             'view' => $currentView,
-            'label' => 'Vue fournisseurs',
+            'label' => 'Vue '.$suppliersLabel,
             'listUrl' => route('suppliers.index', array_merge(request()->query(), ['view' => 'list'])),
             'kanbanUrl' => route('suppliers.index', array_merge(request()->query(), ['view' => 'kanban'])),
         ])
@@ -132,7 +137,7 @@
                 </section>
             @empty
                 <section class="card empty-state" style="grid-column:1 / -1;">
-                    <h3>Aucun fournisseur ne correspond aux filtres selectionnes.</h3>
+                    <h3>Aucun {{ strtolower($supplierLabel) }} ne correspond aux filtres selectionnes.</h3>
                     <p class="muted">Ajuste la ville, le statut ou le suivi dette.</p>
                 </section>
             @endforelse
@@ -195,7 +200,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="10"><span class="muted">Aucun fournisseur ne correspond aux filtres selectionnes.</span></td></tr>
+                    <tr><td colspan="10"><span class="muted">Aucun {{ strtolower($supplierLabel) }} ne correspond aux filtres selectionnes.</span></td></tr>
                 @endforelse
                 </tbody>
             </table>

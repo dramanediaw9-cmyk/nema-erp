@@ -1,3 +1,9 @@
+@php
+    $merchantSalesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $merchantCustomersLabel = $businessVocabulary['clients'] ?? 'Clients';
+    $merchantProductsLabel = $businessVocabulary['products'] ?? 'Produits';
+@endphp
+
 <nav class="sidebar-nav">
     <section class="nav-section nav-section--spotlight">
         <div class="nav-title">Quotidien</div>
@@ -11,7 +17,7 @@
             <a class="nav-link {{ request()->routeIs('pos.settings.*') ? 'active' : '' }}" href="{{ route('pos.settings.index') }}">Config POS</a>
         @endallowed
         @allowed('sales.view')
-            <a class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}" href="{{ route('sales.index') }}">Ventes</a>
+            <a class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}" href="{{ route('sales.index') }}">{{ $merchantSalesLabel }}</a>
         @endallowed
         @allowed('payments.view')
             <a class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}" href="{{ route('payments.index') }}">Paiements</a>
@@ -28,16 +34,16 @@
     <section class="nav-section">
         <div class="nav-title">Suivi commerce</div>
         @allowed('customers.view')
-            <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}">Clients</a>
+            <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}">{{ $merchantCustomersLabel }}</a>
         @endallowed
         @allowed('suppliers.view')
             <a class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}" href="{{ route('suppliers.index') }}">Fournisseurs</a>
         @endallowed
         @allowed('products.view')
-            <a class="nav-link {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}">Catalogue</a>
+            <a class="nav-link {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}">Catalogue {{ $merchantProductsLabel }}</a>
         @endallowed
         @allowed('purchase_requests.view')
-            <a class="nav-link {{ request()->routeIs('replenishments.*') ? 'active' : '' }}" href="{{ route('replenishments.index') }}">Produits manquants</a>
+            <a class="nav-link {{ request()->routeIs('replenishments.*') ? 'active' : '' }}" href="{{ route('replenishments.index') }}">{{ $merchantProductsLabel }} manquants</a>
         @endallowed
         @allowed('collections.view')
             <a class="nav-link {{ request()->routeIs('collections.*') ? 'active' : '' }}" href="{{ route('collections.index') }}">Recouvrements</a>

@@ -15,6 +15,7 @@
                     <form method="POST" action="{{ route('stock-counts.post', $stockCount) }}" class="inline-form">@csrf<button class="button button-primary" type="submit">Valider l inventaire</button></form>
                 @endallowed
             @endif
+            <a href="{{ route('stock-counts.print', $stockCount) }}" class="button button-primary" target="_blank">Imprimer</a>
             <a href="{{ route('stock-counts.index') }}" class="button button-secondary">Retour</a>
         </div>
     </div>
@@ -59,4 +60,3 @@
         </div>
     </div>
 @endsection
-

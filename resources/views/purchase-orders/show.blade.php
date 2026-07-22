@@ -11,6 +11,7 @@
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <a href="{{ route('purchase-orders.index') }}" class="button button-secondary">Retour liste</a>
+            <a href="{{ route('purchase-orders.print', $order) }}" class="button button-secondary">Imprimer</a>
             @if ($order->status === 'confirmed' || $order->status === 'partial_received')
                 <a href="{{ route('goods-receipts.create', ['order' => $order->id]) }}" class="button button-primary">Nouvelle reception</a>
             @endif
@@ -37,8 +38,9 @@
         </section>
         <aside class="card">
             <h2 class="section-title">Actions</h2>
+            <a href="{{ route('purchase-orders.print', $order) }}" class="button button-secondary" style="width:100%; text-align:center;">Imprimer le bon</a>
             @if ($order->status === 'draft')
-                <form method="POST" action="{{ route('purchase-orders.confirm', $order) }}">
+                <form method="POST" action="{{ route('purchase-orders.confirm', $order) }}" style="margin-top:12px;">
                     @csrf
                     <button type="submit" class="button button-primary" style="width:100%;">Confirmer la commande</button>
                 </form>

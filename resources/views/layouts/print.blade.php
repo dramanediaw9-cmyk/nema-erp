@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    @include('partials.security-csp-meta')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Document - Nema ERP')</title>
@@ -70,6 +71,20 @@
         .doc-header h1 {
             margin: 0 0 10px;
             font-size: 28px;
+        }
+        .company-brand {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .company-brand-logo {
+            width: 74px;
+            max-height: 74px;
+            object-fit: contain;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px;
+            background: #fff;
         }
         .meta, .muted {
             color: var(--muted);
@@ -173,7 +188,7 @@
     @unless($pdfMode ?? false)
         <div class="toolbar">
             <button type="button" class="button button-primary" onclick="window.print()">Imprimer</button>
-            <a href="javascript:history.back()" class="button">Retour</a>
+            <a href="{{ url()->previous() }}" class="button">Retour</a>
         </div>
     @endunless
 

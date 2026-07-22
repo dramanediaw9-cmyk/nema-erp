@@ -9,7 +9,6 @@ use App\Modules\Core\Company\Models\PriceList;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Partner extends Model
@@ -88,4 +87,3 @@ class Partner extends Model
         return $query->whereIn('type', ['supplier', 'both']);
     }
 }
-

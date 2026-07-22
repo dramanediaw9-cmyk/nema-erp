@@ -288,7 +288,7 @@ class OpsHealthTest extends TestCase
 
         $logPath = storage_path('framework/testing/ops-alert.log');
         File::ensureDirectoryExists(dirname($logPath));
-        File::put($logPath, "[2026-04-17 08:00:00] production.ERROR: Test alert dispatch\n");
+        File::put($logPath, '['.now()->format('Y-m-d H:i:s')."] production.ERROR: Test alert dispatch\n");
         config()->set('logging.default', 'single');
         config()->set('logging.channels.single.path', $logPath);
 
@@ -349,7 +349,7 @@ class OpsHealthTest extends TestCase
 
         $logPath = storage_path('framework/testing/ops-alert-headers.log');
         File::ensureDirectoryExists(dirname($logPath));
-        File::put($logPath, "[2026-04-17 08:00:00] production.ERROR: Test alert headers\n");
+        File::put($logPath, '['.now()->format('Y-m-d H:i:s')."] production.ERROR: Test alert headers\n");
         config()->set('logging.default', 'single');
         config()->set('logging.channels.single.path', $logPath);
 

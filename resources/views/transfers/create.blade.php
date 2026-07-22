@@ -58,7 +58,7 @@
                     <tr>
                         <td>{{ $index + 1 }}</td>
                         <td>
-                            <select name="items[{{ $index }}][product_id]">
+                            <select name="items[{{ $index }}][product_id]" data-product-picker data-product-mode="stockable">
                                 <option value="">Choisir</option>
                                 @foreach ($products as $product)
                                     <option value="{{ $product->id }}">{{ $product->sku }} - {{ $product->name }}</option>

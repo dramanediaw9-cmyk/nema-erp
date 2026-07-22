@@ -1,3 +1,7 @@
+@php
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+@endphp
+
 <div class="card">
     <div class="form-grid">
         <div>
@@ -8,6 +12,7 @@
         <div>
             <label for="name">Nom</label>
             <input id="name" type="text" name="name" value="{{ old('name', $partner->name) }}" required>
+            <div class="help">Nom principal du dossier {{ strtolower($supplierLabel) }}.</div>
         </div>
         <div>
             <label for="phone">Téléphone</label>
@@ -60,7 +65,7 @@
         </div>
         <div class="full">
             <label for="notes">Notes</label>
-            <textarea id="notes" name="notes">{{ old('notes', $partner->notes) }}</textarea>
+            <textarea id="notes" name="notes" placeholder="Infos utiles sur ce {{ strtolower($supplierLabel) }} : delais, conditions, contact, habitudes.">{{ old('notes', $partner->notes) }}</textarea>
         </div>
     </div>
 
@@ -69,4 +74,3 @@
         <button type="submit" class="button button-primary">Enregistrer</button>
     </div>
 </div>
-

@@ -33,6 +33,62 @@
         <div class="card"><div class="muted">Queue</div><div class="stat-value">{{ $report['meta']['queue_connection'] }}</div></div>
     </div>
 
+    <section class="card" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-bottom:16px;">
+            <div>
+                <h3 class="section-title">Noyau Nema</h3>
+                <div class="muted">Controle du moteur ERP: multi-entreprise, droits, documents, stock, caisse et audit.</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <span class="badge {{ $coreNucleus['status'] === 'ok' ? 'badge-success' : ($coreNucleus['status'] === 'warning' ? 'badge-warning' : 'badge-muted') }}">
+                    Noyau : {{ strtoupper($coreNucleus['status']) }}
+                </span>
+                <span class="badge badge-muted">Score {{ $coreNucleus['score'] }}%</span>
+                <span class="badge badge-muted">{{ $coreNucleus['warning_count'] }} alerte(s)</span>
+                <span class="badge badge-muted">{{ $coreNucleus['failure_count'] }} echec(s)</span>
+            </div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px;">
+            @foreach ($coreNucleus['checks'] as $check)
+                <div class="summary-box">
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                        <strong>{{ $check['label'] }}</strong>
+                        <span class="badge {{ $check['status'] === 'ok' ? 'badge-success' : ($check['status'] === 'warning' ? 'badge-warning' : 'badge-muted') }}">
+                            {{ strtoupper($check['status']) }}
+                        </span>
+                    </div>
+                    <div class="muted" style="margin-top:8px;">{{ $check['message'] }}</div>
+                    @if (! empty($check['metrics']))
+                        <div class="help" style="margin-top:10px;">
+                            @foreach ($check['metrics'] as $metric => $value)
+                                @if (is_array($value))
+                                    <div>{{ $metric }} : {{ empty($value) ? 'aucun' : implode(', ', $value) }}</div>
+                                @else
+                                    <div>{{ $metric }} : {{ $value }}</div>
+                                @endif
+                            @endforeach
+                        </div>
+                    @endif
+                    @if ($check['status'] !== 'ok')
+                        <div class="help" style="margin-top:10px;">Action : {{ $check['action'] }}</div>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+
+        @if (! empty($coreNucleus['next_actions']))
+            <div class="summary-box" style="margin-top:14px;">
+                <strong>Actions prioritaires noyau</strong>
+                <ul class="summary-list">
+                    @foreach ($coreNucleus['next_actions'] as $action)
+                        <li>{{ $action }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    </section>
+
     <div class="split" style="margin-bottom:18px;">
         <section class="card">
             <h3 class="section-title">Checks</h3>

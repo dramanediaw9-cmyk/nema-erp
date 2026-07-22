@@ -4,6 +4,16 @@
 @section('page-title', 'Rapport journalier POS')
 
 @section('content')
+    @php
+        $productLabel = $businessVocabulary['product'] ?? 'Produit';
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $cashierLabel = $businessVocabulary['cashier'] ?? 'Caissier';
+        $replenishmentLabel = $businessVocabulary['replenishment'] ?? 'Reappro';
+    @endphp
+
     <style>
         .pos-report-product {
             display: flex;
@@ -40,9 +50,10 @@
     <div class="page-head">
         <div>
             <h2 style="margin:0;">Rapport journalier POS</h2>
-            <div class="muted">Synthese caisse, ventes comptoir, remises, remboursements et detail par mode de paiement.</div>
+            <div class="muted">Synthese caisse, {{ strtolower($salesLabel) }} comptoir, remises, remboursements et detail par mode de paiement.</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{{ route('pos.report.print', request()->query()) }}" class="button button-primary" target="_blank">Imprimer</a>
             <a href="{{ route('pos.index') }}" class="button button-secondary">Retour point de vente</a>
         </div>
     </div>
@@ -80,13 +91,18 @@
 
     <div class="grid stats-grid" style="margin-bottom:20px;">
         <div class="card"><div class="muted">Tickets</div><div class="stat-value">{{ $report['sales_count'] }}</div></div>
-        <div class="card"><div class="muted">Brut articles</div><div class="stat-value">{{ number_format($report['gross_sales'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Brut {{ strtolower($productsLabel) }}</div><div class="stat-value">{{ number_format($report['gross_sales'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Remises</div><div class="stat-value">{{ number_format($report['discounts_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Ventes nettes</div><div class="stat-value">{{ number_format($report['sales_after_discount'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">{{ $salesLabel }} nettes</div><div class="stat-value">{{ number_format($report['sales_after_discount'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Retours traites</div><div class="stat-value">{{ number_format($report['returns_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Net apres retours</div><div class="stat-value">{{ number_format($report['net_sales'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Cout estime</div><div class="stat-value">{{ number_format($report['estimated_cost'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Marge estimee</div><div class="stat-value">{{ number_format($report['estimated_margin'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Taux marge</div><div class="stat-value">{{ number_format($report['estimated_margin_rate'], 1, ',', ' ') }}%</div></div>
         <div class="card"><div class="muted">Flux net caisse</div><div class="stat-value">{{ number_format($report['net_cash'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Ticket moyen</div><div class="stat-value">{{ number_format($report['average_ticket'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Ruptures</div><div class="stat-value">{{ number_format($report['stock_alerts']['out_of_stock_count'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">{{ $stockLabel }} critique</div><div class="stat-value">{{ number_format($report['stock_alerts']['low_stock_count'], 0, ',', ' ') }}</div></div>
     </div>
 
     <div class="split" style="margin-bottom:20px; align-items:start;">
@@ -116,6 +132,91 @@
             </div>
         </section>
     </div>
+
+    <section class="card" style="margin-bottom:20px;">
+        <h2 style="margin-top:0;">Caisse par {{ strtolower($cashierLabel) }}</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>{{ $cashierLabel }}</th>
+                    <th>Tickets</th>
+                    <th>{{ $salesLabel }}</th>
+                    <th>Cout estime</th>
+                    <th>Marge estimee</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse ($report['cashier_breakdown'] as $row)
+                    <tr>
+                        <td>{{ $row->cashier_name }}</td>
+                        <td>{{ number_format((float) $row->sales_count, 0, ',', ' ') }}</td>
+                        <td>{{ number_format((float) $row->total_sales, 0, ',', ' ') }} XOF</td>
+                        <td>{{ number_format((float) $row->estimated_cost, 0, ',', ' ') }} XOF</td>
+                        <td>{{ number_format((float) $row->estimated_margin, 0, ',', ' ') }} XOF</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="5" class="muted">Aucune {{ strtolower($saleLabel) }} par {{ strtolower($cashierLabel) }} pour cette date.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card" style="margin-bottom:20px;">
+        <div class="page-head" style="margin-bottom:14px;">
+            <div>
+                <h2 style="margin:0;">Ruptures et {{ strtolower($stockLabel) }} critique</h2>
+                <div class="muted">{{ $productsLabel }} stockables sous le seuil minimum sur le depot filtre.</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                @allowed('stock.view')
+                    <a href="{{ route('stock.index', ['warehouse_id' => $filters['warehouse_id'], 'stock_state' => 'low']) }}" class="button button-secondary">Ouvrir le {{ strtolower($stockLabel) }}</a>
+                @endallowed
+                @allowed('purchase_requests.view')
+                    <a href="{{ route('replenishments.index', ['warehouse_id' => $filters['warehouse_id']]) }}" class="button button-primary">Proposer {{ strtolower($replenishmentLabel) }}</a>
+                @endallowed
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>{{ $productLabel }}</th>
+                    <th>Code</th>
+                    <th>Categorie</th>
+                    <th>Stock</th>
+                    <th>Minimum</th>
+                    <th>Etat</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse ($report['stock_alerts']['items'] as $product)
+                    <tr>
+                        <td><strong>{{ $product->name }}</strong></td>
+                        <td>{{ $product->barcode ?: $product->sku }}</td>
+                        <td>{{ $product->category_name ?: 'Sans categorie' }}</td>
+                        <td>{{ number_format((float) $product->current_stock, 3, ',', ' ') }} {{ $product->unit }}</td>
+                        <td>{{ number_format((float) $product->min_stock, 3, ',', ' ') }} {{ $product->unit }}</td>
+                        <td>
+                            @if ((float) $product->current_stock <= 0.0001)
+                                <span class="badge badge-danger">Rupture</span>
+                            @else
+                                <span class="badge badge-warning">Critique</span>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="6" class="muted">Aucune rupture ni alerte minimum pour ce perimetre.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
 
     <section class="card" style="margin-bottom:20px;">
         <div class="page-head" style="margin-bottom:14px;">
@@ -237,12 +338,12 @@
 
     <div class="split" style="align-items:start;">
         <section class="card">
-            <h2 style="margin-top:0;">Top produits vendus</h2>
+            <h2 style="margin-top:0;">Top {{ strtolower($productsLabel) }} vendus</h2>
             <div class="table-wrap">
                 <table>
                     <thead>
                     <tr>
-                        <th>Produit</th>
+                        <th>{{ $productLabel }}</th>
                         <th>Scan</th>
                         <th>Quantite</th>
                         <th>Montant</th>
@@ -250,7 +351,9 @@
                     </thead>
                     <tbody>
                     @forelse ($report['top_products'] as $product)
-                        @php($imageUrl = $product->image_url)
+                        @php
+                            $imageUrl = $product->image_url;
+                        @endphp
                         <tr>
                             <td>
                                 <div class="pos-report-product">
@@ -271,7 +374,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="muted">Aucune vente POS sur cette date.</td>
+                            <td colspan="4" class="muted">Aucune {{ strtolower($saleLabel) }} POS sur cette date.</td>
                         </tr>
                     @endforelse
                     </tbody>
@@ -285,14 +388,16 @@
                 <table>
                     <thead>
                     <tr>
-                        <th>Produit</th>
+                        <th>{{ $productLabel }}</th>
                         <th>Quantite</th>
                         <th>Montant</th>
                     </tr>
                     </thead>
                     <tbody>
                     @forelse ($report['top_returns'] as $product)
-                        @php($imageUrl = $product->image_url)
+                        @php
+                            $imageUrl = $product->image_url;
+                        @endphp
                         <tr>
                             <td>
                                 <div class="pos-report-product">
@@ -321,4 +426,3 @@
         </section>
     </div>
 @endsection
-

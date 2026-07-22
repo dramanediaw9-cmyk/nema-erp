@@ -24,14 +24,17 @@ class SectorStarterService
         $profile = $this->sectorProfileService->profileForCompany($companyId);
         $setting = Setting::query()->where('company_id', $companyId)->where('key', 'sector_onboarding')->first();
         $payload = is_array($setting?->value) ? $setting->value : [];
+        $recommendedPayments = $profile['starter']['payments'] ?? [];
+        $recommendedUnits = $profile['starter']['units'] ?? [];
         $gateways = $this->paymentGatewayService->configurationForCompany($companyId);
-        $recommendedGatewayKeys = $this->supportedGatewayKeys($profile['recommended_payments'] ?? []);
+        $recommendedGatewayKeys = $this->supportedGatewayKeys($recommendedPayments);
         $readyGatewayCount = collect($recommendedGatewayKeys)
             ->filter(fn (string $key) => (bool) ($gateways[$key]['enabled'] ?? false))
             ->count();
 
         return [
-            'is_applied' => filled($payload['applied_at'] ?? null) && ($payload['profile'] ?? null) === $profile['key'],
+            'is_applied' => filled($payload['applied_at'] ?? null)
+                && $this->sectorProfileService->canonicalKey($payload['profile'] ?? null) === $profile['key'],
             'applied_at' => $payload['applied_at'] ?? null,
             'applied_profile' => $payload['profile'] ?? null,
             'categories_count' => ProductCategory::query()->where('company_id', $companyId)->count(),
@@ -40,14 +43,14 @@ class SectorStarterService
             'price_lists_count' => PriceList::query()->where('company_id', $companyId)->count(),
             'recommended_gateways_count' => count($recommendedGatewayKeys),
             'recommended_gateways_ready' => $readyGatewayCount,
-            'units' => is_array($payload['units'] ?? null) ? $payload['units'] : ($profile['recommended_units'] ?? []),
+            'units' => is_array($payload['units'] ?? null) ? $payload['units'] : $recommendedUnits,
         ];
     }
 
     public function apply(Company $company): array
     {
         $profile = $this->sectorProfileService->profileForCompany($company->id);
-        $blueprint = $this->blueprint($profile['key']);
+        $blueprint = $this->blueprint($profile['key'], $profile);
 
         $created = [
             'product_categories' => 0,
@@ -84,7 +87,7 @@ class SectorStarterService
 
         $created['payment_terms'] = $this->syncPaymentTerms($company, $blueprint['payment_terms']);
         $created['price_lists'] = $this->syncPriceLists($company, $blueprint['price_lists']);
-        $configuredGateways = $this->syncPaymentGateways($company, $profile['recommended_payments'] ?? []);
+        $configuredGateways = $this->syncPaymentGateways($company, $profile['starter']['payments'] ?? []);
 
         Setting::query()->updateOrCreate(
             ['company_id' => $company->id, 'key' => 'sector_units'],
@@ -92,7 +95,7 @@ class SectorStarterService
                 'tenant_id' => $company->tenant_id,
                 'value' => [
                     'profile' => $profile['key'],
-                    'units' => $profile['recommended_units'] ?? [],
+                    'units' => $profile['starter']['units'] ?? [],
                 ],
             ]
         );
@@ -105,8 +108,15 @@ class SectorStarterService
                     'applied_at' => now()->toDateTimeString(),
                     'profile' => $profile['key'],
                     'profile_label' => $profile['label'],
-                    'units' => $profile['recommended_units'] ?? [],
-                    'starter_catalog' => $profile['starter_catalog'] ?? [],
+                    'units' => $profile['starter']['units'] ?? [],
+                    'icon' => $profile['icon'] ?? null,
+                    'modules' => $profile['recommended_modules'] ?? [],
+                    'specific_fields' => $profile['specific_fields'] ?? [],
+                    'workflows' => $profile['workflows'] ?? [],
+                    'kpis' => $profile['kpis'] ?? [],
+                    'alerts' => $profile['alerts'] ?? [],
+                    'documents' => $profile['documents'] ?? [],
+                    'starter' => $profile['starter'] ?? [],
                     'product_categories' => collect($blueprint['product_categories'])->pluck('name')->all(),
                     'expense_categories' => collect($blueprint['expense_categories'])->pluck('name')->all(),
                     'payment_terms' => collect($blueprint['payment_terms'])->pluck('name')->all(),
@@ -265,9 +275,31 @@ class SectorStarterService
         };
     }
 
-    private function blueprint(string $profileKey): array
+    private function blueprint(string $profileKey, array $profile = []): array
     {
         return match ($profileKey) {
+            'general_trade' => [
+                'product_categories' => [
+                    ['name' => 'Produits courants', 'description' => 'Articles vendus regulierement au comptoir'],
+                    ['name' => 'Produits gros', 'description' => 'Articles vendus en carton, pack ou volume'],
+                    ['name' => 'Services', 'description' => 'Prestations simples facturees aux clients'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Transport', 'description' => 'Transport, livraison et deplacements', 'default_account_code' => '624100'],
+                    ['name' => 'Fournitures boutique', 'description' => 'Sacs, etiquettes, papier et consommables', 'default_account_code' => '606300'],
+                    ['name' => 'Charges magasin', 'description' => 'Loyer, electricite et fonctionnement', 'default_account_code' => '613000'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat.', 'is_default' => true],
+                    ['code' => 'TERM-7', 'name' => '7 jours', 'days' => 7, 'description' => 'Petit credit client suivi.', 'is_default' => false],
+                    ['code' => 'TERM-30', 'name' => '30 jours', 'days' => 30, 'description' => 'Condition B2B standard.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'DETAIL', 'name' => 'Tarif detail', 'description' => 'Prix comptoir standard.', 'is_default' => true],
+                    ['code' => 'GROS', 'name' => 'Tarif gros', 'description' => 'Prix pour volumes et clients professionnels.', 'is_default' => false],
+                    ['code' => 'PROMO', 'name' => 'Tarif promo', 'description' => 'Prix temporaire pour offres commerciales.', 'is_default' => false],
+                ],
+            ],
             'food_store' => [
                 'product_categories' => [
                     ['name' => 'Boissons', 'description' => 'Produits de boisson et rafraichissement'],
@@ -288,6 +320,256 @@ class SectorStarterService
                     ['code' => 'DETAIL', 'name' => 'Tarif detail', 'description' => 'Prix comptoir standard.', 'is_default' => true],
                     ['code' => 'DEMIGROS', 'name' => 'Tarif demi-gros', 'description' => 'Prix accorde a partir des volumes intermediaires.', 'is_default' => false],
                     ['code' => 'GROSSISTE', 'name' => 'Tarif grossiste', 'description' => 'Prix reserve aux gros volumes.', 'is_default' => false],
+                ],
+            ],
+            'restaurant_cafe' => [
+                'product_categories' => [
+                    ['name' => 'Menus et plats', 'description' => 'Plats, menus et compositions vendus au comptoir'],
+                    ['name' => 'Boissons', 'description' => 'Boissons froides, chaudes et rafraichissements'],
+                    ['name' => 'Ingredients', 'description' => 'Matieres premieres suivies en stock cuisine'],
+                    ['name' => 'Emballages', 'description' => 'Sachets, barquettes et consommables de service'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Achats cuisine', 'description' => 'Ingredients, condiments et produits frais', 'default_account_code' => '601100'],
+                    ['name' => 'Emballages', 'description' => 'Consommables de vente a emporter', 'default_account_code' => '606300'],
+                    ['name' => 'Energie cuisine', 'description' => 'Gaz, charbon, electricite et froid', 'default_account_code' => '606800'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat au comptoir.', 'is_default' => true],
+                    ['code' => 'EVENT-7', 'name' => 'Evenement 7 jours', 'days' => 7, 'description' => 'Reglement court pour commandes groupees.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'COMPTOIR', 'name' => 'Tarif comptoir', 'description' => 'Prix restaurant standard.', 'is_default' => true],
+                    ['code' => 'LIVRAISON', 'name' => 'Tarif livraison', 'description' => 'Prix adapte aux commandes livrees.', 'is_default' => false],
+                    ['code' => 'GROUPE', 'name' => 'Tarif groupe', 'description' => 'Prix pour commandes d equipe ou evenement.', 'is_default' => false],
+                ],
+            ],
+            'services_agency' => [
+                'product_categories' => [
+                    ['name' => 'Prestations', 'description' => 'Services facturables au client'],
+                    ['name' => 'Forfaits', 'description' => 'Offres packagees ou abonnements simples'],
+                    ['name' => 'Frais refacturables', 'description' => 'Depenses reprises sur facture client'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Sous-traitance', 'description' => 'Prestataires externes et freelances', 'default_account_code' => '611000'],
+                    ['name' => 'Deplacements', 'description' => 'Transport, mission et rendez-vous client', 'default_account_code' => '625100'],
+                    ['name' => 'Outils professionnels', 'description' => 'Logiciels, licences et abonnements', 'default_account_code' => '628100'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement a la commande ou au debut de mission.', 'is_default' => true],
+                    ['code' => 'TERM-15', 'name' => '15 jours', 'days' => 15, 'description' => 'Reglement court apres livraison.', 'is_default' => false],
+                    ['code' => 'TERM-30', 'name' => '30 jours', 'days' => 30, 'description' => 'Conditions B2B standard.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'STANDARD', 'name' => 'Tarif standard', 'description' => 'Prix normal des prestations.', 'is_default' => true],
+                    ['code' => 'ABONNEMENT', 'name' => 'Tarif abonnement', 'description' => 'Prix pour clients recurrents.', 'is_default' => false],
+                ],
+            ],
+            'construction_projects' => [
+                'product_categories' => [
+                    ['name' => 'Materiaux', 'description' => 'Ciment, fer, sable, peinture et fournitures chantier'],
+                    ['name' => 'Main d oeuvre', 'description' => 'Prestations et travaux facturables'],
+                    ['name' => 'Location materiel', 'description' => 'Equipements et engins loues ou refactures'],
+                    ['name' => 'Transport chantier', 'description' => 'Livraison et logistique chantier'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Achats materiaux', 'description' => 'Approvisionnement chantier', 'default_account_code' => '601100'],
+                    ['name' => 'Main d oeuvre chantier', 'description' => 'Equipes, journaliers et sous-traitance', 'default_account_code' => '611000'],
+                    ['name' => 'Transport chantier', 'description' => 'Camions, carburant et livraison', 'default_account_code' => '624100'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'ACOMPTE', 'name' => 'Acompte chantier', 'days' => 0, 'description' => 'Acompte avant lancement des travaux.', 'is_default' => true],
+                    ['code' => 'TERM-30', 'name' => '30 jours', 'days' => 30, 'description' => 'Reglement sur situation ou fin de travaux.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'CHANTIER', 'name' => 'Tarif chantier', 'description' => 'Prix de reference travaux.', 'is_default' => true],
+                    ['code' => 'PRO', 'name' => 'Tarif professionnel', 'description' => 'Prix reserve aux partenaires et gros travaux.', 'is_default' => false],
+                ],
+            ],
+            'electronics_phone' => [
+                'product_categories' => [
+                    ['name' => 'Telephones', 'description' => 'Smartphones, appareils et modeles suivis'],
+                    ['name' => 'Accessoires', 'description' => 'Chargeurs, ecouteurs, coques et protections'],
+                    ['name' => 'Pieces et reparation', 'description' => 'Pieces, interventions et services atelier'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Transport marchandises', 'description' => 'Import, livraison et transit', 'default_account_code' => '624100'],
+                    ['name' => 'Garantie et SAV', 'description' => 'Retours, reparations et gestes commerciaux', 'default_account_code' => '615500'],
+                    ['name' => 'Fournitures boutique', 'description' => 'Etiquettes, emballages et consommables', 'default_account_code' => '606300'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat en boutique.', 'is_default' => true],
+                    ['code' => 'RES-3', 'name' => 'Reservation 3 jours', 'days' => 3, 'description' => 'Reservation courte avec acompte.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'DETAIL', 'name' => 'Tarif detail', 'description' => 'Prix boutique standard.', 'is_default' => true],
+                    ['code' => 'REVENDEUR', 'name' => 'Tarif revendeur', 'description' => 'Prix pour revendeurs et techniciens.', 'is_default' => false],
+                ],
+            ],
+            'fashion_boutique' => [
+                'product_categories' => [
+                    ['name' => 'Vetements', 'description' => 'Articles de pret-a-porter et collections'],
+                    ['name' => 'Chaussures', 'description' => 'Chaussures, sandales et pointures'],
+                    ['name' => 'Accessoires mode', 'description' => 'Sacs, ceintures, bijoux et complements'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Achats collection', 'description' => 'Approvisionnement saisonnier', 'default_account_code' => '601100'],
+                    ['name' => 'Marketing boutique', 'description' => 'Photos, promotions et animation commerciale', 'default_account_code' => '623400'],
+                    ['name' => 'Emballages boutique', 'description' => 'Sacs, etiquettes et conditionnement', 'default_account_code' => '606300'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat au point de vente.', 'is_default' => true],
+                    ['code' => 'RES-7', 'name' => 'Reservation 7 jours', 'days' => 7, 'description' => 'Reservation courte pour clients suivis.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'BOUTIQUE', 'name' => 'Tarif boutique', 'description' => 'Prix normal magasin.', 'is_default' => true],
+                    ['code' => 'PROMO', 'name' => 'Tarif promo', 'description' => 'Prix soldes ou animation.', 'is_default' => false],
+                    ['code' => 'VIP', 'name' => 'Tarif VIP', 'description' => 'Prix clientes fideles.', 'is_default' => false],
+                ],
+            ],
+            'beauty_salon' => [
+                'product_categories' => [
+                    ['name' => 'Coiffure', 'description' => 'Prestations de coiffure et entretien cheveux'],
+                    ['name' => 'Soins', 'description' => 'Services de beaute, visage et corps'],
+                    ['name' => 'Produits salon', 'description' => 'Articles vendus ou consommes au salon'],
+                    ['name' => 'Forfaits', 'description' => 'Packs et offres groupees'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Produits salon', 'description' => 'Achats de shampoings, soins et consommables', 'default_account_code' => '601100'],
+                    ['name' => 'Fournitures hygiene', 'description' => 'Serviettes, gants, nettoyage et hygiene', 'default_account_code' => '606300'],
+                    ['name' => 'Marketing salon', 'description' => 'Photos, promotions et communication', 'default_account_code' => '623400'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat apres prestation.', 'is_default' => true],
+                    ['code' => 'RES-3', 'name' => 'Reservation 3 jours', 'days' => 3, 'description' => 'Reservation courte avec acompte.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'SALON', 'name' => 'Tarif salon', 'description' => 'Prix standard des prestations.', 'is_default' => true],
+                    ['code' => 'VIP', 'name' => 'Tarif fidelite', 'description' => 'Prix clients reguliers.', 'is_default' => false],
+                    ['code' => 'PROMO', 'name' => 'Tarif promo', 'description' => 'Prix offres speciales.', 'is_default' => false],
+                ],
+            ],
+            'auto_parts_garage' => [
+                'product_categories' => [
+                    ['name' => 'Pieces auto', 'description' => 'Pieces mecaniques, filtres et accessoires'],
+                    ['name' => 'Lubrifiants', 'description' => 'Huiles, liquides et consommables atelier'],
+                    ['name' => 'Services atelier', 'description' => 'Main d oeuvre et interventions'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Achats pieces', 'description' => 'Approvisionnement pieces et consommables', 'default_account_code' => '601100'],
+                    ['name' => 'Outillage atelier', 'description' => 'Outils, maintenance et petit equipement', 'default_account_code' => '606300'],
+                    ['name' => 'Transport pieces', 'description' => 'Livraisons et courses fournisseur', 'default_account_code' => '624100'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat ou avant remise vehicule.', 'is_default' => true],
+                    ['code' => 'TERM-15', 'name' => '15 jours', 'days' => 15, 'description' => 'Conditions pour flottes et clients suivis.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'DETAIL', 'name' => 'Tarif detail', 'description' => 'Prix comptoir standard.', 'is_default' => true],
+                    ['code' => 'GARAGE', 'name' => 'Tarif garage', 'description' => 'Prix atelier et clients professionnels.', 'is_default' => false],
+                ],
+            ],
+            'workshop_manufacturing' => [
+                'product_categories' => [
+                    ['name' => 'Travaux atelier', 'description' => 'Prestations et commandes fabriquees'],
+                    ['name' => 'Matieres premieres', 'description' => 'Composants, tissus, bois, metal ou intrants'],
+                    ['name' => 'Main d oeuvre', 'description' => 'Temps de travail et interventions facturees'],
+                    ['name' => 'Reparations', 'description' => 'Reprises, maintenance et petites corrections'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Achats matieres', 'description' => 'Matieres et composants necessaires aux travaux', 'default_account_code' => '601100'],
+                    ['name' => 'Main d oeuvre atelier', 'description' => 'Journaliers, sous-traitance et travaux externes', 'default_account_code' => '611000'],
+                    ['name' => 'Maintenance outillage', 'description' => 'Entretien des outils et equipements', 'default_account_code' => '615500'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'ACOMPTE', 'name' => 'Acompte', 'days' => 0, 'description' => 'Acompte avant lancement de la commande.', 'is_default' => true],
+                    ['code' => 'LIVRAISON', 'name' => 'A la livraison', 'days' => 7, 'description' => 'Solde a la remise du travail.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'ATELIER', 'name' => 'Tarif atelier', 'description' => 'Prix standard des travaux.', 'is_default' => true],
+                    ['code' => 'PROJET', 'name' => 'Tarif projet', 'description' => 'Prix commandes importantes ou longues.', 'is_default' => false],
+                ],
+            ],
+            'hotel_hospitality' => [
+                'product_categories' => [
+                    ['name' => 'Hebergement', 'description' => 'Chambres, nuitees et forfaits sejour'],
+                    ['name' => 'Services hotel', 'description' => 'Blanchisserie, salle, petit dejeuner et extras'],
+                    ['name' => 'Consommations', 'description' => 'Boissons et articles vendus sur place'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Entretien chambres', 'description' => 'Nettoyage, linge et maintenance', 'default_account_code' => '615500'],
+                    ['name' => 'Consommables hotel', 'description' => 'Produits accueil et fournitures client', 'default_account_code' => '606300'],
+                    ['name' => 'Energie hotel', 'description' => 'Electricite, eau, groupe et climatisation', 'default_account_code' => '606800'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement a l arrivee ou au depart.', 'is_default' => true],
+                    ['code' => 'TERM-15', 'name' => '15 jours', 'days' => 15, 'description' => 'Clients entreprises et sejours groupes.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'STANDARD', 'name' => 'Tarif standard', 'description' => 'Prix reception.', 'is_default' => true],
+                    ['code' => 'ENTREPRISE', 'name' => 'Tarif entreprise', 'description' => 'Prix conventionne pour clients B2B.', 'is_default' => false],
+                ],
+            ],
+            'school_training' => [
+                'product_categories' => [
+                    ['name' => 'Frais scolaires', 'description' => 'Inscriptions, mensualites et frais administratifs'],
+                    ['name' => 'Formations', 'description' => 'Sessions, modules et cycles de formation'],
+                    ['name' => 'Supports', 'description' => 'Documents, kits et fournitures vendues'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Charges pedagogiques', 'description' => 'Intervenants, supports et preparation cours', 'default_account_code' => '611000'],
+                    ['name' => 'Fournitures administratives', 'description' => 'Papeterie, impressions et petits achats', 'default_account_code' => '606300'],
+                    ['name' => 'Communication', 'description' => 'Campagnes, inscriptions et communication', 'default_account_code' => '623400'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat.', 'is_default' => true],
+                    ['code' => 'MENSUEL', 'name' => 'Mensuel', 'days' => 30, 'description' => 'Paiement mensuel des frais.', 'is_default' => false],
+                    ['code' => 'TRIM', 'name' => 'Trimestriel', 'days' => 90, 'description' => 'Paiement par trimestre ou session.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'STANDARD', 'name' => 'Tarif standard', 'description' => 'Prix normal formation ou frais.', 'is_default' => true],
+                    ['code' => 'GROUPE', 'name' => 'Tarif groupe', 'description' => 'Prix entreprises, familles ou cohortes.', 'is_default' => false],
+                ],
+            ],
+            'agriculture_livestock' => [
+                'product_categories' => [
+                    ['name' => 'Intrants', 'description' => 'Semences, engrais, produits et accessoires'],
+                    ['name' => 'Produits recoltes', 'description' => 'Produits agricoles vendus ou stockes'],
+                    ['name' => 'Aliments betail', 'description' => 'Nourriture, soins et consommables elevage'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Intrants campagne', 'description' => 'Achats de production agricole', 'default_account_code' => '601100'],
+                    ['name' => 'Main d oeuvre terrain', 'description' => 'Travaux saisonniers et prestations', 'default_account_code' => '611000'],
+                    ['name' => 'Transport recolte', 'description' => 'Collecte, livraison et logistique', 'default_account_code' => '624100'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement immediat.', 'is_default' => true],
+                    ['code' => 'SAISON', 'name' => 'Fin de saison', 'days' => 90, 'description' => 'Reglement adapte aux cycles de campagne.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'DETAIL', 'name' => 'Tarif detail', 'description' => 'Prix standard.', 'is_default' => true],
+                    ['code' => 'COOPERATIVE', 'name' => 'Tarif cooperative', 'description' => 'Prix pour groupements et volumes.', 'is_default' => false],
+                ],
+            ],
+            'import_export' => [
+                'product_categories' => [
+                    ['name' => 'Lots import', 'description' => 'Marchandises importees par lot ou arrivage'],
+                    ['name' => 'Frais transit', 'description' => 'Douane, transit et frais refacturables'],
+                    ['name' => 'Transport', 'description' => 'Acheminement, livraison et logistique'],
+                    ['name' => 'Services douane', 'description' => 'Prestations administratives et operations'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Frais douane', 'description' => 'Droits, taxes et frais de transit', 'default_account_code' => '635800'],
+                    ['name' => 'Transport international', 'description' => 'Fret, port, aeroport et acheminement', 'default_account_code' => '624100'],
+                    ['name' => 'Frais bancaires import', 'description' => 'Virements, change et commissions', 'default_account_code' => '627000'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'ACOMPTE', 'name' => 'Acompte commande', 'days' => 0, 'description' => 'Acompte avant engagement du lot.', 'is_default' => true],
+                    ['code' => 'TERM-30', 'name' => '30 jours', 'days' => 30, 'description' => 'Reglement B2B apres livraison.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'LOT', 'name' => 'Tarif lot', 'description' => 'Prix par arrivage ou lot.', 'is_default' => true],
+                    ['code' => 'REVENDEUR', 'name' => 'Tarif revendeur', 'description' => 'Prix pour clients professionnels.', 'is_default' => false],
                 ],
             ],
             'wholesale_distribution' => [
@@ -356,6 +638,28 @@ class SectorStarterService
                     ['code' => 'CLINIQUE', 'name' => 'Tarif clinique', 'description' => 'Tarif dedie aux cabinets et structures suivies.', 'is_default' => false],
                 ],
             ],
+            'delivery_company' => [
+                'product_categories' => [
+                    ['name' => 'Livraison locale', 'description' => 'Courses et livraisons dans la meme ville'],
+                    ['name' => 'Course express', 'description' => 'Livraisons urgentes a delai court'],
+                    ['name' => 'Transport colis', 'description' => 'Colis, paquets et courses specialisees'],
+                    ['name' => 'Frais supplementaires', 'description' => 'Attente, distance, manutention et options'],
+                ],
+                'expense_categories' => [
+                    ['name' => 'Carburant', 'description' => 'Depenses carburant des livreurs', 'default_account_code' => '625100'],
+                    ['name' => 'Entretien motos', 'description' => 'Maintenance et reparations vehicules', 'default_account_code' => '615500'],
+                    ['name' => 'Communication livreurs', 'description' => 'Appels, internet et coordination terrain', 'default_account_code' => '628100'],
+                ],
+                'payment_terms' => [
+                    ['code' => 'CPT', 'name' => 'Comptant', 'days' => 0, 'description' => 'Paiement a la course ou a la livraison.', 'is_default' => true],
+                    ['code' => 'TERM-15', 'name' => '15 jours', 'days' => 15, 'description' => 'Compte client entreprise.', 'is_default' => false],
+                ],
+                'price_lists' => [
+                    ['code' => 'VILLE', 'name' => 'Tarif ville', 'description' => 'Prix standard livraison locale.', 'is_default' => true],
+                    ['code' => 'EXPRESS', 'name' => 'Tarif express', 'description' => 'Prix courses urgentes.', 'is_default' => false],
+                    ['code' => 'ENTREPRISE', 'name' => 'Tarif entreprise', 'description' => 'Prix clients recurrents.', 'is_default' => false],
+                ],
+            ],
             'cosmetics_beauty' => [
                 'product_categories' => [
                     ['name' => 'Soins visage', 'description' => 'Produits de soin et routine visage'],
@@ -379,11 +683,7 @@ class SectorStarterService
                 ],
             ],
             default => [
-                'product_categories' => [
-                    ['name' => 'Distribution detail', 'description' => 'Articles vendus a l unite ou petit conditionnement'],
-                    ['name' => 'Distribution gros', 'description' => 'Articles vendus en volume ou conditionnement lourd'],
-                    ['name' => 'Services', 'description' => 'Prestations et services non stockes'],
-                ],
+                'product_categories' => $this->starterProductCategories($profile),
                 'expense_categories' => [
                     ['name' => 'Transport', 'description' => 'Transport, livraison et deplacement', 'default_account_code' => '624100'],
                     ['name' => 'Loyer', 'description' => 'Charges de local et occupation', 'default_account_code' => '613000'],
@@ -399,5 +699,22 @@ class SectorStarterService
                 ],
             ],
         };
+    }
+
+    private function starterProductCategories(array $profile): array
+    {
+        $categories = $profile['starter']['categories'] ?? [];
+
+        if ($categories === []) {
+            $categories = ['Produits', 'Services', 'Frais'];
+        }
+
+        return collect($categories)
+            ->map(fn (string $name): array => [
+                'name' => $name,
+                'description' => 'Categorie de depart pour '.$name,
+            ])
+            ->values()
+            ->all();
     }
 }

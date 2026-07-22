@@ -22,7 +22,7 @@ class OpsMonitoringAlertTest extends TestCase
         $logPath = storage_path('framework/testing/ops-internal-sync.log');
 
         File::ensureDirectoryExists(dirname($logPath));
-        File::put($logPath, "[2026-04-04 10:00:00] local.ERROR: Incident technique a remonter\n");
+        File::put($logPath, '['.now()->format('Y-m-d H:i:s')."] local.ERROR: Incident technique a remonter\n");
 
         config()->set('logging.default', 'single');
         config()->set('logging.channels.single.path', $logPath);
@@ -59,7 +59,7 @@ class OpsMonitoringAlertTest extends TestCase
         $this->assertSame('danger', $logAlert->level);
         $this->assertSame('danger', $failedJobsAlert->level);
 
-        File::put($logPath, "[2026-04-04 10:15:00] local.INFO: Monitoring redevenu propre\n");
+        File::put($logPath, '['.now()->format('Y-m-d H:i:s')."] local.INFO: Monitoring redevenu propre\n");
         DB::table('failed_jobs')->delete();
 
         $this->artisan('nema:notifications:sync-internal', [

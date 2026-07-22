@@ -1,15 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'Créer un client - Nema ERP')
-@section('page-title', 'Nouveau client')
+@php
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+@endphp
+
+@section('title', 'Créer un '.$customerLabel.' - Nema ERP')
+@section('page-title', 'Nouveau '.$customerLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Clients',
-        'title' => 'Nouveau client',
-        'description' => 'Renseigne le tiers une fois pour l utiliser ensuite en vente, facturation et recouvrement.',
+        'eyebrow' => $customersLabel,
+        'title' => 'Nouveau '.$customerLabel,
+        'description' => 'Renseigne ce dossier une fois pour l utiliser ensuite en facturation, paiement et suivi.',
         'actions' => [
-            ['label' => 'Retour aux clients', 'url' => route('customers.index'), 'style' => 'secondary'],
+            ['label' => 'Retour', 'url' => route('customers.index'), 'style' => 'secondary'],
         ],
     ])
 

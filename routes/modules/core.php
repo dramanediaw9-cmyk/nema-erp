@@ -10,10 +10,12 @@ use App\Modules\Core\Auth\Http\Controllers\AuthenticatedSessionController;
 use App\Modules\Core\Automation\Http\Controllers\AutomationController;
 use App\Modules\Core\Branch\Http\Controllers\BranchController;
 use App\Modules\Core\Collaboration\Http\Controllers\DocumentCollaborationController;
+use App\Modules\Core\Company\Http\Controllers\BusinessGuideController;
 use App\Modules\Core\Company\Http\Controllers\CompanyController;
 use App\Modules\Core\Company\Http\Controllers\SettingsController;
 use App\Modules\Core\Dashboard\Http\Controllers\DashboardController;
 use App\Modules\Core\Dashboard\Http\Controllers\GlobalSearchController;
+use App\Modules\Core\Dashboard\Http\Controllers\ManagerPilotController;
 use App\Modules\Core\Dashboard\Http\Controllers\MerchantRoutineController;
 use App\Modules\Core\Dashboard\Http\Controllers\NavigationFavoriteController;
 use App\Modules\Core\Dashboard\Http\Controllers\UiModeController;
@@ -30,6 +32,7 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::post('/integrations/webhooks/inbound/{company}', [InboundIntegrationWebhookController::class, 'store'])
+    ->middleware('throttle:60,1')
     ->name('integrations.webhooks.inbound.receive');
 
 Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
@@ -42,6 +45,13 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/routine-commerce', MerchantRoutineController::class)
         ->middleware('permission:dashboard.view')
         ->name('merchant.routine');
+
+    Route::get('/pilotage-manager', ManagerPilotController::class)
+        ->middleware(['permission:reports.view', 'except_role:cashier'])
+        ->name('manager.pilot');
+    Route::get('/pilotage-manager/imprimer', [ManagerPilotController::class, 'print'])
+        ->middleware(['permission:reports.view', 'except_role:cashier'])
+        ->name('manager.pilot.print');
 
     Route::get('/recherche', GlobalSearchController::class)
         ->middleware('permission:dashboard.view')
@@ -56,6 +66,9 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/aide/travail', [HelpController::class, 'work'])
         ->middleware('permission:dashboard.view')
         ->name('help.work');
+    Route::get('/guide-metier', BusinessGuideController::class)
+        ->middleware('permission:dashboard.view')
+        ->name('business-guide.index');
 
     Route::get('/demarrage', [OnboardingController::class, 'index'])
         ->middleware('permission:dashboard.view')
@@ -136,6 +149,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/entreprises', [CompanyController::class, 'index'])->middleware('permission:companies.view')->name('companies.index');
     Route::get('/entreprises/creer', [CompanyController::class, 'create'])->middleware('permission:companies.manage')->name('companies.create');
     Route::post('/entreprises', [CompanyController::class, 'store'])->middleware('permission:companies.manage')->name('companies.store');
+    Route::post('/entreprises/{company}/initialiser', [CompanyController::class, 'provision'])->middleware('permission:companies.manage')->name('companies.provision');
     Route::get('/entreprises/{company}/modifier', [CompanyController::class, 'edit'])->middleware('permission:companies.manage')->name('companies.edit');
     Route::put('/entreprises/{company}', [CompanyController::class, 'update'])->middleware('permission:companies.manage')->name('companies.update');
 

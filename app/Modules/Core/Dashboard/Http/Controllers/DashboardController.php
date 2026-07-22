@@ -33,6 +33,7 @@ use App\Modules\Sales\Services\OrderCoverageService;
 use App\Modules\Treasury\Models\CashAccount;
 use App\Modules\Treasury\Models\Payment;
 use App\Support\CurrentWorkspace;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -49,9 +50,14 @@ class DashboardController extends Controller
         private readonly OrderCoverageService $orderCoverageService,
     ) {}
 
-    public function __invoke(CurrentWorkspace $workspace): View
+    public function __invoke(CurrentWorkspace $workspace): View|RedirectResponse
     {
         $user = auth()->user();
+
+        if ($this->isPureCashier($user)) {
+            return redirect()->route('pos.index');
+        }
+
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
         $branchScopeId = $user ? $user->resolvedBranchScope(null, $branchId) : $branchId;
@@ -142,15 +148,16 @@ class DashboardController extends Controller
 
         $currentPeriodSummary = $this->periodChecklistService->currentPeriodSummary($companyId);
         $appMonitoring = $this->applicationMonitoringService->summary();
-        $dashboardProfile = $this->dashboardProfile($user);
         $sectorProfile = $this->sectorProfileService->profileForCompany($companyId);
+        $businessVocabulary = $this->sectorProfileService->businessVocabularyForProfile($sectorProfile);
+        $dashboardProfile = $this->dashboardProfile($user, $businessVocabulary);
         $stats = array_merge(
             $stats,
             $this->pharmacySafetyWatch($companyId, $branchScopeId, $sectorProfile),
             $this->foodStoreRetailWatch($companyId, $branchScopeId, $sectorProfile),
             $this->wholesaleDistributionWatch($companyId, $branchScopeId, $sectorProfile),
         );
-        $dashboardKpis = $this->decorateDashboardItems($this->dashboardKpis($dashboardProfile['key'], $stats), 'kpi');
+        $dashboardKpis = $this->decorateDashboardItems($this->dashboardKpis($dashboardProfile['key'], $stats, $businessVocabulary), 'kpi');
         $roleSpotlight = $this->decorateDashboardItems($this->roleSpotlight($dashboardProfile['key'], $stats, $monthStart), 'spotlight');
         $sectorActionPlan = $this->decorateDashboardItems($this->sectorActionPlan($sectorProfile), 'sector');
         $sectorSignals = $this->decorateDashboardItems($this->sectorOperationalSignals($sectorProfile, $stats), 'signal');
@@ -177,6 +184,21 @@ class DashboardController extends Controller
             'operationalWatchlist' => $operationalWatchlist,
             'appCatalog' => $appCatalog,
         ]);
+    }
+
+    private function isPureCashier(?User $user): bool
+    {
+        if (! $user?->hasRole('cashier')) {
+            return false;
+        }
+
+        foreach (['platform_admin', 'company_admin', 'director', 'manager', 'pos_supervisor'] as $role) {
+            if ($user->hasRole($role)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function stockAlerts(?int $companyId, ?int $branchId): int
@@ -352,8 +374,12 @@ class DashboardController extends Controller
         return round($income - $expenses, 2);
     }
 
-    private function dashboardProfile(?User $user): array
+    private function dashboardProfile(?User $user, array $businessVocabulary = []): array
     {
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+
         if ($user?->hasRole('cashier')) {
             return [
                 'key' => 'cashier',
@@ -365,7 +391,7 @@ class DashboardController extends Controller
                 'focus_description' => 'Les gestes les plus frequents pour ouvrir, encaisser et suivre le comptoir.',
                 'analysis_title' => 'Lecture caisse',
                 'analysis_description' => 'La caisse reste orientee action : tickets, encaissements, alertes et stock critique.',
-                'priorities' => ['Point de vente', 'Encaissements du jour', 'Stock critique'],
+                'priorities' => ['Point de vente', 'Encaissements du jour', $stockLabel.' critique'],
                 'search_examples' => ['PRD-0001', 'Sahel Market', 'REC-DEMO-001'],
             ];
         }
@@ -381,7 +407,7 @@ class DashboardController extends Controller
                 'focus_description' => 'Les actions a lancer rapidement pour garder les ventes, achats et stocks synchronises.',
                 'analysis_title' => 'Lecture exploitation',
                 'analysis_description' => 'Les signaux ci-dessous te disent ou intervenir d abord pour fluidifier l activite.',
-                'priorities' => ['Ventes du jour', 'Receptions fournisseurs', 'Approvisionnement'],
+                'priorities' => [$salesLabel.' du jour', 'Receptions fournisseurs', 'Approvisionnement'],
                 'search_examples' => ['FAC-', 'BON-', 'PRD-0007'],
             ];
         }
@@ -397,7 +423,7 @@ class DashboardController extends Controller
                 'focus_description' => 'Les arbitrages a regarder en premier avant d entrer dans les modules detailles.',
                 'analysis_title' => 'Lecture direction',
                 'analysis_description' => 'Le dashboard met en avant les montants qui aident a piloter cash, marge et validations.',
-                'priorities' => ['Resultat du mois', 'Recouvrement client', 'Approbations a arbitrer'],
+                'priorities' => ['Resultat du mois', 'Recouvrement '.$customersLabel, 'Approbations a arbitrer'],
                 'search_examples' => ['Sahel Market', 'FAC-', 'BIL-'],
             ];
         }
@@ -417,42 +443,51 @@ class DashboardController extends Controller
         ];
     }
 
-    private function dashboardKpis(string $profileKey, array $stats): array
+    private function dashboardKpis(string $profileKey, array $stats, array $businessVocabulary = []): array
     {
+        $customerLabel = strtolower($businessVocabulary['client'] ?? 'client');
+        $customersLabel = strtolower($businessVocabulary['clients'] ?? 'clients');
+        $productLabel = strtolower($businessVocabulary['product'] ?? 'produit');
+        $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+        $saleLabel = strtolower($businessVocabulary['sale'] ?? 'vente');
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $suppliersLabel = strtolower($businessVocabulary['suppliers'] ?? 'fournisseurs');
+
         $kpis = match ($profileKey) {
             'cashier' => [
-                ['label' => 'Ventes du jour', 'value' => $this->money($stats['ventes_jour']), 'description' => $stats['ventes_jour_count'].' ticket(s) valide(s) aujourd hui.'],
+                ['label' => $salesLabel.' du jour', 'value' => $this->money($stats['ventes_jour']), 'description' => $stats['ventes_jour_count'].' ticket(s) valide(s) aujourd hui.'],
                 ['label' => 'Encaissements du jour', 'value' => $this->money($stats['encaissements_jour']), 'description' => $stats['encaissements_jour_count'].' encaissement(s) enregistres.'],
-                ['label' => 'Alertes stock', 'value' => $this->number($stats['alertes_stock']), 'description' => 'Articles au minimum sur l agence active.'],
+                ['label' => 'Alertes '.$stockLabel, 'value' => $this->number($stats['alertes_stock']), 'description' => ucfirst(strtolower($productsLabel)).' au minimum sur l agence active.'],
                 ['label' => 'Alertes non lues', 'value' => $this->number($stats['alertes_non_lues']), 'description' => 'Signaux d exploitation a lire.'],
-                ['label' => 'Produits suivis', 'value' => $this->number($stats['produits']), 'description' => 'Catalogue disponible pour la vente.'],
+                ['label' => $productsLabel.' suivis', 'value' => $this->number($stats['produits']), 'description' => 'Catalogue disponible pour la '.$saleLabel.'.'],
                 ['label' => 'Comptes de caisse', 'value' => $this->number($stats['comptes_tresorerie']), 'description' => 'Comptes de tresorerie disponibles.'],
             ],
             'operations' => [
-                ['label' => 'Ventes du jour', 'value' => $this->money($stats['ventes_jour']), 'description' => $stats['ventes_jour_count'].' facture(s) validee(s) aujourd hui.'],
+                ['label' => $salesLabel.' du jour', 'value' => $this->money($stats['ventes_jour']), 'description' => $stats['ventes_jour_count'].' facture(s) validee(s) aujourd hui.'],
                 ['label' => 'Receptions du jour', 'value' => $this->number($stats['receptions_jour']), 'description' => 'Receptions fournisseurs enregistrees.'],
                 ['label' => 'Achats en attente', 'value' => $this->number($stats['achats_en_attente']), 'description' => 'Documents a pousser vers validation.'],
                 ['label' => 'Demandes d achat ouvertes', 'value' => $this->number($stats['demandes_achat_ouvertes']), 'description' => 'Demandes a convertir ou arbitrer.'],
-                ['label' => 'Commandes clients ouvertes', 'value' => $this->number($stats['commandes_clients_ouvertes']), 'description' => 'Commandes encore en cours de livraison ou de conversion.'],
-                ['label' => 'Stock critique', 'value' => $this->number($stats['alertes_stock']), 'description' => 'Produits a surveiller sur l agence active.'],
+                ['label' => 'Commandes '.$customersLabel.' ouvertes', 'value' => $this->number($stats['commandes_clients_ouvertes']), 'description' => 'Commandes encore en cours de livraison ou de conversion.'],
+                ['label' => $stockLabel.' critique', 'value' => $this->number($stats['alertes_stock']), 'description' => ucfirst(strtolower($productsLabel)).' a surveiller sur l agence active.'],
             ],
             'direction' => [
                 ['label' => 'Resultat du mois', 'value' => $this->money($stats['resultat_mois']), 'description' => 'Lecture comptable de la performance mensuelle.'],
-                ['label' => 'Ventes du mois', 'value' => $this->money($stats['ventes_mois']), 'description' => 'Facturation client validee sur la periode.'],
-                ['label' => 'Reste a encaisser', 'value' => $this->money($stats['reste_a_encaisser']), 'description' => $stats['factures_impayees'].' facture(s) client encore ouvertes.'],
-                ['label' => 'Dettes fournisseurs', 'value' => $this->money($stats['dettes_fournisseurs']), 'description' => $stats['factures_fournisseurs_impayees'].' facture(s) fournisseur a regler.'],
+                ['label' => $salesLabel.' du mois', 'value' => $this->money($stats['ventes_mois']), 'description' => 'Facturation '.$customerLabel.' validee sur la periode.'],
+                ['label' => 'Reste a encaisser', 'value' => $this->money($stats['reste_a_encaisser']), 'description' => $stats['factures_impayees'].' facture(s) '.$customerLabel.' encore ouvertes.'],
+                ['label' => 'Dettes '.$suppliersLabel, 'value' => $this->money($stats['dettes_fournisseurs']), 'description' => $stats['factures_fournisseurs_impayees'].' facture(s) a regler.'],
                 ['label' => 'Approbations en attente', 'value' => $this->number($stats['approbations_en_attente_total']), 'description' => 'Ventes, achats et depenses a arbitrer.'],
                 ['label' => 'Ecritures du mois', 'value' => $this->number($stats['ecritures_mois']), 'description' => 'Production comptable deja generee.'],
             ],
             default => [
                 ['label' => 'Agences', 'value' => $this->number($stats['agences']), 'description' => 'Implantations actives dans la societe.'],
                 ['label' => 'Utilisateurs', 'value' => $this->number($stats['utilisateurs']), 'description' => 'Equipe active sur l ERP.'],
-                ['label' => 'Clients', 'value' => $this->number($stats['clients']), 'description' => 'Portefeuille client disponible.'],
-                ['label' => 'Produits', 'value' => $this->number($stats['produits']), 'description' => 'Catalogue actuellement suivI.'],
-                ['label' => 'Ventes du mois', 'value' => $this->money($stats['ventes_mois']), 'description' => 'Facturation validee sur la periode.'],
+                ['label' => $businessVocabulary['clients'] ?? 'Clients', 'value' => $this->number($stats['clients']), 'description' => 'Portefeuille '.$customerLabel.' disponible.'],
+                ['label' => $productsLabel, 'value' => $this->number($stats['produits']), 'description' => 'Catalogue actuellement suivi.'],
+                ['label' => $salesLabel.' du mois', 'value' => $this->money($stats['ventes_mois']), 'description' => 'Facturation validee sur la periode.'],
                 ['label' => 'Resultat du mois', 'value' => $this->money($stats['resultat_mois']), 'description' => 'Lecture comptable du mois en cours.'],
                 ['label' => 'Ecritures du mois', 'value' => $this->number($stats['ecritures_mois']), 'description' => 'Ecritures comptables generees.'],
-                ['label' => 'Alertes stock', 'value' => $this->number($stats['alertes_stock']), 'description' => 'Produits a traiter rapidement.'],
+                ['label' => 'Alertes '.$stockLabel, 'value' => $this->number($stats['alertes_stock']), 'description' => ucfirst(strtolower($productsLabel)).' a traiter rapidement.'],
             ],
         };
 
@@ -482,7 +517,7 @@ class DashboardController extends Controller
             ],
             default => [
                 ['permission' => 'settings.view', 'label' => 'Parametres', 'description' => 'Ajuster societe, sequences et integrations.', 'url' => route('settings.index')],
-                ['permission' => 'imports.manage', 'label' => 'Imports CSV', 'description' => 'Charger clients, produits ou historiques.', 'url' => route('imports.index')],
+                ['permission' => 'imports.manage', 'label' => 'Imports Excel/CSV', 'description' => 'Charger clients, fournisseurs, produits ou historiques.', 'url' => route('imports.index')],
                 ['permission' => 'reports.view', 'label' => 'Rapports dirigeants', 'description' => 'Visualiser les syntheses de pilotage.', 'url' => route('reports.index')],
                 ['permission' => 'ops.view', 'label' => 'Sante et exploitation', 'description' => 'Voir l outbox, les checks et l etat systeme.', 'url' => route('ops.index')],
             ],
@@ -524,7 +559,7 @@ class DashboardController extends Controller
 
     private function sectorActionPlan(array $sectorProfile): array
     {
-        $actions = collect($sectorProfile['recommended_modules'] ?? [])
+        $actions = collect($sectorProfile['recommended_modules_full'] ?? [])
             ->map(function (array $item): array {
                 $item['url'] = route($item['route_name'], $item['route_params'] ?? []);
 
@@ -607,6 +642,167 @@ class DashboardController extends Controller
                     'url' => route('stock.index', ['tracking_type' => 'tracked', 'saleability_state' => 'zero']),
                 ],
             ],
+            'restaurant_cafe' => [
+                [
+                    'permission' => 'pos.view',
+                    'label' => 'Encaissements service',
+                    'value' => $this->money($stats['encaissements_jour']),
+                    'description' => $stats['encaissements_jour_count'].' encaissement(s) aujourd hui au comptoir.',
+                    'url' => route('payments.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Ventes restaurant',
+                    'value' => $this->money($stats['ventes_jour']),
+                    'description' => $stats['ventes_jour_count'].' ticket(s) ou facture(s) valide(s) aujourd hui.',
+                    'url' => route('sales.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Ingredients a surveiller',
+                    'value' => $this->number($stats['alertes_stock']),
+                    'description' => 'Produits au minimum avant blocage du service.',
+                    'url' => route('stock.index', ['stock_state' => 'low']),
+                ],
+            ],
+            'school_training' => [
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Frais a encaisser',
+                    'value' => $this->money($stats['reste_a_encaisser']),
+                    'description' => $stats['factures_impayees'].' facture(s) scolaire(s) encore ouvertes.',
+                    'url' => route('sales.index', ['payment_status' => 'unpaid']),
+                ],
+                [
+                    'permission' => 'payments.view',
+                    'label' => 'Encaissements du mois',
+                    'value' => $this->money($stats['encaissements_mois']),
+                    'description' => 'Paiements eleves et familles deja enregistres.',
+                    'url' => route('payments.index', ['direction' => 'in']),
+                ],
+                [
+                    'permission' => 'expenses.view',
+                    'label' => 'Charges ecole',
+                    'value' => $this->money($stats['depenses_mois']),
+                    'description' => 'Depenses validees sur le mois courant.',
+                    'url' => route('expenses.index'),
+                ],
+            ],
+            'auto_parts_garage' => [
+                [
+                    'permission' => 'orders.view',
+                    'label' => 'Dossiers atelier ouverts',
+                    'value' => $this->number($stats['commandes_clients_ouvertes']),
+                    'description' => 'Commandes ou travaux client encore en cours.',
+                    'url' => route('orders.index'),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Pieces critiques',
+                    'value' => $this->number($stats['alertes_stock']),
+                    'description' => 'Pieces au minimum pouvant bloquer une intervention.',
+                    'url' => route('stock.index', ['stock_state' => 'low']),
+                ],
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Factures garage impayees',
+                    'value' => $this->number($stats['factures_impayees']),
+                    'description' => $this->money($stats['reste_a_encaisser']).' reste(nt) a encaisser.',
+                    'url' => route('sales.index', ['payment_status' => 'unpaid']),
+                ],
+            ],
+            'services_agency' => [
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Prestations facturees',
+                    'value' => $this->money($stats['ventes_mois']),
+                    'description' => 'Chiffre facture sur le mois courant.',
+                    'url' => route('sales.index'),
+                ],
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Paiements clients attendus',
+                    'value' => $this->money($stats['reste_a_encaisser']),
+                    'description' => $stats['factures_impayees'].' facture(s) prestation encore ouvertes.',
+                    'url' => route('sales.index', ['payment_status' => 'unpaid']),
+                ],
+                [
+                    'permission' => 'expenses.view',
+                    'label' => 'Frais de mission',
+                    'value' => $this->money($stats['depenses_mois']),
+                    'description' => 'Charges validees sur le mois.',
+                    'url' => route('expenses.index'),
+                ],
+            ],
+            'beauty_salon' => [
+                [
+                    'permission' => 'pos.view',
+                    'label' => 'Caisse salon',
+                    'value' => $this->money($stats['encaissements_jour']),
+                    'description' => $stats['encaissements_jour_count'].' encaissement(s) client aujourd hui.',
+                    'url' => route('payments.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Prestations du jour',
+                    'value' => $this->money($stats['ventes_jour']),
+                    'description' => $stats['ventes_jour_count'].' vente(s) ou prestation(s) validee(s).',
+                    'url' => route('sales.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Consommables faibles',
+                    'value' => $this->number($stats['alertes_stock']),
+                    'description' => 'Produits salon a reapprovisionner.',
+                    'url' => route('stock.index', ['stock_state' => 'low']),
+                ],
+            ],
+            'workshop_manufacturing' => [
+                [
+                    'permission' => 'orders.view',
+                    'label' => 'Commandes atelier',
+                    'value' => $this->number($stats['commandes_clients_ouvertes']),
+                    'description' => 'Demandes client encore en cours de production ou livraison.',
+                    'url' => route('orders.index'),
+                ],
+                [
+                    'permission' => 'stock.view',
+                    'label' => 'Matieres critiques',
+                    'value' => $this->number($stats['alertes_stock']),
+                    'description' => 'Stocks minimum pouvant ralentir la production.',
+                    'url' => route('stock.index', ['stock_state' => 'low']),
+                ],
+                [
+                    'permission' => 'purchases.view',
+                    'label' => 'Approvisionnements ouverts',
+                    'value' => $this->number($stats['commandes_fournisseurs_ouvertes']),
+                    'description' => 'Commandes fournisseurs encore en cours.',
+                    'url' => route('purchase-orders.index'),
+                ],
+            ],
+            'delivery_company' => [
+                [
+                    'permission' => 'sales.view',
+                    'label' => 'Livraisons facturees',
+                    'value' => $this->number($stats['ventes_jour_count']),
+                    'description' => $this->money($stats['ventes_jour']).' facture(s) aujourd hui.',
+                    'url' => route('sales.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'payments.view',
+                    'label' => 'Encaissements livreurs',
+                    'value' => $this->money($stats['encaissements_jour']),
+                    'description' => $stats['encaissements_jour_count'].' paiement(s) enregistres aujourd hui.',
+                    'url' => route('payments.index', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]),
+                ],
+                [
+                    'permission' => 'expenses.view',
+                    'label' => 'Frais operationnels',
+                    'value' => $this->money($stats['depenses_mois']),
+                    'description' => 'Carburant, charges et frais du mois.',
+                    'url' => route('expenses.index'),
+                ],
+            ],
             default => [],
         };
 
@@ -621,7 +817,7 @@ class DashboardController extends Controller
             ['permission' => 'expenses.manage', 'label' => 'Nouvelle depense', 'description' => 'Saisir une charge', 'url' => route('expenses.create')],
             ['permission' => 'approvals.view', 'label' => 'Traiter les approbations', 'description' => 'Ouvrir la boite d approbation', 'url' => route('approvals.index')],
             ['permission' => 'reports.view', 'label' => 'Rapports dirigeants', 'description' => 'Voir les syntheses', 'url' => route('reports.index')],
-            ['permission' => 'imports.manage', 'label' => 'Importer des donnees', 'description' => 'Clients, produits, stock, historiques', 'url' => route('imports.index')],
+            ['permission' => 'imports.manage', 'label' => 'Importer Excel/CSV', 'description' => 'Clients, fournisseurs, produits, stock', 'url' => route('imports.index')],
         ])->filter(fn (array $link) => auth()->user()?->hasPermission($link['permission']))->values()->all();
     }
 
@@ -636,7 +832,7 @@ class DashboardController extends Controller
             ['permission' => 'notifications.view', 'label' => 'Alertes', 'short_label' => 'Alertes', 'description' => 'Alertes internes', 'url' => route('notifications.index'), 'icon' => 'alert'],
             ['permission' => 'automation.view', 'label' => 'Automatisation', 'short_label' => 'Automatisation', 'description' => 'Regles automatiques', 'url' => route('automation.index'), 'icon' => 'flash'],
             ['permission' => 'notifications.outbound.view', 'label' => 'Notif. sortantes', 'short_label' => 'Notif. sortantes', 'description' => 'SMS et emails', 'url' => route('notifications.outbound.index'), 'icon' => 'alert'],
-            ['permission' => 'imports.manage', 'label' => 'Imports CSV', 'short_label' => 'Imports CSV', 'description' => 'Chargement de donnees', 'url' => route('imports.index'), 'icon' => 'import'],
+            ['permission' => 'imports.manage', 'label' => 'Imports Excel/CSV', 'short_label' => 'Imports Excel', 'description' => 'Chargement de donnees', 'url' => route('imports.index'), 'icon' => 'import'],
             ['permission' => 'ops.view', 'label' => 'Operations', 'short_label' => 'Operations', 'description' => 'Controle technique', 'url' => route('ops.index'), 'icon' => 'ops'],
             ['permission' => 'platform.view', 'label' => 'Plateforme', 'short_label' => 'Plateforme', 'description' => 'Connecteurs et sante', 'url' => route('platform.index'), 'icon' => 'ops'],
             ['permission' => 'companies.view', 'label' => 'Entreprises', 'short_label' => 'Entreprises', 'description' => 'Societes', 'url' => route('companies.index'), 'icon' => 'building'],

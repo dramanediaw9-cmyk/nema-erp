@@ -260,6 +260,74 @@ class StockController extends Controller
         ]);
     }
 
+    public function printMovements(Request $request, CurrentWorkspace $workspace): View
+    {
+        $companyId = $workspace->companyId();
+        $branchId = $workspace->branchId();
+        abort_if(! $companyId || ! $branchId, 403);
+
+        $filters = $this->movementFilters($request);
+        $movements = StockMovement::query()
+            ->with(['product', 'branch', 'warehouse', 'creator', 'reference', 'company'])
+            ->where('company_id', $companyId)
+            ->when($filters['date_from'], fn (Builder $query, string $dateFrom) => $query->whereDate('movement_date', '>=', $dateFrom))
+            ->when($filters['date_to'], fn (Builder $query, string $dateTo) => $query->whereDate('movement_date', '<=', $dateTo))
+            ->when($filters['branch_id'], fn (Builder $query, int $filterBranchId) => $query->where('branch_id', $filterBranchId))
+            ->when($filters['warehouse_id'], fn (Builder $query, int $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->when($filters['movement_type'], fn (Builder $query, string $movementType) => $query->where('movement_type', $movementType))
+            ->when($filters['search'], function (Builder $query, string $search) {
+                $like = '%'.$search.'%';
+
+                $query->where(function (Builder $nested) use ($like) {
+                    $nested->where('reason', 'like', $like)
+                        ->orWhere('notes', 'like', $like)
+                        ->orWhereHas('product', function (Builder $productQuery) use ($like) {
+                            $productQuery->where('name', 'like', $like)
+                                ->orWhere('sku', 'like', $like);
+                        })
+                        ->orWhereHas('branch', function (Builder $branchQuery) use ($like) {
+                            $branchQuery->where('name', 'like', $like)
+                                ->orWhere('code', 'like', $like);
+                        })
+                        ->orWhereHas('warehouse', function (Builder $warehouseQuery) use ($like) {
+                            $warehouseQuery->where('name', 'like', $like)
+                                ->orWhere('code', 'like', $like);
+                        });
+                });
+            })
+            ->latest('movement_date')
+            ->latest('id')
+            ->limit(500)
+            ->get();
+
+        $movementSummary = [
+            'count' => $movements->count(),
+            'quantity_in' => (float) $movements->sum(fn (StockMovement $movement) => (float) $movement->quantity_in),
+            'quantity_out' => (float) $movements->sum(fn (StockMovement $movement) => (float) $movement->quantity_out),
+            'net_quantity' => (float) $movements->sum(fn (StockMovement $movement) => (float) $movement->quantity_in - (float) $movement->quantity_out),
+            'estimated_in_value' => (float) $movements->sum(fn (StockMovement $movement) => (float) $movement->quantity_in * (float) $movement->unit_cost),
+            'estimated_out_value' => (float) $movements->sum(fn (StockMovement $movement) => (float) $movement->quantity_out * (float) $movement->unit_cost),
+        ];
+
+        return view('stock.movements-print', [
+            'company' => $workspace->company(),
+            'branch' => $workspace->branch(),
+            'movements' => $movements,
+            'movementSummary' => $movementSummary,
+            'movementContexts' => $movements
+                ->mapWithKeys(fn (StockMovement $movement) => [$movement->id => $this->movementSourceContext($movement)])
+                ->all(),
+            'filters' => $filters,
+            'movementTypes' => [
+                'opening' => 'Stock initial',
+                'purchase' => 'Achat / Reception',
+                'sale' => 'Vente / Livraison',
+                'adjustment_in' => 'Entree interne',
+                'adjustment_out' => 'Sortie interne',
+            ],
+        ]);
+    }
+
     public function createOpening(CurrentWorkspace $workspace): View
     {
         $companyId = $workspace->companyId();
@@ -320,7 +388,11 @@ class StockController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
-        return view('stock.adjustments', $this->adjustmentFormData($workspace, $companyId, $branchId));
+        return view('stock.adjustments', [
+            'products' => $this->stockableProducts($companyId),
+            'warehouses' => $this->branchWarehouses($companyId, $branchId),
+            'branch' => $workspace->branch(),
+        ]);
     }
 
     public function createLoss(CurrentWorkspace $workspace): View
@@ -329,13 +401,16 @@ class StockController extends Controller
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
 
-        return view('stock.adjustments', $this->adjustmentFormData($workspace, $companyId, $branchId, [
+        return view('stock.adjustments', [
+            'products' => $this->stockableProducts($companyId),
+            'warehouses' => $this->branchWarehouses($companyId, $branchId),
+            'branch' => $workspace->branch(),
             'modeTitle' => 'Declarer une perte stock',
             'modeHelp' => 'Cette action sort la quantite perdue du stock et garde une trace dans les mouvements.',
             'defaultDirection' => 'out',
             'defaultReason' => 'Perte stock',
             'submitLabel' => 'Enregistrer la perte',
-        ]));
+        ]);
     }
 
     public function storeAdjustment(Request $request, CurrentWorkspace $workspace): RedirectResponse
@@ -546,26 +621,13 @@ class StockController extends Controller
 
     private function stockableProducts(int $companyId)
     {
-        return Product::query()
-            ->where('company_id', $companyId)
-            ->where('type', 'stockable')
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-    }
+        $selectedIds = collect(old('items', []))->pluck('product_id')
+            ->push(old('product_id'))
+            ->filter()
+            ->all();
 
-    private function adjustmentFormData(CurrentWorkspace $workspace, int $companyId, int $branchId, array $overrides = []): array
-    {
-        return array_merge([
-            'products' => $this->stockableProducts($companyId),
-            'warehouses' => $this->branchWarehouses($companyId, $branchId),
-            'branch' => $workspace->branch(),
-            'modeTitle' => 'Ajuster le stock',
-            'modeHelp' => 'Saisir une entree ou une sortie interne avec motif obligatoire.',
-            'defaultDirection' => null,
-            'defaultReason' => null,
-            'submitLabel' => "Enregistrer l'ajustement",
-        ], $overrides);
+        return app(\App\Modules\Catalog\Services\ProductOptionService::class)
+            ->initial($companyId, 'stockable', $selectedIds);
     }
 
     private function branchWarehouses(int $companyId, int $branchId)

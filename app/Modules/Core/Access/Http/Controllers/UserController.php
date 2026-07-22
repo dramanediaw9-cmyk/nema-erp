@@ -10,7 +10,7 @@ use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Validation\Rules\Password;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class UserController extends Controller
@@ -53,7 +53,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'password' => ['required', 'string', Password::min(10)->mixedCase()->numbers()->symbols()->uncompromised(), 'confirmed'],
+            'password' => ['required', 'string', Password::defaults()->uncompromised(), 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'is_active' => ['nullable', 'boolean'],
@@ -100,7 +100,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'password' => ['nullable', 'string', Password::min(10)->mixedCase()->numbers()->symbols()->uncompromised(), 'confirmed'],
+            'password' => ['nullable', 'string', Password::defaults()->uncompromised(), 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'is_active' => ['nullable', 'boolean'],

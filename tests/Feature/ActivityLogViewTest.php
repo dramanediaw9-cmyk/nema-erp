@@ -50,8 +50,8 @@ class ActivityLogViewTest extends TestCase
                 'search' => 'principale',
             ]))
             ->assertOk()
-            ->assertSee('Historique des actions')
-            ->assertSee('Lignes visibles')
+            ->assertSee('Journal audit')
+            ->assertSee('Evenements filtres')
             ->assertSee('Connexion comptable principale')
             ->assertSee($mainBranch->name)
             ->assertSee('10.20.30.40')

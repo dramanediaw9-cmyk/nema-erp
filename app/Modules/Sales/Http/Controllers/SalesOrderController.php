@@ -110,12 +110,13 @@ class SalesOrderController extends Controller
         $companyId = $workspace->companyId();
         $branchId = $workspace->branchId();
         abort_if(! $companyId || ! $branchId, 403);
+        $defaultRows = old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => '']));
 
         return view('orders.create', [
             'customers' => Partner::query()->customers()->where('company_id', $companyId)->where('is_active', true)->orderBy('name')->get(),
-            'products' => Product::query()->with('parent')->where('company_id', $companyId)->saleable()->orderBy('name')->get(),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($companyId, 'saleable', collect($defaultRows)->pluck('product_id')->all()),
             'warehouses' => Warehouse::query()->where('company_id', $companyId)->where('branch_id', $branchId)->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
-            'defaultRows' => old('items', array_fill(0, 6, ['product_id' => '', 'description' => '', 'qty' => '', 'unit_price' => ''])),
+            'defaultRows' => $defaultRows,
             'priceRules' => $this->pricingService->rulesPayloadForCompany($companyId),
             'branch' => $workspace->branch(),
         ]);

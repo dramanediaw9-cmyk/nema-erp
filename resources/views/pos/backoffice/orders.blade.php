@@ -4,6 +4,15 @@
 @section('page-title', 'Commandes POS')
 
 @section('content')
+    @php
+        $customerLabel = $businessVocabulary['client'] ?? 'Client';
+        $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $counterCustomerLabel = in_array($businessVocabulary['profile_key'] ?? '', ['food_store', 'general_trade', 'pharmacy_parapharmacy'], true)
+            ? 'Client comptoir'
+            : $customerLabel.' comptoir';
+    @endphp
+
     <div class="grid" style="gap:18px;">
         @include('pos.partials.backoffice-nav')
 
@@ -13,7 +22,7 @@
                 <div class="muted">Vision back-office des tickets POS, commandes en attente et tickets retour.</div>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="{{ route('pos.sales.create') }}" class="button button-primary">Nouvelle vente</a>
+                <a href="{{ route('pos.sales.create') }}" class="button button-primary">Nouvelle {{ strtolower($saleLabel) }}</a>
                 <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
             </div>
         </div>
@@ -32,7 +41,7 @@
                     <thead>
                         <tr>
                             <th>Numero</th>
-                            <th>Client</th>
+                            <th>{{ $customerLabel }}</th>
                             <th>Session</th>
                             <th>Total</th>
                             <th>Statut</th>
@@ -43,7 +52,7 @@
                         @forelse ($data['invoices'] as $invoice)
                             <tr>
                                 <td>{{ $invoice->invoice_number }}</td>
-                                <td>{{ $invoice->customer?->name ?? 'Client comptoir' }}</td>
+                                <td>{{ $invoice->customer?->name ?? $counterCustomerLabel }}</td>
                                 <td>{{ $invoice->posSession?->session_number ?? 'n/a' }}</td>
                                 <td>{{ number_format((float) $invoice->total, 0, ',', ' ') }} XOF</td>
                                 <td><span class="badge {{ $invoice->payment_status === 'paid' ? 'badge-success' : 'badge-warning' }}">{{ strtoupper($invoice->payment_status) }}</span></td>
@@ -64,7 +73,7 @@
                     @forelse ($data['drafts'] as $draft)
                         <div class="summary-box">
                             <strong>{{ $draft->label ?: 'Commande '.str_pad((string) $draft->id, 4, '0', STR_PAD_LEFT) }}</strong>
-                            <div class="muted" style="margin-top:8px;">{{ $draft->customer?->name ?? 'Client comptoir' }} · {{ number_format((float) $draft->total, 0, ',', ' ') }} XOF · {{ $draft->items_count }} ligne(s)</div>
+                            <div class="muted" style="margin-top:8px;">{{ $draft->customer?->name ?? $counterCustomerLabel }} · {{ number_format((float) $draft->total, 0, ',', ' ') }} XOF · {{ $draft->items_count }} ligne(s)</div>
                             <div class="help" style="margin-top:8px;">Derniere activite: {{ optional($draft->last_activity_at)->format('d/m/Y H:i') }}</div>
                         </div>
                     @empty

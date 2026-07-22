@@ -107,7 +107,7 @@ class ReplenishmentFlowTest extends TestCase
             ->withSession($this->workspaceSession($manager))
             ->get(route('replenishments.index', ['warehouse_id' => $warehouse->id]))
             ->assertOk()
-            ->assertSee('Reappro automatique')
+            ->assertSee('Reapprovisionnement automatique')
             ->assertSee($suggestedProduct->name)
             ->assertSee('24,000')
             ->assertDontSee($coveredByOrder->name)

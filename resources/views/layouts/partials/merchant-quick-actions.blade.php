@@ -1,14 +1,21 @@
 @if ($isMerchantMode)
+    @php
+        $merchantSalesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+        $merchantSaleLabel = $businessVocabulary['sale'] ?? 'Vente';
+        $merchantStockLabel = $businessVocabulary['stock'] ?? 'Stock';
+        $merchantProductLabel = $businessVocabulary['product'] ?? 'Produit';
+        $merchantProductsLabel = $businessVocabulary['products'] ?? 'Produits';
+    @endphp
     <section class="card" style="margin-bottom:20px; padding:18px 20px; background:linear-gradient(135deg, rgba(255,249,240,.98) 0%, rgba(240,248,246,.96) 58%, rgba(255,239,214,.94) 100%); border-color:rgba(15,118,110,.16);">
         <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-start;">
             <div>
                 <div class="topbar-label" style="margin-bottom:8px;">Mode commercant</div>
-                <h2 style="margin:0; font-size:28px; letter-spacing:-.03em;">Routine simple pour vendre sans se perdre</h2>
-                <div class="muted" style="margin-top:8px; max-width:860px;">Connexion, caisse, vente, paiement, ticket, stock mis a jour et resume du jour. Les modules techniques restent accessibles en repassant en mode complet.</div>
+                <h2 style="margin:0; font-size:28px; letter-spacing:-.03em;">Routine simple pour travailler vite</h2>
+                <div class="muted" style="margin-top:8px; max-width:860px;">Connexion, caisse, {{ strtolower($merchantSaleLabel) }}, paiement, document et {{ strtolower($merchantStockLabel) }} mis a jour. Les modules techniques restent accessibles en repassant en mode complet.</div>
             </div>
             <div class="dashboard-chip-row">
-                <span class="dashboard-chip">Priorite : vendre vite</span>
-                <span class="dashboard-chip">Stock visible</span>
+                <span class="dashboard-chip">Priorite : encaisser vite</span>
+                <span class="dashboard-chip">{{ $merchantStockLabel }} visible</span>
                 <span class="dashboard-chip">Rapport du jour</span>
             </div>
         </div>
@@ -27,8 +34,8 @@
             @endallowed
             @allowed('sales.view')
                 <a href="{{ route('sales.index') }}" class="dashboard-link-card">
-                    <strong>Voir les ventes</strong>
-                    <p class="muted">Retrouver les tickets et les ventes du jour.</p>
+                    <strong>Voir les {{ strtolower($merchantSalesLabel) }}</strong>
+                    <p class="muted">Retrouver les tickets et les {{ strtolower($merchantSalesLabel) }} du jour.</p>
                 </a>
             @endallowed
             @allowed('payments.view')
@@ -39,13 +46,13 @@
             @endallowed
             @allowed('stock.view')
                 <a href="{{ route('stock.index') }}" class="dashboard-link-card">
-                    <strong>Voir le stock</strong>
-                    <p class="muted">Controler ce qui manque et les produits en rupture.</p>
+                    <strong>Voir le {{ strtolower($merchantStockLabel) }}</strong>
+                    <p class="muted">Controler ce qui manque et les {{ strtolower($merchantProductsLabel) }} en rupture.</p>
                 </a>
             @endallowed
             @allowed('purchase_requests.view')
                 <a href="{{ route('replenishments.index') }}" class="dashboard-link-card">
-                    <strong>Produits manquants</strong>
+                    <strong>{{ $merchantProductsLabel }} manquants</strong>
                     <p class="muted">Lancer rapidement le reassort sur ce qui tourne.</p>
                 </a>
             @endallowed

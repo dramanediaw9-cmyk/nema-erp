@@ -197,6 +197,15 @@
 </style>
 
 @php
+    $productLabel = $businessVocabulary['product'] ?? 'Produit';
+    $productsLabel = $businessVocabulary['products'] ?? 'Produits';
+    $saleLabel = $businessVocabulary['sale'] ?? 'Vente';
+    $salesLabel = $businessVocabulary['sales'] ?? 'Ventes';
+    $stockLabel = $businessVocabulary['stock'] ?? 'Stock';
+    $supplierLabel = $businessVocabulary['supplier'] ?? 'Fournisseur';
+    $suppliersLabel = $businessVocabulary['suppliers'] ?? 'Fournisseurs';
+    $purchaseLabel = $businessVocabulary['purchase'] ?? 'Achat';
+    $purchasesLabel = $businessVocabulary['purchases'] ?? 'Achats';
     $canViewProductCosts = auth()->user()?->hasPermission('products.cost.view');
     $supplierRows = collect(old('supplier_infos', $product->supplierInfos->map(fn ($info) => [
         'supplier_id' => $info->supplier_id,
@@ -208,8 +217,8 @@
         'is_preferred' => $info->is_preferred,
     ])->all()));
 
-    if ($supplierRows->count() < 4) {
-        $supplierRows = $supplierRows->merge(array_fill(0, 4 - $supplierRows->count(), [
+    if ($supplierRows->isEmpty()) {
+        $supplierRows->push([
             'supplier_id' => '',
             'supplier_product_code' => '',
             'supplier_product_name' => '',
@@ -217,14 +226,14 @@
             'unit_cost' => '',
             'lead_time_days' => '',
             'is_preferred' => false,
-        ]));
+        ]);
     }
 @endphp
 
 <div class="card">
     <div class="product-media-layout">
         <section class="product-upload-card">
-            <label style="margin-bottom:12px;">Photo produit</label>
+            <label style="margin-bottom:12px;">Photo {{ strtolower($productLabel) }}</label>
             <div class="product-dropzone" id="product-dropzone" tabindex="0">
                 <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" capture="environment">
                 <div class="product-preview" id="product-preview">
@@ -235,13 +244,13 @@
                     @endif
                 </div>
                 <div class="product-upload-meta">
-                    <strong id="product-upload-title">{{ $product->image_url && ! old('remove_image') ? 'Photo actuelle du produit' : 'Ajoute une photo produit' }}</strong>
-                    <div class="muted" id="product-upload-filename">{{ $product->image_url && ! old('remove_image') ? 'Image deja enregistree sur ce produit.' : 'Glisse-depose une image ici ou utilise les boutons ci-dessous.' }}</div>
+                    <strong id="product-upload-title">{{ $product->image_url && ! old('remove_image') ? 'Photo actuelle' : 'Ajoute une photo' }}</strong>
+                    <div class="muted" id="product-upload-filename">{{ $product->image_url && ! old('remove_image') ? 'Image deja enregistree sur cette fiche.' : 'Glisse-depose une image ici ou utilise les boutons ci-dessous.' }}</div>
                     <div class="product-upload-actions">
                         <button type="button" class="button button-secondary" id="product-pick-image">Choisir une photo</button>
                         <button type="button" class="button button-secondary" id="product-open-camera">Prendre une photo</button>
                     </div>
-                    <div class="product-upload-note">Formats acceptes : JPG, PNG, WEBP. La photo sera visible dans le catalogue, la fiche produit et le point de vente.</div>
+                    <div class="product-upload-note">Formats acceptes : JPG, PNG, WEBP. La photo sera visible dans le catalogue, la fiche et la caisse.</div>
                     @error('image')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
             </div>
@@ -286,7 +295,7 @@
         <div>
             <label for="barcode">Code-barres</label>
             <input id="barcode" type="text" name="barcode" value="{{ old('barcode', $product->barcode) }}" placeholder="Ex: 3700000000012">
-            <div class="help">Utilise pour la recherche rapide et le scan au point de vente.</div>
+            <div class="help">Utilise pour la recherche rapide et le scan en caisse.</div>
             @error('barcode')<div class="field-error">{{ $message }}</div>@enderror
         </div>
         <div>
@@ -315,7 +324,7 @@
         <div>
             <label for="unit">Unite de base</label>
             <input id="unit" type="text" name="unit" value="{{ old('unit', $product->unit ?: 'unite') }}" required>
-            <div class="help">Unite de stock et de reference interne.</div>
+            <div class="help">Unite de {{ strtolower($stockLabel) }} et de reference interne.</div>
             @error('unit')<div class="field-error">{{ $message }}</div>@enderror
         </div>
     </div>
@@ -325,21 +334,21 @@
             <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start;">
                 <div>
                     <h3 class="section-title">Famille et variantes</h3>
-                    <div class="muted">Modele proche d Odoo: un produit parent peut porter des variantes avec attributs et valeurs distinctes.</div>
+                    <div class="muted">Un {{ strtolower($productLabel) }} parent peut porter des variantes avec attributs et valeurs distinctes.</div>
                 </div>
                 <a href="{{ route('product-attributes.index') }}" class="button button-secondary">Gerer les attributs</a>
             </div>
 
             <div class="form-grid" style="margin-top:16px;">
                 <div>
-                    <label for="parent_product_id">Produit parent</label>
-                    <select id="parent_product_id" name="parent_product_id">
-                        <option value="">Produit autonome</option>
+                    <label for="parent_product_id">{{ $productLabel }} parent</label>
+                    <select id="parent_product_id" name="parent_product_id" data-product-picker data-product-mode="parents">
+                        <option value="">{{ $productLabel }} autonome</option>
                         @foreach ($variantParents as $parentProduct)
                             <option value="{{ $parentProduct->id }}" @selected((string) old('parent_product_id', $product->parent_product_id) === (string) $parentProduct->id)>{{ $parentProduct->name }}</option>
                         @endforeach
                     </select>
-                    <div class="help">Choisis une famille si ce produit represente une variante comme une taille, une couleur ou un conditionnement.</div>
+                    <div class="help">Choisis une famille si cette fiche represente une variante comme une taille, une couleur ou un conditionnement.</div>
                     @error('parent_product_id')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
@@ -349,10 +358,10 @@
                             <strong>Variante de {{ $product->parent->name }}</strong>
                             <div class="help" style="margin-top:8px;">{{ $product->variant_label ?: $product->variantValuesSummary() }}</div>
                         @elseif ($product->variants()->exists())
-                            <strong>Produit parent</strong>
-                            <div class="help" style="margin-top:8px;">Ce produit possede deja des variantes enfants.</div>
+                            <strong>{{ $productLabel }} parent</strong>
+                            <div class="help" style="margin-top:8px;">Cette fiche possede deja des variantes enfants.</div>
                         @else
-                            <strong>Produit simple</strong>
+                            <strong>{{ $productLabel }} simple</strong>
                             <div class="help" style="margin-top:8px;">Aucun rattachement de variante defini pour l instant.</div>
                         @endif
                     </div>
@@ -388,11 +397,11 @@
                 </div>
                 @error('variant_value_ids')<div class="field-error" style="margin-top:12px;">{{ $message }}</div>@enderror
                 @error('variant_value_ids.*')<div class="field-error" style="margin-top:12px;">{{ $message }}</div>@enderror
-                <div class="help" style="margin-top:12px;">Exemple: produit parent = Tee-shirt, puis variante = Couleur: Bleu et Taille: M.</div>
+                <div class="help" style="margin-top:12px;">Exemple: fiche parent = Tee-shirt, puis variante = Couleur: Bleu et Taille: M.</div>
             @endif
         </section>
         <section class="card" style="padding:18px;">
-            <h3 class="section-title">Canaux et comportement Odoo</h3>
+            <h3 class="section-title">Canaux et comportement</h3>
             <div class="product-toggle-card">
                 <div class="product-toggle-box">
                     <input type="hidden" name="sale_ok" value="0">
@@ -400,7 +409,7 @@
                         <input id="sale_ok" type="checkbox" name="sale_ok" value="1" @checked((bool) old('sale_ok', $product->sale_ok ?? true))>
                         <span>
                             <strong>Peut etre vendu</strong>
-                            <span class="muted">Le produit apparait dans devis, commandes clients, factures et POS.</span>
+                            <span class="muted">Cette fiche apparait dans devis, commandes, factures et caisse.</span>
                         </span>
                     </label>
                 </div>
@@ -409,8 +418,8 @@
                     <label for="sale_blocked">
                         <input id="sale_blocked" type="checkbox" name="sale_blocked" value="1" @checked((bool) old('sale_blocked', $product->sale_blocked ?? false))>
                         <span>
-                            <strong>Vente bloquee</strong>
-                            <span class="muted">Retire temporairement le produit des nouveaux flux de vente sans le desactiver.</span>
+                            <strong>{{ $saleLabel }} bloquee</strong>
+                            <span class="muted">Retire temporairement cette fiche des nouveaux flux {{ strtolower($saleLabel) }} sans la desactiver.</span>
                         </span>
                     </label>
                 </div>
@@ -420,7 +429,7 @@
                         <input id="purchase_ok" type="checkbox" name="purchase_ok" value="1" @checked((bool) old('purchase_ok', $product->purchase_ok ?? true))>
                         <span>
                             <strong>Peut etre achete</strong>
-                            <span class="muted">Le produit apparait dans demandes d achat, commandes fournisseurs et factures fournisseur.</span>
+                            <span class="muted">Cette fiche apparait dans demandes {{ strtolower($purchaseLabel) }}, commandes {{ strtolower($supplierLabel) }} et factures {{ strtolower($supplierLabel) }}.</span>
                         </span>
                     </label>
                 </div>
@@ -430,7 +439,7 @@
                         <input id="purchase_blocked" type="checkbox" name="purchase_blocked" value="1" @checked((bool) old('purchase_blocked', $product->purchase_blocked ?? false))>
                         <span>
                             <strong>Achat bloque</strong>
-                            <span class="muted">Empeche temporairement demandes, commandes et factures fournisseur sur ce produit.</span>
+                            <span class="muted">Empeche temporairement demandes, commandes et factures {{ strtolower($supplierLabel) }} sur cette fiche.</span>
                         </span>
                     </label>
                 </div>
@@ -443,15 +452,15 @@
 
 
         <section class="card" style="padding:18px;">
-            <h3 class="section-title">Vente</h3>
+            <h3 class="section-title">{{ $saleLabel }}</h3>
             <div class="form-grid">
                 <div>
-                    <label for="sale_price">Prix de vente</label>
+                    <label for="sale_price">Prix {{ strtolower($saleLabel) }}</label>
                     <input id="sale_price" type="number" step="0.01" min="0" name="sale_price" value="{{ old('sale_price', $product->sale_price ?: 0) }}" required>
                     @error('sale_price')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label for="sale_tax_rule_id">Taxe vente</label>
+                    <label for="sale_tax_rule_id">Taxe {{ strtolower($saleLabel) }}</label>
                     <select id="sale_tax_rule_id" name="sale_tax_rule_id">
                         <option value="">Aucune taxe</option>
                         @foreach ($taxRules as $taxRule)
@@ -461,13 +470,13 @@
                     @error('sale_tax_rule_id')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label for="sales_unit_name">Unite commerciale vente</label>
+                    <label for="sales_unit_name">Unite commerciale {{ strtolower($saleLabel) }}</label>
                     <input id="sales_unit_name" type="text" name="sales_unit_name" value="{{ old('sales_unit_name', $product->sales_unit_name) }}" placeholder="Ex: carton">
                     <div class="help">Exemple: 1 carton = 24 unites.</div>
                     @error('sales_unit_name')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label for="sales_unit_ratio">Ratio vente</label>
+                    <label for="sales_unit_ratio">Ratio {{ strtolower($saleLabel) }}</label>
                     <input id="sales_unit_ratio" type="number" step="0.001" min="0.001" name="sales_unit_ratio" value="{{ old('sales_unit_ratio', $product->sales_unit_ratio ?: 1) }}">
                     @error('sales_unit_ratio')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
@@ -481,39 +490,39 @@
                     @error('invoice_policy')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="full">
-                    <label for="sale_block_reason">Motif blocage vente</label>
-                    <textarea id="sale_block_reason" name="sale_block_reason" placeholder="Ex: rupture qualite, produit reserve, fin de gamme temporaire">{{ old('sale_block_reason', $product->sale_block_reason) }}</textarea>
+                    <label for="sale_block_reason">Motif blocage {{ strtolower($saleLabel) }}</label>
+                    <textarea id="sale_block_reason" name="sale_block_reason" placeholder="Ex: rupture qualite, fiche reservee, fin de gamme temporaire">{{ old('sale_block_reason', $product->sale_block_reason) }}</textarea>
                     <div class="help">Visible pour l equipe et repris dans les messages de blocage metier.</div>
                     @error('sale_block_reason')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="full">
-                    <label for="sales_description">Description vente</label>
-                    <textarea id="sales_description" name="sales_description" placeholder="Texte repris automatiquement dans devis, commandes et factures client">{{ old('sales_description', $product->sales_description) }}</textarea>
+                    <label for="sales_description">Description {{ strtolower($saleLabel) }}</label>
+                    <textarea id="sales_description" name="sales_description" placeholder="Texte repris automatiquement dans les documents {{ strtolower($saleLabel) }}">{{ old('sales_description', $product->sales_description) }}</textarea>
                     @error('sales_description')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
             </div>
         </section>
 
         <section class="card" style="padding:18px;">
-            <h3 class="section-title">Achat</h3>
+            <h3 class="section-title">{{ $purchaseLabel }}</h3>
             <div class="form-grid">
                 @if ($canViewProductCosts)
                     <div>
-                        <label for="purchase_price">Prix d'achat</label>
+                        <label for="purchase_price">Prix {{ strtolower($purchaseLabel) }}</label>
                         <input id="purchase_price" type="number" step="0.01" min="0" name="purchase_price" value="{{ old('purchase_price', $product->purchase_price ?: 0) }}" required>
                         @error('purchase_price')<div class="field-error">{{ $message }}</div>@enderror
                     </div>
                 @else
                     <div>
-                        <label>Cout achat</label>
+                        <label>Cout {{ strtolower($purchaseLabel) }}</label>
                         <div class="summary-box">
                             <strong>Cout confidentiel</strong>
-                            <div class="help" style="margin-top:8px;">Le cout d achat est reserve aux profils autorises. En creation, il sera initialise a 0. En mise a jour, la valeur actuelle sera conservee.</div>
+                            <div class="help" style="margin-top:8px;">Le cout {{ strtolower($purchaseLabel) }} est reserve aux profils autorises. En creation, il sera initialise a 0. En mise a jour, la valeur actuelle sera conservee.</div>
                         </div>
                     </div>
                 @endif
                 <div>
-                    <label for="purchase_unit_name">Unite achat</label>
+                    <label for="purchase_unit_name">Unite {{ strtolower($purchaseLabel) }}</label>
                     <input id="purchase_unit_name" type="text" name="purchase_unit_name" value="{{ old('purchase_unit_name', $product->purchase_unit_name) }}" placeholder="Ex: carton fournisseur">
                     <div class="help">Affiche le conditionnement d achat prefere.</div>
                     @error('purchase_unit_name')<div class="field-error">{{ $message }}</div>@enderror
@@ -524,7 +533,7 @@
                     @error('purchase_unit_ratio')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label for="purchase_tax_rule_id">Taxe achat</label>
+                    <label for="purchase_tax_rule_id">Taxe {{ strtolower($purchaseLabel) }}</label>
                     <select id="purchase_tax_rule_id" name="purchase_tax_rule_id">
                         <option value="">Aucune taxe</option>
                         @foreach ($taxRules as $taxRule)
@@ -534,29 +543,33 @@
                     @error('purchase_tax_rule_id')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="full">
-                    <label for="purchase_block_reason">Motif blocage achat</label>
-                    <textarea id="purchase_block_reason" name="purchase_block_reason" placeholder="Ex: fournisseur suspendu, produit obsolete, controle qualite en cours">{{ old('purchase_block_reason', $product->purchase_block_reason) }}</textarea>
-                    <div class="help">Utile pour expliquer pourquoi le produit ne doit plus etre commande temporairement.</div>
+                    <label for="purchase_block_reason">Motif blocage {{ strtolower($purchaseLabel) }}</label>
+                    <textarea id="purchase_block_reason" name="purchase_block_reason" placeholder="Ex: {{ strtolower($supplierLabel) }} suspendu, fiche obsolete, controle qualite en cours">{{ old('purchase_block_reason', $product->purchase_block_reason) }}</textarea>
+                    <div class="help">Utile pour expliquer pourquoi cette fiche ne doit plus etre commandee temporairement.</div>
                     @error('purchase_block_reason')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="full">
-                    <label for="purchase_description">Description achat</label>
-                    <textarea id="purchase_description" name="purchase_description" placeholder="Texte repris automatiquement dans les ecrans achat">{{ old('purchase_description', $product->purchase_description) }}</textarea>
+                    <label for="purchase_description">Description {{ strtolower($purchaseLabel) }}</label>
+                    <textarea id="purchase_description" name="purchase_description" placeholder="Texte repris automatiquement dans les ecrans {{ strtolower($purchaseLabel) }}">{{ old('purchase_description', $product->purchase_description) }}</textarea>
                     @error('purchase_description')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
             </div>
         </section>
 
         <section class="card" style="padding:18px;">
-            <h3 class="section-title">Fournisseurs produit</h3>
-            <div class="muted">Approche Odoo: plusieurs fournisseurs possibles, avec un fournisseur prefere, son prix, son delai et sa reference propre.</div>
+            <h3 class="section-title">{{ $suppliersLabel }} {{ strtolower($productLabel) }}</h3>
+            <div class="muted">Plusieurs {{ strtolower($suppliersLabel) }} possibles, avec un {{ strtolower($supplierLabel) }} prefere, son prix, son delai et sa reference propre.</div>
 
-            <div style="display:grid; gap:12px; margin-top:16px;">
+            <div id="supplier-info-list" style="display:grid; gap:12px; margin-top:16px;">
                 @foreach ($supplierRows as $index => $supplierRow)
-                    <div class="summary-box" style="padding:16px;">
+                    <div class="summary-box" data-supplier-row style="padding:16px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+                            <strong data-supplier-title>{{ $supplierLabel }} {{ $index + 1 }}</strong>
+                            <button type="button" class="button button-danger" data-remove-supplier @if ($supplierRows->count() === 1) hidden @endif>Supprimer</button>
+                        </div>
                         <div class="form-grid">
                             <div>
-                                <label for="supplier_infos_{{ $index }}_supplier_id">Fournisseur</label>
+                                <label for="supplier_infos_{{ $index }}_supplier_id">{{ $supplierLabel }}</label>
                                 <select id="supplier_infos_{{ $index }}_supplier_id" name="supplier_infos[{{ $index }}][supplier_id]">
                                     <option value="">Aucun</option>
                                     @foreach ($suppliers as $supplier)
@@ -565,12 +578,12 @@
                                 </select>
                             </div>
                             <div>
-                                <label for="supplier_infos_{{ $index }}_supplier_product_code">Reference fournisseur</label>
+                                <label for="supplier_infos_{{ $index }}_supplier_product_code">Reference {{ strtolower($supplierLabel) }}</label>
                                 <input id="supplier_infos_{{ $index }}_supplier_product_code" type="text" name="supplier_infos[{{ $index }}][supplier_product_code]" value="{{ $supplierRow['supplier_product_code'] ?? '' }}" placeholder="Ex: REF-FOUR-001">
                             </div>
                             <div>
-                                <label for="supplier_infos_{{ $index }}_supplier_product_name">Nom fournisseur</label>
-                                <input id="supplier_infos_{{ $index }}_supplier_product_name" type="text" name="supplier_infos[{{ $index }}][supplier_product_name]" value="{{ $supplierRow['supplier_product_name'] ?? '' }}" placeholder="Libelle utilise chez le fournisseur">
+                                <label for="supplier_infos_{{ $index }}_supplier_product_name">Nom {{ strtolower($supplierLabel) }}</label>
+                                <input id="supplier_infos_{{ $index }}_supplier_product_name" type="text" name="supplier_infos[{{ $index }}][supplier_product_name]" value="{{ $supplierRow['supplier_product_name'] ?? '' }}" placeholder="Libelle utilise chez le {{ strtolower($supplierLabel) }}">
                             </div>
                             <div>
                                 <label for="supplier_infos_{{ $index }}_min_qty">Quantite mini</label>
@@ -578,7 +591,7 @@
                             </div>
                             @if ($canViewProductCosts)
                                 <div>
-                                    <label for="supplier_infos_{{ $index }}_unit_cost">Cout fournisseur</label>
+                                    <label for="supplier_infos_{{ $index }}_unit_cost">Cout {{ strtolower($supplierLabel) }}</label>
                                     <input id="supplier_infos_{{ $index }}_unit_cost" type="number" step="0.01" min="0" name="supplier_infos[{{ $index }}][unit_cost]" value="{{ $supplierRow['unit_cost'] ?? '' }}" placeholder="Ex: 1750">
                                 </div>
                             @endif
@@ -590,16 +603,68 @@
                                 <input type="hidden" name="supplier_infos[{{ $index }}][is_preferred]" value="0">
                                 <label style="display:flex; align-items:center; gap:10px; margin:0;">
                                     <input type="checkbox" name="supplier_infos[{{ $index }}][is_preferred]" value="1" @checked((bool) ($supplierRow['is_preferred'] ?? false))>
-                                    Fournisseur prefere pour les achats et le reappro automatique
+                                    {{ $supplierLabel }} prefere pour les {{ strtolower($purchasesLabel) }} et le reappro automatique
                                 </label>
                             </div>
                         </div>
                     </div>
                 @endforeach
             </div>
+            <div style="margin-top:12px;">
+                <button type="button" class="button button-secondary" id="add-supplier-info">Ajouter un {{ strtolower($supplierLabel) }}</button>
+            </div>
+
+            <template id="supplier-info-template">
+                <div class="summary-box" data-supplier-row style="padding:16px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+                        <strong data-supplier-title>{{ $supplierLabel }}</strong>
+                        <button type="button" class="button button-danger" data-remove-supplier>Supprimer</button>
+                    </div>
+                    <div class="form-grid">
+                        <div>
+                            <label data-field-label="supplier_id">{{ $supplierLabel }}</label>
+                            <select data-field="supplier_id">
+                                <option value="">Aucun</option>
+                                @foreach ($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}">{{ $supplier->code }} - {{ $supplier->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label data-field-label="supplier_product_code">Reference {{ strtolower($supplierLabel) }}</label>
+                            <input type="text" data-field="supplier_product_code" placeholder="Ex: REF-FOUR-001">
+                        </div>
+                        <div>
+                            <label data-field-label="supplier_product_name">Nom {{ strtolower($supplierLabel) }}</label>
+                            <input type="text" data-field="supplier_product_name" placeholder="Libelle utilise chez le {{ strtolower($supplierLabel) }}">
+                        </div>
+                        <div>
+                            <label data-field-label="min_qty">Quantite mini</label>
+                            <input type="number" step="0.001" min="0" data-field="min_qty" placeholder="Ex: 12">
+                        </div>
+                        @if ($canViewProductCosts)
+                            <div>
+                                <label data-field-label="unit_cost">Cout {{ strtolower($supplierLabel) }}</label>
+                                <input type="number" step="0.01" min="0" data-field="unit_cost" placeholder="Ex: 1750">
+                            </div>
+                        @endif
+                        <div>
+                            <label data-field-label="lead_time_days">Delai achat</label>
+                            <input type="number" min="0" max="365" data-field="lead_time_days" placeholder="Ex: 7">
+                        </div>
+                        <div class="full">
+                            <input type="hidden" data-field="is_preferred" value="0">
+                            <label style="display:flex; align-items:center; gap:10px; margin:0;">
+                                <input type="checkbox" data-field="is_preferred" value="1">
+                                {{ $supplierLabel }} prefere pour les {{ strtolower($purchasesLabel) }} et le reappro automatique
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </template>
 
             @unless ($canViewProductCosts)
-                <div class="help" style="margin-top:12px;">Les couts fournisseurs sont masques ici et conserves automatiquement si des references existent deja.</div>
+                <div class="help" style="margin-top:12px;">Les couts {{ strtolower($suppliersLabel) }} sont masques ici et conserves automatiquement si des references existent deja.</div>
             @endunless
             <div class="help" style="margin-top:12px;">Si plusieurs lignes sont cochees comme preferees, l ERP gardera la premiere. Si aucune n est cochee, la premiere ligne renseignee deviendra la reference par defaut.</div>
             @error('supplier_infos')<div class="field-error">{{ $message }}</div>@enderror
@@ -612,12 +677,12 @@
         </section>
 
         <section class="card" style="padding:18px;">
-            <h3 class="section-title">Stock et suivi</h3>
+            <h3 class="section-title">{{ $stockLabel }} et suivi</h3>
             <div class="form-grid">
                 <div>
-                    <label for="min_stock">Stock minimum</label>
+                    <label for="min_stock">{{ $stockLabel }} minimum</label>
                     <input id="min_stock" type="number" step="0.001" min="0" name="min_stock" value="{{ old('min_stock', $product->min_stock ?: 0) }}" required>
-                    <div class="help">Seuil mini de vigilance sur le stock reel.</div>
+                    <div class="help">Seuil mini de vigilance sur le {{ strtolower($stockLabel) }} reel.</div>
                     @error('min_stock')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
@@ -626,11 +691,11 @@
                         <option value="0" @selected(! old('auto_replenish', $product->auto_replenish ?? false))>Desactive</option>
                         <option value="1" @selected(old('auto_replenish', $product->auto_replenish ?? false))>Active</option>
                     </select>
-                    <div class="help">Propose automatiquement ce produit en reappro quand le stock projete passe sous le seuil.</div>
+                    <div class="help">Propose automatiquement ce {{ strtolower($productLabel) }} en reappro quand le {{ strtolower($stockLabel) }} projete passe sous le seuil.</div>
                     @error('auto_replenish')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label for="reorder_max_qty">Stock cible</label>
+                    <label for="reorder_max_qty">{{ $stockLabel }} cible</label>
                     <input id="reorder_max_qty" type="number" step="0.001" min="0.001" name="reorder_max_qty" value="{{ old('reorder_max_qty', $product->reorder_max_qty) }}" placeholder="Ex: 24">
                     <div class="help">Quantite visee apres reappro. Si vide, le seuil mini sert de base.</div>
                     @error('reorder_max_qty')<div class="field-error">{{ $message }}</div>@enderror
@@ -638,7 +703,7 @@
                 <div>
                     <label for="reorder_multiple_qty">Multiple achat</label>
                     <input id="reorder_multiple_qty" type="number" step="0.001" min="0.001" name="reorder_multiple_qty" value="{{ old('reorder_multiple_qty', $product->reorder_multiple_qty) }}" placeholder="Ex: 6">
-                    <div class="help">Arrondit les suggestions par multiple fournisseur.</div>
+                    <div class="help">Arrondit les suggestions par multiple {{ strtolower($supplierLabel) }}.</div>
                     @error('reorder_multiple_qty')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
@@ -667,7 +732,7 @@
                 </div>
                 <div class="full">
                     <label for="description">Description generale</label>
-                    <textarea id="description" name="description" placeholder="Description interne ou technique du produit">{{ old('description', $product->description) }}</textarea>
+                    <textarea id="description" name="description" placeholder="Description interne ou technique du {{ strtolower($productLabel) }}">{{ old('description', $product->description) }}</textarea>
                     @error('description')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="full">
@@ -702,6 +767,7 @@
         const captureButton = document.getElementById('product-capture-image');
         const stopCameraButton = document.getElementById('product-stop-camera');
         const existingImageUrl = @json(old('remove_image') ? null : $product->image_url);
+        const productLabel = @json(strtolower($productLabel));
         let cameraStream = null;
 
         if (!fileInput || !dropzone || !preview || !title || !fileName || !pickButton || !cameraButton) {
@@ -726,12 +792,12 @@
 
         const setPlaceholder = (message) => {
             preview.innerHTML = `<div class="product-preview-placeholder">${initials(nameInput?.value)}</div>`;
-            title.textContent = 'Ajoute une photo produit';
+            title.textContent = `Ajoute une photo ${productLabel}`;
             fileName.textContent = message || 'Glisse-depose une image ici ou utilise les boutons ci-dessous.';
         };
 
         const setImagePreview = (url, label, detail) => {
-            preview.innerHTML = `<img src="${url}" alt="Apercu produit">`;
+            preview.innerHTML = `<img src="${url}" alt="Apercu">`;
             title.textContent = label;
             fileName.textContent = detail;
         };
@@ -804,7 +870,7 @@
                 if (!blob) {
                     return;
                 }
-                const capturedFile = new File([blob], `produit-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const capturedFile = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
                 assignFile(capturedFile);
                 stopCamera();
             }, 'image/jpeg', 0.92);
@@ -860,7 +926,7 @@
                 return;
             }
             if (existingImageUrl) {
-                setImagePreview(existingImageUrl, 'Photo actuelle du produit', 'Image deja enregistree sur ce produit.');
+                setImagePreview(existingImageUrl, 'Photo actuelle', 'Image deja enregistree sur cette fiche.');
                 return;
             }
             setPlaceholder();
@@ -875,10 +941,62 @@
         window.addEventListener('beforeunload', stopCamera);
 
         if (existingImageUrl && !removeCheckbox?.checked) {
-            setImagePreview(existingImageUrl, 'Photo actuelle du produit', 'Image deja enregistree sur ce produit.');
+            setImagePreview(existingImageUrl, 'Photo actuelle', 'Image deja enregistree sur cette fiche.');
         } else {
             setPlaceholder();
         }
+    })();
+</script>
+<script>
+    (() => {
+        const list = document.getElementById('supplier-info-list');
+        const addButton = document.getElementById('add-supplier-info');
+        const template = document.getElementById('supplier-info-template');
+        const supplierLabel = @json($supplierLabel);
+        if (!list || !addButton || !template) {
+            return;
+        }
+
+        const refreshRows = () => {
+            const rows = Array.from(list.querySelectorAll('[data-supplier-row]'));
+            rows.forEach((row, index) => {
+                const title = row.querySelector('[data-supplier-title]');
+                if (title) {
+                    title.textContent = `${supplierLabel} ${index + 1}`;
+                }
+                row.querySelectorAll('[data-field]').forEach((field) => {
+                    const key = field.dataset.field;
+                    field.name = `supplier_infos[${index}][${key}]`;
+                    if (field.type !== 'hidden') {
+                        field.id = `supplier_infos_${index}_${key}`;
+                    }
+                });
+                row.querySelectorAll('[data-field-label]').forEach((label) => {
+                    label.htmlFor = `supplier_infos_${index}_${label.dataset.fieldLabel}`;
+                });
+                const removeButton = row.querySelector('[data-remove-supplier]');
+                if (removeButton) {
+                    removeButton.hidden = rows.length === 1;
+                }
+            });
+        };
+
+        addButton.addEventListener('click', () => {
+            list.appendChild(template.content.cloneNode(true));
+            refreshRows();
+            list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+
+        list.addEventListener('click', (event) => {
+            const removeButton = event.target.closest('[data-remove-supplier]');
+            if (!removeButton) {
+                return;
+            }
+            removeButton.closest('[data-supplier-row]')?.remove();
+            refreshRows();
+        });
+
+        refreshRows();
     })();
 </script>
 <script>
@@ -918,6 +1036,3 @@
         syncVariantState();
     })();
 </script>
-
-
-

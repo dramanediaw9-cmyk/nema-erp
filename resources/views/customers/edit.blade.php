@@ -1,15 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'Modifier un client - Nema ERP')
-@section('page-title', 'Modifier le client')
+@php
+    $customerLabel = $businessVocabulary['client'] ?? 'Client';
+    $customersLabel = $businessVocabulary['clients'] ?? 'Clients';
+@endphp
+
+@section('title', 'Modifier un '.$customerLabel.' - Nema ERP')
+@section('page-title', 'Modifier le '.$customerLabel)
 
 @section('content')
     @include('partials.erp-page-head', [
-        'eyebrow' => 'Clients',
+        'eyebrow' => $customersLabel,
         'title' => 'Modifier '.$partner->name,
-        'description' => 'Mets a jour les coordonnees, les conditions de paiement et le statut du client.',
+        'description' => 'Mets a jour les coordonnees, les conditions de paiement et le statut du dossier.',
         'actions' => [
-            ['label' => 'Retour au client', 'url' => route('customers.show', $partner), 'style' => 'secondary'],
+            ['label' => 'Retour au dossier', 'url' => route('customers.show', $partner), 'style' => 'secondary'],
         ],
         'chips' => [
             ['type' => 'activity', 'value' => $partner->is_active ? 'active' : 'inactive'],

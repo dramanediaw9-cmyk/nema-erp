@@ -9,7 +9,10 @@
             <h2 style="margin:0;">Traçabilite des mouvements</h2>
             <div class="muted">Chaque entree et sortie de stock est historisee avec sa source, son entrepot et son auteur.</div>
         </div>
-        <a href="{{ route('stock.index') }}" class="button button-secondary">Retour au stock</a>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{{ route('stock.movements.print', request()->query()) }}" class="button button-primary" target="_blank">Imprimer</a>
+            <a href="{{ route('stock.index') }}" class="button button-secondary">Retour au stock</a>
+        </div>
     </div>
 
     <section class="card" style="margin-bottom:18px;">
@@ -112,4 +115,3 @@
         @endif
     </section>
 @endsection
-

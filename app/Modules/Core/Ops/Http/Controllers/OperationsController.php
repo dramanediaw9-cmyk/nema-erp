@@ -13,6 +13,7 @@ use App\Modules\Core\Integrations\Services\IntegrationSecretGovernanceService;
 use App\Modules\Core\Ops\Models\SystemHealthSnapshot;
 use App\Modules\Core\Ops\Services\ApplicationMonitoringService;
 use App\Modules\Core\Ops\Services\BackupService;
+use App\Modules\Core\Ops\Services\CoreNucleusHealthService;
 use App\Modules\Core\Ops\Services\SystemHealthService;
 use App\Support\ActivityLogger;
 use App\Support\CurrentWorkspace;
@@ -29,6 +30,7 @@ class OperationsController extends Controller
         private readonly IntegrationSecretGovernanceService $integrationSecretGovernanceService,
         private readonly BackupService $backupService,
         private readonly ApplicationMonitoringService $applicationMonitoringService,
+        private readonly CoreNucleusHealthService $coreNucleusHealthService,
         private readonly ActivityLogger $activityLogger,
     ) {}
 
@@ -42,6 +44,7 @@ class OperationsController extends Controller
 
         return view('ops.index', [
             'report' => $report,
+            'coreNucleus' => $this->coreNucleusHealthService->report($company),
             'snapshots' => SystemHealthSnapshot::query()
                 ->where('company_id', $company->id)
                 ->latest('captured_at')

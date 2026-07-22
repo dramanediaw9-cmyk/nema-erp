@@ -4,6 +4,7 @@ namespace App\Modules\Core\Company\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Core\Access\Models\Role;
 use App\Modules\Core\Approvals\Services\ApprovalSettingsService;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\DocumentSequence;
@@ -16,6 +17,7 @@ use App\Modules\Core\Company\Services\SectorProfileService;
 use App\Modules\Core\Integrations\Models\ApiToken;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Treasury\Models\CashAccount;
 use App\Modules\Treasury\Services\PaymentGatewayService;
 use App\Support\ActivityLogger;
@@ -23,6 +25,7 @@ use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -88,11 +91,24 @@ class SettingsController extends Controller
             'paymentTerms' => PaymentTerm::query()->where('company_id', $company->id)->orderByDesc('is_default')->orderBy('days')->get(),
             'priceLists' => PriceList::query()->with(['items.product'])->where('company_id', $company->id)->orderByDesc('is_default')->orderBy('name')->get(),
             'taxRules' => TaxRule::query()->where('company_id', $company->id)->orderByDesc('is_default_sales')->orderBy('name')->get(),
-            'products' => Product::query()->where('company_id', $company->id)->where('is_active', true)->orderBy('name')->get(),
+            'products' => app(\App\Modules\Catalog\Services\ProductOptionService::class)->initial($company->id),
             'apiTokens' => ApiToken::query()->where('company_id', $company->id)->latest()->get(),
             'integrationWebhook' => $this->integrationOutboxService->configurationForCompany($company->id),
             'paymentGateways' => $this->paymentGatewayService->configurationForCompany($company->id),
             'cashAccounts' => CashAccount::query()->where('company_id', $company->id)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'adminSummary' => [
+                'branches_total' => Branch::query()->where('company_id', $company->id)->count(),
+                'branches_active' => Branch::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                'users_total' => User::query()->where('company_id', $company->id)->count(),
+                'users_active' => User::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                'roles_total' => Role::query()->where('company_id', $company->id)->count(),
+                'warehouses_total' => Warehouse::query()->where('company_id', $company->id)->count(),
+                'warehouses_active' => Warehouse::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                'cash_accounts_total' => CashAccount::query()->where('company_id', $company->id)->count(),
+                'cash_accounts_active' => CashAccount::query()->where('company_id', $company->id)->where('is_active', true)->count(),
+                'document_sequences_total' => DocumentSequence::query()->where('company_id', $company->id)->count(),
+                'tax_rules_total' => TaxRule::query()->where('company_id', $company->id)->count(),
+            ],
             'sectorProfiles' => $this->sectorProfileService->profiles(),
             'sectorProfile' => $this->sectorProfileService->profileForCompany($company->id),
         ]);
@@ -115,7 +131,16 @@ class SettingsController extends Controller
             'country' => ['required', 'string', 'max:100'],
             'timezone' => ['required', 'string', 'max:100'],
             'locale' => ['required', 'string', 'max:10'],
+            'logo' => ['nullable', 'image', 'max:2048'],
         ]);
+
+        $logoPath = $company->logo_path;
+        if ($request->hasFile('logo')) {
+            if ($logoPath) {
+                Storage::disk('public')->delete($logoPath);
+            }
+            $logoPath = $request->file('logo')->store('company-logos', 'public');
+        }
 
         $company->update([
             'name' => $data['name'],
@@ -125,6 +150,7 @@ class SettingsController extends Controller
             'phone' => $data['phone'] ?? null,
             'email' => $data['email'] ?? null,
             'address' => $data['address'] ?? null,
+            'logo_path' => $logoPath,
             'currency_code' => strtoupper($data['currency_code']),
         ]);
 
@@ -154,12 +180,12 @@ class SettingsController extends Controller
 
         $profile = $this->sectorProfileService->profileForCompany($company->id);
 
-        $this->activityLogger->log('settings.sector_profile.update', 'Mise a jour profil secteur', $company, [
+        $this->activityLogger->log('settings.sector_profile.update', 'Mise a jour metier entreprise', $company, [
             'sector_profile' => $profile['key'],
             'sector_label' => $profile['label'],
         ]);
 
-        return redirect()->route('settings.index')->with('success', 'Profil secteur mis a jour.');
+        return redirect()->route('settings.index')->with('success', 'Metier de l entreprise mis a jour.');
     }
 
     public function updateSequences(Request $request, CurrentWorkspace $workspace): RedirectResponse
@@ -685,12 +711,6 @@ class SettingsController extends Controller
         return max((int) $value, 0) ?: null;
     }
 }
-
-
-
-
-
-
 
 
 

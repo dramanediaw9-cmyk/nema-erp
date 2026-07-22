@@ -1,0 +1,41 @@
+.nema-product-picker {
+    display: grid;
+    gap: 5px;
+    min-width: 180px;
+}
+
+.nema-product-picker__search {
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background: #fff;
+    color: #172033;
+    font: inherit;
+}
+
+.nema-product-picker__search:focus {
+    outline: 2px solid rgba(14, 116, 144, .22);
+    border-color: #0e7490;
+}
+
+.nema-product-picker__status {
+    min-height: 16px;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.nema-product-picker select {
+    width: 100%;
+}
+
+@media (max-width: 720px) {
+    .nema-product-picker {
+        min-width: 150px;
+    }
+
+    .nema-product-picker__search {
+        min-height: 40px;
+    }
+}

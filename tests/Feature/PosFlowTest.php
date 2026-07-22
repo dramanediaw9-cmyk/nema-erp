@@ -48,7 +48,7 @@ class PosFlowTest extends TestCase
             ->withSession($this->workspaceSession($user))
             ->get(route('pos.index'))
             ->assertOk()
-            ->assertSeeText('OPEN')
+            ->assertSeeText('Ouverte')
             ->assertSeeText('50 000')
             ->assertSeeText($user->name);
 
@@ -56,7 +56,7 @@ class PosFlowTest extends TestCase
             ->withSession($this->workspaceSession($user))
             ->get(route('pos.show', $session))
             ->assertOk()
-            ->assertSeeText('OPEN')
+            ->assertSeeText('Ouverte')
             ->assertSeeText('Montant initial')
             ->assertSeeText('50 000 XOF')
             ->assertSeeText($user->name);
@@ -201,7 +201,7 @@ class PosFlowTest extends TestCase
             ->assertSeeText('Payer')
             ->assertSeeText('Remboursement')
             ->assertSeeText('Paye')
-            ->assertSeeText('En attente')
+            ->assertSeeText('Partiel')
             ->assertSeeText('Rembourse')
             ->assertSeeText('Ligne POS dense');
 
@@ -558,7 +558,7 @@ class PosFlowTest extends TestCase
             ->withSession($this->workspaceSession($user))
             ->get(route('pos.receipt.thermal', $invoice))
             ->assertOk()
-            ->assertSeeText('TICKET CAISSE')
+            ->assertSeeText('Ticket de caisse')
             ->assertSeeText($invoice->invoice_number)
             ->assertSeeText('Remise')
             ->assertSeeText('855');
@@ -751,7 +751,7 @@ class PosFlowTest extends TestCase
         $this->assertStringContainsString("submitButton.addEventListener('click'", $html);
         $this->assertStringContainsString('const attemptSaleSubmission = () => {', $html);
         $this->assertStringContainsString('"available_qty":', $html);
-        $this->assertStringContainsString('Stock dispo', $html);
+        $this->assertStringContainsString('${esc(posVocabulary.stock || \'Stock\')} dispo', $html);
         $this->assertStringContainsString('const availableProductQty = (productId, currentLineUid = null) => {', $html);
         $this->assertStringContainsString('HTMLFormElement.prototype.submit.call(saleForm);', $html);
         $this->assertStringNotContainsString('const openThermalReceiptPopup = () => {', $html);
@@ -1377,4 +1377,3 @@ class PosFlowTest extends TestCase
             ->value('balance');
     }
 }
-
