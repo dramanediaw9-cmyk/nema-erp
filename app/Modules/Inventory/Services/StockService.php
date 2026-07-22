@@ -234,6 +234,46 @@ class StockService
         );
     }
 
+    public function synchronizeExternalBalance(
+        Product $product,
+        int $companyId,
+        int $branchId,
+        float $targetQuantity,
+        float $unitCost,
+        string $source,
+        int $sourceId,
+        ?User $user = null,
+        ?int $warehouseId = null,
+    ): ?StockMovement {
+        return DB::transaction(function () use ($product, $companyId, $branchId, $targetQuantity, $unitCost, $source, $sourceId, $user, $warehouseId): ?StockMovement {
+            Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $resolvedWarehouseId = $warehouseId ?: $this->defaultWarehouseId($companyId, $branchId);
+            $currentQuantity = $this->availableQuantity($companyId, $branchId, $product->id, $resolvedWarehouseId);
+            $difference = round($targetQuantity - $currentQuantity, 3);
+
+            if (abs($difference) < 0.0005) {
+                return null;
+            }
+
+            return $this->recordMovement(
+                product: $product,
+                companyId: $companyId,
+                branchId: $branchId,
+                warehouseId: $resolvedWarehouseId,
+                type: $difference > 0 ? 'adjustment_in' : 'adjustment_out',
+                quantityIn: $difference > 0 ? $difference : 0,
+                quantityOut: $difference < 0 ? abs($difference) : 0,
+                unitCost: $unitCost,
+                reason: 'Synchronisation stock externe',
+                notes: 'Solde aligne depuis '.$source.' vers '.number_format($targetQuantity, 3, '.', '').'.',
+                referenceType: $source,
+                referenceId: $sourceId,
+                movementDate: now(),
+                user: $user,
+            );
+        });
+    }
+
     public function recordAdjustment(Product $product, int $companyId, int $branchId, string $direction, float $quantity, float $unitCost, string $reason, ?string $notes, ?User $user, CarbonInterface|string|null $movementDate = null, ?int $warehouseId = null, ?string $referenceType = null, ?int $referenceId = null): StockMovement
     {
         if ($direction === 'out') {

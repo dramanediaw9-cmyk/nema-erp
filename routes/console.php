@@ -4,6 +4,9 @@ use App\Modules\Core\Approvals\Services\ApprovalFlowService;
 use App\Modules\Core\Automation\Services\AutomationEngineService;
 use App\Modules\Core\Branch\Models\Branch;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\Core\Imports\Odoo\Jobs\ProcessOdooProductImportBatch;
+use App\Modules\Core\Imports\Odoo\Models\OdooConnection;
+use App\Modules\Core\Imports\Odoo\Services\OdooProductImportService;
 use App\Modules\Core\Integrations\Services\IntegrationOutboxService;
 use App\Modules\Core\Notifications\Services\NotificationService;
 use App\Modules\Core\Notifications\Services\OutboundNotificationService;
@@ -558,11 +561,57 @@ Artisan::command('nema:ops:verify-production {--json : Retourne le rapport en JS
     return $process->getExitCode() ?? 1;
 })->purpose('Controle les contrats HTTP publics et la securite de la production');
 
+Artisan::command('nema:odoo:sync-products {connection : ID de la connexion Odoo} {--mode=incremental : full ou incremental} {--now : Traite immediatement sans file}', function (OdooProductImportService $service): int {
+    $connection = OdooConnection::query()->find((int) $this->argument('connection'));
+    if (! $connection) {
+        $this->error('Connexion Odoo introuvable.');
+
+        return 1;
+    }
+
+    $mode = (string) $this->option('mode');
+    if (! in_array($mode, ['full', 'incremental'], true)) {
+        $this->error('Mode invalide. Utilisez full ou incremental.');
+
+        return 1;
+    }
+
+    $existing = $connection->runs()->whereIn('status', ['queued', 'running'])->first();
+    if ($existing) {
+        $this->warn('Une execution est deja active : '.$existing->uuid);
+
+        return 2;
+    }
+
+    $run = $service->createRun($connection, $mode);
+    $this->info('Execution creee : '.$run->uuid);
+
+    if (! $this->option('now')) {
+        ProcessOdooProductImportBatch::dispatch($run->id);
+        $this->info('Execution placee dans la file '.config('odoo.queue', 'imports').'.');
+
+        return 0;
+    }
+
+    while ($service->processNextBatch($run)) {
+        $run->refresh();
+        $this->line(sprintf('%s | %d/%d | cree=%d maj=%d ignore=%d erreurs=%d', $run->phase, $run->processed_count, $run->source_total, $run->created_count, $run->updated_count, $run->skipped_count, $run->failed_count));
+    }
+
+    $run->refresh();
+    $this->info('Synchronisation terminee : '.$run->processed_count.' enregistrement(s) traite(s).');
+
+    return $run->failed_count > 0 ? 2 : 0;
+})->purpose('Importe ou synchronise les produits Odoo dans Nema ERP');
+
 Schedule::command('nema:notifications:dispatch-outbound --limit=50')->everyMinute();
 Schedule::command('nema:notifications:sync-internal')->everyFifteenMinutes();
 Schedule::command('nema:approvals:escalate-stale --limit=50')->hourlyAt(5);
 Schedule::command('nema:automation:run')->everyThirtyMinutes();
 Schedule::command('nema:integrations:dispatch-outbox --limit=50')->everyMinute();
+Schedule::command('queue:work --queue=imports --stop-when-empty --max-time=50 --tries=3 --timeout=180')
+    ->everyMinute()
+    ->withoutOverlapping();
 Schedule::command('nema:ops:health-check --store')->hourly();
 Schedule::command('nema:ops:monitor-app')->hourlyAt(20);
 Schedule::command('nema:ops:outbox-prune --days=30')->dailyAt('02:15');
