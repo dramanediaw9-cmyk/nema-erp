@@ -11,6 +11,14 @@
         </div>
     </div>
 
+    <section class="card" style="margin-bottom:16px;padding:16px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+        <div>
+            <h2 style="margin:0 0 4px;">Synchronisation directe depuis Odoo</h2>
+            <div class="muted">Importe en lots les produits, variantes, images, fournisseurs, attributs et stocks par JSON-RPC ou XML-RPC, avec reprise et journal d'erreurs.</div>
+        </div>
+        <a href="{{ route('imports.odoo.index') }}" class="button button-primary">Configurer Odoo</a>
+    </section>
+
     <div class="split" style="margin-bottom:20px;">
         <section class="card">
             <h2 style="margin-top:0;">Import clients</h2>
