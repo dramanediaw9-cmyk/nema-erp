@@ -4414,10 +4414,11 @@
         });
 
         if ('serviceWorker' in navigator) {
+            const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
             let posSwReloaded = false;
 
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (posSwReloaded) {
+                if (!hadServiceWorkerController || posSwReloaded || state.items.length || syncInFlight) {
                     return;
                 }
 
