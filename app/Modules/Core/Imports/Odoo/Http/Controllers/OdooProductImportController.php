@@ -177,6 +177,24 @@ class OdooProductImportController extends Controller
         return response()->json($this->runPayload($run));
     }
 
+    public function advance(OdooProductImportRun $run, CurrentWorkspace $workspace): JsonResponse
+    {
+        $this->guardRun($run, $workspace);
+        $run->refresh();
+
+        if ($this->needsBrowserFallback($run)) {
+            try {
+                ProcessOdooProductImportBatch::dispatchSync($run->id, false);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        $run->refresh()->load(['connection'])->loadCount('errors');
+
+        return response()->json($this->runPayload($run));
+    }
+
     public function cancel(OdooProductImportRun $run, CurrentWorkspace $workspace): RedirectResponse
     {
         $this->guardRun($run, $workspace);
@@ -227,6 +245,18 @@ class OdooProductImportController extends Controller
             'last_error' => $run->last_error,
             'heartbeat_at' => $run->heartbeat_at?->toIso8601String(),
             'finished_at' => $run->finished_at?->toIso8601String(),
+            'worker_fallback' => $this->needsBrowserFallback($run),
         ];
+    }
+
+    private function needsBrowserFallback(OdooProductImportRun $run): bool
+    {
+        if (! in_array($run->status, ['queued', 'running'], true)) {
+            return false;
+        }
+
+        $threshold = max(5, (int) config('odoo.browser_fallback_after', 20));
+
+        return ! $run->heartbeat_at || $run->heartbeat_at->lte(now()->subSeconds($threshold));
     }
 }
