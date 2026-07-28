@@ -223,6 +223,95 @@ class OdooProductImportTest extends TestCase
             ->value('product_id'));
     }
 
+    public function test_full_import_uses_barcode_identity_when_odoo_internal_references_are_duplicated(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $connection = OdooConnection::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+            'name' => 'Odoo Duplicate References',
+            'protocol' => 'jsonrpc',
+            'url' => 'https://odoo.example.test',
+            'database' => 'fake',
+            'username' => 'fake',
+            'secret' => 'fake',
+            'batch_size' => 25,
+            'verify_ssl' => true,
+            'import_images' => false,
+            'import_stock' => false,
+            'is_active' => true,
+        ]);
+
+        $first = Product::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'sku' => 'REFERENCE-PARTAGEE',
+            'barcode' => 'BARCODE-A',
+            'name' => 'Premier produit',
+        ]);
+        $second = Product::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'sku' => 'REFERENCE-LOCALE-B',
+            'barcode' => 'BARCODE-B',
+            'name' => 'Deuxieme produit',
+        ]);
+
+        foreach ([
+            ['product.template', 10, 10, $first],
+            ['product.product', 11, 10, $first],
+            ['product.template', 20, 20, $second],
+            ['product.product', 21, 20, $second],
+        ] as [$model, $odooId, $templateId, $product]) {
+            OdooProductMapping::query()->create([
+                'tenant_id' => $user->tenant_id,
+                'company_id' => $user->company_id,
+                'odoo_connection_id' => $connection->id,
+                'product_id' => $product->id,
+                'odoo_model' => $model,
+                'odoo_id' => $odooId,
+                'odoo_template_id' => $templateId,
+            ]);
+        }
+
+        $client = new FakeOdooDuplicateReferenceClient;
+        $this->app->instance(OdooClientFactory::class, new class($client) extends OdooClientFactory
+        {
+            public function __construct(private readonly OdooClient $client) {}
+
+            public function make(OdooConnection $connection): OdooClient
+            {
+                return $this->client;
+            }
+        });
+
+        $service = $this->app->make(OdooProductImportService::class);
+        $run = $service->createRun($connection, 'full', $user);
+        while ($service->processNextBatch($run)) {
+            $run->refresh();
+        }
+
+        $this->assertSame('completed', $run->fresh()->status);
+        $this->assertSame(0, $run->fresh()->failed_count);
+        $this->assertSame('REFERENCE-PARTAGEE', $first->fresh()->sku);
+        $this->assertSame('REFERENCE-LOCALE-B', $second->fresh()->sku);
+        $this->assertSame('BARCODE-A', $first->fresh()->barcode);
+        $this->assertSame('BARCODE-B', $second->fresh()->barcode);
+        $this->assertSame($second->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.template')
+            ->where('odoo_id', 20)
+            ->value('product_id'));
+        $this->assertSame($second->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.product')
+            ->where('odoo_id', 21)
+            ->value('product_id'));
+    }
+
     public function test_manager_browser_can_advance_a_queued_import_when_no_worker_is_available(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
@@ -430,6 +519,87 @@ class FakeOdooCrossedMappingClient extends FakeOdooProductClient
             'display_name' => $name,
             'default_code' => null,
             'barcode' => 'BARCODE-'.$id,
+            'lst_price' => 1000,
+            'standard_price' => 500,
+            'active' => true,
+            'qty_available' => 1,
+            'product_template_attribute_value_ids' => [],
+            'product_template_variant_value_ids' => [],
+            'write_date' => '2026-07-28 10:00:00',
+        ];
+    }
+}
+
+class FakeOdooDuplicateReferenceClient extends FakeOdooProductClient
+{
+    public function searchCount(string $model, array $domain): int
+    {
+        return 2;
+    }
+
+    public function searchRead(string $model, array $domain, array $fields, int $limit = 0, int $offset = 0, string $order = 'id asc'): array
+    {
+        if ($model === 'product.supplierinfo') {
+            return [];
+        }
+
+        $cursor = collect($domain)->first(fn (array $clause): bool => ($clause[0] ?? null) === 'id' && ($clause[1] ?? null) === '>');
+        if ($cursor) {
+            return [];
+        }
+
+        if ($model === 'product.template') {
+            return [
+                $this->template(10, 11, 'Premier produit', 'BARCODE-A'),
+                $this->template(20, 21, 'Deuxieme produit', 'BARCODE-B'),
+            ];
+        }
+
+        if ($model === 'product.product') {
+            return [
+                $this->variant(11, 10, 'Premier produit', 'BARCODE-A'),
+                $this->variant(21, 20, 'Deuxieme produit', 'BARCODE-B'),
+            ];
+        }
+
+        return [];
+    }
+
+    private function template(int $id, int $variantId, string $name, string $barcode): array
+    {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'default_code' => 'REFERENCE-PARTAGEE',
+            'barcode' => $barcode,
+            'categ_id' => false,
+            'list_price' => 1000,
+            'standard_price' => 500,
+            'taxes_id' => [],
+            'supplier_taxes_id' => [],
+            'uom_id' => [1, 'Unite'],
+            'uom_po_id' => [1, 'Unite'],
+            'active' => true,
+            'sale_ok' => true,
+            'purchase_ok' => true,
+            'detailed_type' => 'product',
+            'product_variant_ids' => [$variantId],
+            'attribute_line_ids' => [],
+            'write_date' => '2026-07-28 10:00:00',
+            'tracking' => 'none',
+            'invoice_policy' => 'order',
+        ];
+    }
+
+    private function variant(int $id, int $templateId, string $name, string $barcode): array
+    {
+        return [
+            'id' => $id,
+            'product_tmpl_id' => [$templateId, $name],
+            'name' => $name,
+            'display_name' => $name,
+            'default_code' => 'REFERENCE-PARTAGEE',
+            'barcode' => $barcode,
             'lst_price' => 1000,
             'standard_price' => 500,
             'active' => true,
