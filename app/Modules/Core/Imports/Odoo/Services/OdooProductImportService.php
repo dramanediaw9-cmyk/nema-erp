@@ -198,12 +198,24 @@ class OdooProductImportService
         $mapping = $context['mappings'][$odooId] ?? null;
         $variantIds = $this->ids($record['product_variant_ids'] ?? []);
         $singleVariant = count($variantIds) <= 1;
-        $sku = $singleVariant
-            ? $this->sku($record['default_code'] ?? null, 'ODOO-P-'.$connection->id.'-'.($variantIds[0] ?? $odooId))
+        $fallbackSku = $singleVariant
+            ? 'ODOO-P-'.$connection->id.'-'.($variantIds[0] ?? $odooId)
             : 'ODOO-T-'.$connection->id.'-'.$odooId;
+        $requestedSku = $singleVariant
+            ? $this->sku($record['default_code'] ?? null, $fallbackSku)
+            : $fallbackSku;
         $barcode = $this->nullableString($record['barcode'] ?? null);
         $mappedProduct = $mapping?->product;
-        $product = $this->findBySku($run->company_id, $sku);
+        $skuProduct = $this->findBySku($run->company_id, $requestedSku);
+        $barcodeProduct = $this->findByBarcode(
+            $run->company_id,
+            $barcode,
+            null,
+            $connection->id,
+            'product.template',
+            $odooId,
+        );
+        $product = $barcodeProduct ?: $skuProduct;
 
         if (! $product && $mappedProduct && ! $this->hasConflictingMapping($connection->id, 'product.template', $odooId, $mappedProduct->id)) {
             $product = $mappedProduct;
@@ -212,7 +224,7 @@ class OdooProductImportService
         if (! $product && $singleVariant) {
             $product = $this->findBySkuOrBarcode(
                 $run->company_id,
-                $sku,
+                $requestedSku,
                 $barcode,
                 null,
                 $connection->id,
@@ -223,6 +235,8 @@ class OdooProductImportService
 
         $created = ! $product;
         $product ??= new Product;
+        $sku = $this->availableSku($run->company_id, $requestedSku, $fallbackSku, $product);
+        $barcode = $this->availableBarcode($run->company_id, $barcode, $product);
         $mappingNeedsRepair = $mapping && $product->exists && (int) $mapping->product_id !== (int) $product->id;
         $taxes = $context['taxes'];
         $saleTaxes = collect($this->ids($record['taxes_id'] ?? []))->map(fn (int $id): ?array => $taxes[$id] ?? null)->filter()->values()->all();
@@ -315,30 +329,42 @@ class OdooProductImportService
         $mapping = $context['mappings'][$odooId] ?? null;
         $parent = $parentMapping->product;
         $singleVariant = ! str_starts_with((string) $parent->sku, 'ODOO-T-'.$connection->id.'-');
-        $sku = $this->sku($record['default_code'] ?? null, 'ODOO-P-'.$connection->id.'-'.$odooId);
+        $fallbackSku = 'ODOO-P-'.$connection->id.'-'.$odooId;
+        $requestedSku = $this->sku($record['default_code'] ?? null, $fallbackSku);
         $barcode = $this->nullableString($record['barcode'] ?? null);
         $mappedProduct = $mapping?->product;
         $excludeId = $singleVariant ? null : $parent->id;
-        $product = $this->findBySku($run->company_id, $sku, $excludeId);
-        if (! $product && $mappedProduct && ! $this->hasConflictingMapping($connection->id, 'product.product', $odooId, $mappedProduct->id)) {
-            $product = $mappedProduct;
-        }
-        if (! $product) {
-            $product = $singleVariant
-                ? $parent
-                : $this->findBySkuOrBarcode(
-                    $run->company_id,
-                    $sku,
-                    $barcode,
-                    $parent->id,
-                    $connection->id,
-                    'product.product',
-                    $odooId,
-                );
+        if ($singleVariant) {
+            $product = $parent;
+        } else {
+            $skuProduct = $this->findBySku($run->company_id, $requestedSku, $excludeId);
+            $barcodeProduct = $this->findByBarcode(
+                $run->company_id,
+                $barcode,
+                $excludeId,
+                $connection->id,
+                'product.product',
+                $odooId,
+            );
+            $product = $barcodeProduct ?: $skuProduct;
+            if (! $product && $mappedProduct && ! $this->hasConflictingMapping($connection->id, 'product.product', $odooId, $mappedProduct->id)) {
+                $product = $mappedProduct;
+            }
+            $product ??= $this->findBySkuOrBarcode(
+                $run->company_id,
+                $requestedSku,
+                $barcode,
+                $parent->id,
+                $connection->id,
+                'product.product',
+                $odooId,
+            );
         }
 
         $created = ! $product;
         $product ??= new Product;
+        $sku = $this->availableSku($run->company_id, $requestedSku, $fallbackSku, $product);
+        $barcode = $this->availableBarcode($run->company_id, $barcode, $product);
         $mappingNeedsRepair = $mapping && $product->exists && (int) $mapping->product_id !== (int) $product->id;
         $variantValues = $context['variant_values_by_variant'][$odooId] ?? [];
         $suppliers = $context['suppliers_by_variant'][$odooId] ?? $context['suppliers_by_template'][$templateId] ?? [];
@@ -742,6 +768,21 @@ class OdooProductImportService
             return $bySku;
         }
 
+        return $this->findByBarcode($companyId, $barcode, $excludeId, $connectionId, $odooModel, $odooId);
+    }
+
+    private function findByBarcode(
+        int $companyId,
+        ?string $barcode,
+        ?int $excludeId,
+        int $connectionId,
+        string $odooModel,
+        int $odooId,
+    ): ?Product {
+        if (! $barcode) {
+            return null;
+        }
+
         return Product::query()
             ->where('company_id', $companyId)
             ->when($excludeId, fn ($query, int $id) => $query->whereKeyNot($id))
@@ -755,6 +796,43 @@ class OdooProductImportService
                     ->where('odoo_product_mappings.odoo_id', '<>', $odooId);
             })
             ->first();
+    }
+
+    private function availableSku(int $companyId, string $requested, string $fallback, Product $product): string
+    {
+        $conflict = $this->findBySku($companyId, $requested);
+        if (! $conflict || ($product->exists && $conflict->is($product))) {
+            return $requested;
+        }
+
+        if ($product->exists && filled($product->sku)) {
+            return (string) $product->sku;
+        }
+
+        $candidate = $fallback;
+        $suffix = 1;
+        while ($this->findBySku($companyId, $candidate)) {
+            $candidate = Str::limit($fallback, 240, '').'-'.$suffix++;
+        }
+
+        return $candidate;
+    }
+
+    private function availableBarcode(int $companyId, ?string $requested, Product $product): ?string
+    {
+        if (! $requested) {
+            return null;
+        }
+
+        $conflict = Product::query()
+            ->where('company_id', $companyId)
+            ->where('barcode', $requested)
+            ->first();
+        if (! $conflict || ($product->exists && $conflict->is($product))) {
+            return $requested;
+        }
+
+        return $product->exists ? $this->nullableString($product->barcode) : null;
     }
 
     private function hasConflictingMapping(int $connectionId, string $odooModel, int $odooId, int $productId): bool
