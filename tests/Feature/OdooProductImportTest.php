@@ -126,6 +126,103 @@ class OdooProductImportTest extends TestCase
         $this->assertSame(2, $second->fresh()->skipped_count);
     }
 
+    public function test_full_import_repairs_crossed_mappings_before_updating_skus(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $connection = OdooConnection::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+            'name' => 'Odoo Mapping Repair',
+            'protocol' => 'jsonrpc',
+            'url' => 'https://odoo.example.test',
+            'database' => 'fake',
+            'username' => 'fake',
+            'secret' => 'fake',
+            'batch_size' => 25,
+            'verify_ssl' => true,
+            'import_images' => false,
+            'import_stock' => false,
+            'is_active' => true,
+        ]);
+
+        $first = Product::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'sku' => 'ODOO-P-'.$connection->id.'-11',
+            'barcode' => 'BARCODE-11',
+            'name' => 'Premier produit',
+        ]);
+        $second = Product::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'sku' => 'ODOO-P-'.$connection->id.'-21',
+            'barcode' => 'BARCODE-21',
+            'name' => 'Deuxieme produit',
+        ]);
+
+        OdooProductMapping::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'odoo_connection_id' => $connection->id,
+            'product_id' => $second->id,
+            'odoo_model' => 'product.template',
+            'odoo_id' => 10,
+            'odoo_template_id' => 10,
+        ]);
+        OdooProductMapping::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'odoo_connection_id' => $connection->id,
+            'product_id' => $first->id,
+            'odoo_model' => 'product.template',
+            'odoo_id' => 20,
+            'odoo_template_id' => 20,
+        ]);
+
+        $client = new FakeOdooCrossedMappingClient;
+        $this->app->instance(OdooClientFactory::class, new class($client) extends OdooClientFactory
+        {
+            public function __construct(private readonly OdooClient $client) {}
+
+            public function make(OdooConnection $connection): OdooClient
+            {
+                return $this->client;
+            }
+        });
+
+        $service = $this->app->make(OdooProductImportService::class);
+        $run = $service->createRun($connection, 'full', $user);
+        while ($service->processNextBatch($run)) {
+            $run->refresh();
+        }
+
+        $this->assertSame('completed', $run->fresh()->status);
+        $this->assertSame(0, $run->fresh()->failed_count);
+        $this->assertSame($first->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.template')
+            ->where('odoo_id', 10)
+            ->value('product_id'));
+        $this->assertSame($second->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.template')
+            ->where('odoo_id', 20)
+            ->value('product_id'));
+        $this->assertSame($first->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.product')
+            ->where('odoo_id', 11)
+            ->value('product_id'));
+        $this->assertSame($second->id, OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.product')
+            ->where('odoo_id', 21)
+            ->value('product_id'));
+    }
+
     public function test_manager_browser_can_advance_a_queued_import_when_no_worker_is_available(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
@@ -260,5 +357,86 @@ class FakeOdooProductClient implements OdooClient
     public function read(string $model, array $ids, array $fields): array
     {
         return [];
+    }
+}
+
+class FakeOdooCrossedMappingClient extends FakeOdooProductClient
+{
+    public function searchCount(string $model, array $domain): int
+    {
+        return 2;
+    }
+
+    public function searchRead(string $model, array $domain, array $fields, int $limit = 0, int $offset = 0, string $order = 'id asc'): array
+    {
+        if ($model === 'product.supplierinfo') {
+            return [];
+        }
+
+        $cursor = collect($domain)->first(fn (array $clause): bool => ($clause[0] ?? null) === 'id' && ($clause[1] ?? null) === '>');
+        if ($cursor) {
+            return [];
+        }
+
+        if ($model === 'product.template') {
+            return [
+                $this->template(10, 11, 'Premier produit'),
+                $this->template(20, 21, 'Deuxieme produit'),
+            ];
+        }
+
+        if ($model === 'product.product') {
+            return [
+                $this->variant(11, 10, 'Premier produit'),
+                $this->variant(21, 20, 'Deuxieme produit'),
+            ];
+        }
+
+        return [];
+    }
+
+    private function template(int $id, int $variantId, string $name): array
+    {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'default_code' => null,
+            'barcode' => 'BARCODE-'.$variantId,
+            'categ_id' => false,
+            'list_price' => 1000,
+            'standard_price' => 500,
+            'taxes_id' => [],
+            'supplier_taxes_id' => [],
+            'uom_id' => [1, 'Unite'],
+            'uom_po_id' => [1, 'Unite'],
+            'active' => true,
+            'sale_ok' => true,
+            'purchase_ok' => true,
+            'detailed_type' => 'product',
+            'product_variant_ids' => [$variantId],
+            'attribute_line_ids' => [],
+            'write_date' => '2026-07-28 10:00:00',
+            'tracking' => 'none',
+            'invoice_policy' => 'order',
+        ];
+    }
+
+    private function variant(int $id, int $templateId, string $name): array
+    {
+        return [
+            'id' => $id,
+            'product_tmpl_id' => [$templateId, $name],
+            'name' => $name,
+            'display_name' => $name,
+            'default_code' => null,
+            'barcode' => 'BARCODE-'.$id,
+            'lst_price' => 1000,
+            'standard_price' => 500,
+            'active' => true,
+            'qty_available' => 1,
+            'product_template_attribute_value_ids' => [],
+            'product_template_variant_value_ids' => [],
+            'write_date' => '2026-07-28 10:00:00',
+        ];
     }
 }

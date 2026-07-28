@@ -202,14 +202,28 @@ class OdooProductImportService
             ? $this->sku($record['default_code'] ?? null, 'ODOO-P-'.$connection->id.'-'.($variantIds[0] ?? $odooId))
             : 'ODOO-T-'.$connection->id.'-'.$odooId;
         $barcode = $this->nullableString($record['barcode'] ?? null);
-        $product = $mapping?->product;
+        $mappedProduct = $mapping?->product;
+        $product = $this->findBySku($run->company_id, $sku);
+
+        if (! $product && $mappedProduct && ! $this->hasConflictingMapping($connection->id, 'product.template', $odooId, $mappedProduct->id)) {
+            $product = $mappedProduct;
+        }
 
         if (! $product && $singleVariant) {
-            $product = $this->findBySkuOrBarcode($run->company_id, $sku, $barcode);
+            $product = $this->findBySkuOrBarcode(
+                $run->company_id,
+                $sku,
+                $barcode,
+                null,
+                $connection->id,
+                'product.template',
+                $odooId,
+            );
         }
 
         $created = ! $product;
         $product ??= new Product;
+        $mappingNeedsRepair = $mapping && $product->exists && (int) $mapping->product_id !== (int) $product->id;
         $taxes = $context['taxes'];
         $saleTaxes = collect($this->ids($record['taxes_id'] ?? []))->map(fn (int $id): ?array => $taxes[$id] ?? null)->filter()->values()->all();
         $purchaseTaxes = collect($this->ids($record['supplier_taxes_id'] ?? []))->map(fn (int $id): ?array => $taxes[$id] ?? null)->filter()->values()->all();
@@ -221,7 +235,7 @@ class OdooProductImportService
         ];
         $hash = $this->sourceHash($record, $related);
 
-        if ($mapping && $mapping->source_hash === $hash && $product) {
+        if ($mapping && ! $mappingNeedsRepair && $mapping->source_hash === $hash) {
             $mapping->forceFill(['last_synced_at' => now()])->save();
 
             return 'skipped';
@@ -303,19 +317,35 @@ class OdooProductImportService
         $singleVariant = ! str_starts_with((string) $parent->sku, 'ODOO-T-'.$connection->id.'-');
         $sku = $this->sku($record['default_code'] ?? null, 'ODOO-P-'.$connection->id.'-'.$odooId);
         $barcode = $this->nullableString($record['barcode'] ?? null);
-        $product = $mapping?->product;
+        $mappedProduct = $mapping?->product;
+        $excludeId = $singleVariant ? null : $parent->id;
+        $product = $this->findBySku($run->company_id, $sku, $excludeId);
+        if (! $product && $mappedProduct && ! $this->hasConflictingMapping($connection->id, 'product.product', $odooId, $mappedProduct->id)) {
+            $product = $mappedProduct;
+        }
         if (! $product) {
-            $product = $singleVariant ? $parent : $this->findBySkuOrBarcode($run->company_id, $sku, $barcode, $parent->id);
+            $product = $singleVariant
+                ? $parent
+                : $this->findBySkuOrBarcode(
+                    $run->company_id,
+                    $sku,
+                    $barcode,
+                    $parent->id,
+                    $connection->id,
+                    'product.product',
+                    $odooId,
+                );
         }
 
         $created = ! $product;
         $product ??= new Product;
+        $mappingNeedsRepair = $mapping && $product->exists && (int) $mapping->product_id !== (int) $product->id;
         $variantValues = $context['variant_values_by_variant'][$odooId] ?? [];
         $suppliers = $context['suppliers_by_variant'][$odooId] ?? $context['suppliers_by_template'][$templateId] ?? [];
         $stockQuantity = $context['stock_by_variant'][$odooId] ?? ($record['qty_available'] ?? null);
         $hash = $this->sourceHash($record, ['values' => $variantValues, 'suppliers' => $suppliers, 'stock_quantity' => $stockQuantity]);
 
-        if ($mapping && $mapping->source_hash === $hash && $product) {
+        if ($mapping && ! $mappingNeedsRepair && $mapping->source_hash === $hash) {
             $mapping->forceFill(['last_synced_at' => now()])->save();
 
             return 'skipped';
@@ -689,19 +719,52 @@ class OdooProductImportService
         ])->id;
     }
 
-    private function findBySkuOrBarcode(int $companyId, string $sku, ?string $barcode, ?int $excludeId = null): ?Product
+    private function findBySku(int $companyId, string $sku, ?int $excludeId = null): ?Product
     {
         return Product::query()
             ->where('company_id', $companyId)
             ->when($excludeId, fn ($query, int $id) => $query->whereKeyNot($id))
-            ->where(function ($query) use ($sku, $barcode): void {
-                $query->where('sku', $sku);
-                if ($barcode) {
-                    $query->orWhere('barcode', $barcode);
-                }
-            })
-            ->orderByRaw('CASE WHEN sku = ? THEN 0 ELSE 1 END', [$sku])
+            ->where('sku', $sku)
             ->first();
+    }
+
+    private function findBySkuOrBarcode(
+        int $companyId,
+        string $sku,
+        ?string $barcode,
+        ?int $excludeId,
+        int $connectionId,
+        string $odooModel,
+        int $odooId,
+    ): ?Product {
+        $bySku = $this->findBySku($companyId, $sku, $excludeId);
+        if ($bySku || ! $barcode) {
+            return $bySku;
+        }
+
+        return Product::query()
+            ->where('company_id', $companyId)
+            ->when($excludeId, fn ($query, int $id) => $query->whereKeyNot($id))
+            ->where('barcode', $barcode)
+            ->whereNotExists(function ($query) use ($connectionId, $odooModel, $odooId): void {
+                $query->selectRaw('1')
+                    ->from('odoo_product_mappings')
+                    ->whereColumn('odoo_product_mappings.product_id', 'products.id')
+                    ->where('odoo_product_mappings.odoo_connection_id', $connectionId)
+                    ->where('odoo_product_mappings.odoo_model', $odooModel)
+                    ->where('odoo_product_mappings.odoo_id', '<>', $odooId);
+            })
+            ->first();
+    }
+
+    private function hasConflictingMapping(int $connectionId, string $odooModel, int $odooId, int $productId): bool
+    {
+        return OdooProductMapping::query()
+            ->where('odoo_connection_id', $connectionId)
+            ->where('odoo_model', $odooModel)
+            ->where('product_id', $productId)
+            ->where('odoo_id', '<>', $odooId)
+            ->exists();
     }
 
     private function storeImage(Product $product, mixed $encoded, OdooConnection $connection, string $kind, int $odooId): void
