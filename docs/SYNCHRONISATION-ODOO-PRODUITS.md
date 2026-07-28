@@ -22,6 +22,8 @@ Le planificateur traite automatiquement la file `imports` toutes les minutes. Un
 
 `php artisan queue:work --queue=imports --tries=3 --timeout=180`
 
+Sur un hebergement partage sans worker permanent, la page de progression prend automatiquement le relais, un lot a la fois, apres 20 secondes sans battement du worker. Le meme verrou distribue protege le worker et ce secours navigateur afin qu'un lot ne soit jamais traite deux fois. La file reste la voie principale : garder la page ouverte sert uniquement de garantie supplementaire.
+
 ## Ligne de commande
 
 - File d'attente : `php artisan nema:odoo:sync-products 1 --mode=incremental`

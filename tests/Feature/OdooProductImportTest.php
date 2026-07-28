@@ -125,6 +125,54 @@ class OdooProductImportTest extends TestCase
         $this->assertSame(1, Product::query()->where('company_id', $user->company_id)->where('sku', 'SKU-001')->count());
         $this->assertSame(2, $second->fresh()->skipped_count);
     }
+
+    public function test_manager_browser_can_advance_a_queued_import_when_no_worker_is_available(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $connection = OdooConnection::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+            'name' => 'Odoo Browser Fallback',
+            'protocol' => 'jsonrpc',
+            'url' => 'https://odoo.example.test',
+            'database' => 'fake',
+            'username' => 'fake',
+            'secret' => 'fake',
+            'batch_size' => 25,
+            'verify_ssl' => true,
+            'import_images' => false,
+            'import_stock' => false,
+            'is_active' => true,
+        ]);
+
+        $client = new FakeOdooProductClient;
+        $this->app->instance(OdooClientFactory::class, new class($client) extends OdooClientFactory
+        {
+            public function __construct(private readonly OdooClient $client) {}
+
+            public function make(OdooConnection $connection): OdooClient
+            {
+                return $this->client;
+            }
+        });
+
+        $run = $this->app->make(OdooProductImportService::class)->createRun($connection, 'full', $user);
+        $this->actingAs($user)->withSession([
+            'current_tenant_id' => $user->tenant_id,
+            'current_company_id' => $user->company_id,
+            'current_branch_id' => $user->branch_id,
+        ]);
+
+        $this->postJson(route('imports.odoo.runs.advance', $run))
+            ->assertOk()
+            ->assertJsonPath('status', 'running')
+            ->assertJsonPath('phase', 'templates')
+            ->assertJsonPath('processed_count', 1)
+            ->assertJsonPath('worker_fallback', false);
+    }
 }
 
 class FakeOdooProductClient implements OdooClient

@@ -26,8 +26,10 @@ class ProcessOdooProductImportBatch implements ShouldQueue
 
     public array $backoff = [10, 30, 90];
 
-    public function __construct(public readonly int $runId)
-    {
+    public function __construct(
+        public readonly int $runId,
+        public readonly bool $dispatchNext = true,
+    ) {
         $this->onQueue((string) config('odoo.queue', 'imports'));
     }
 
@@ -36,7 +38,8 @@ class ProcessOdooProductImportBatch implements ShouldQueue
         return [
             (new WithoutOverlapping('odoo-product-run-'.$this->runId))
                 ->releaseAfter(10)
-                ->expireAfter($this->timeout + 30),
+                ->expireAfter($this->timeout + 30)
+                ->shared(),
         ];
     }
 
@@ -48,7 +51,7 @@ class ProcessOdooProductImportBatch implements ShouldQueue
         }
 
         try {
-            if ($service->processNextBatch($run)) {
+            if ($service->processNextBatch($run) && $this->dispatchNext) {
                 self::dispatch($run->id);
             }
         } catch (Throwable $exception) {

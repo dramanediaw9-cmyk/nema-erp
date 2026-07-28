@@ -70,7 +70,7 @@
             <div class="odoo-note muted" style="margin-bottom:12px;">Les doublons sont controles par ID Odoo, SKU et code-barres. Les erreurs d'une fiche sont journalisees sans bloquer les autres produits.</div>
             <div class="odoo-stack" id="odoo-runs">
                 @forelse($runs as $run)
-                    <article class="odoo-run" data-status-url="{{ route('imports.odoo.runs.status', $run) }}" data-final="{{ in_array($run->status, ['completed','cancelled'], true) ? '1' : '0' }}">
+                    <article class="odoo-run" data-status-url="{{ route('imports.odoo.runs.status', $run) }}" data-advance-url="{{ route('imports.odoo.runs.advance', $run) }}" data-final="{{ in_array($run->status, ['completed','cancelled','failed'], true) ? '1' : '0' }}">
                         <div class="odoo-run-head">
                             <div><strong>{{ $run->connection?->name }}</strong> <span class="muted">{{ $run->mode }} · {{ $run->phase }}</span></div>
                             <span class="odoo-state {{ $run->status }}" data-run-status>{{ $run->status }}</span>
@@ -97,11 +97,21 @@
         (() => {
             const activeRuns = [...document.querySelectorAll('[data-status-url]')].filter(el => el.dataset.final !== '1');
             if (!activeRuns.length) return;
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const finalStates = ['completed', 'cancelled', 'failed'];
             const refresh = async (el) => {
                 try {
-                    const response = await fetch(el.dataset.statusUrl, {headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
+                    let response = await fetch(el.dataset.statusUrl, {headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
                     if (!response.ok) return;
-                    const run = await response.json();
+                    let run = await response.json();
+                    if (run.worker_fallback && csrf && el.dataset.advanceUrl) {
+                        response = await fetch(el.dataset.advanceUrl, {
+                            method: 'POST',
+                            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+                            credentials: 'same-origin',
+                        });
+                        if (response.ok) run = await response.json();
+                    }
                     el.querySelector('[data-run-status]').textContent = run.status;
                     el.querySelector('[data-run-status]').className = 'odoo-state ' + run.status;
                     el.querySelector('[data-progress-label]').textContent = `${run.processed_count} / ${run.source_total || '?'} (${run.progress}%)`;
@@ -113,14 +123,15 @@
                     const error = el.querySelector('[data-last-error]');
                     error.textContent = run.last_error || '';
                     error.hidden = !run.last_error;
-                    if (['completed', 'cancelled'].includes(run.status)) el.dataset.final = '1';
+                    if (finalStates.includes(run.status)) el.dataset.final = '1';
                 } catch (_) {}
             };
-            const timer = setInterval(async () => {
+            const poll = async () => {
                 const pending = activeRuns.filter(el => el.dataset.final !== '1');
                 await Promise.all(pending.map(refresh));
-                if (!pending.length) clearInterval(timer);
-            }, 2500);
+                if (activeRuns.some(el => el.dataset.final !== '1')) window.setTimeout(poll, 2500);
+            };
+            void poll();
         })();
     </script>
 @endsection

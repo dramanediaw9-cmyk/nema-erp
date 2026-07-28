@@ -19,6 +19,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
         Route::post('/connexions/{connection}/tester', [OdooProductImportController::class, 'testConnection'])->name('connections.test');
         Route::post('/connexions/{connection}/synchroniser', [OdooProductImportController::class, 'start'])->name('connections.start');
         Route::get('/executions/{run:uuid}', [OdooProductImportController::class, 'status'])->name('runs.status');
+        Route::post('/executions/{run:uuid}/traiter', [OdooProductImportController::class, 'advance'])->name('runs.advance');
         Route::post('/executions/{run:uuid}/annuler', [OdooProductImportController::class, 'cancel'])->name('runs.cancel');
         Route::post('/executions/{run:uuid}/reprendre', [OdooProductImportController::class, 'resume'])->name('runs.resume');
     });
