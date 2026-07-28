@@ -255,7 +255,7 @@ class OdooProductImportController extends Controller
             return false;
         }
 
-        $threshold = max(5, (int) config('odoo.browser_fallback_after', 20));
+        $threshold = max(5, (int) config('odoo.browser_fallback_after', 5));
 
         return ! $run->heartbeat_at || $run->heartbeat_at->lte(now()->subSeconds($threshold));
     }
