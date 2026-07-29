@@ -627,15 +627,13 @@ class OdooProductImportService
         foreach ($attributes as $definition) {
             $attribute = $this->attribute($run, (int) $definition['attribute_id'], (string) $definition['attribute_name']);
             foreach ($definition['values'] as $value) {
-                ProductAttributeValue::query()->updateOrCreate([
-                    'product_attribute_id' => $attribute->id,
-                    'code' => 'OD'.$run->odoo_connection_id.'-V'.$value['value_id'],
-                ], [
-                    'tenant_id' => $run->tenant_id,
-                    'company_id' => $run->company_id,
-                    'value' => $value['value_name'],
-                    'is_active' => $value['active'] ?? true,
-                ]);
+                $this->attributeValue(
+                    $run,
+                    $attribute,
+                    (int) $value['value_id'],
+                    (string) $value['value_name'],
+                    (bool) ($value['active'] ?? true),
+                );
             }
         }
     }
@@ -644,18 +642,66 @@ class OdooProductImportService
     {
         return collect($values)->map(function (array $definition) use ($run, $connection): int {
             $attribute = $this->attribute($run, (int) $definition['attribute_id'], (string) $definition['attribute_name']);
-            $value = ProductAttributeValue::query()->updateOrCreate([
-                'product_attribute_id' => $attribute->id,
-                'code' => 'OD'.$connection->id.'-V'.$definition['value_id'],
-            ], [
-                'tenant_id' => $run->tenant_id,
-                'company_id' => $run->company_id,
-                'value' => $definition['value_name'],
-                'is_active' => true,
-            ]);
+            $value = $this->attributeValue(
+                $run,
+                $attribute,
+                (int) $definition['value_id'],
+                (string) $definition['value_name'],
+                true,
+                $connection->id,
+            );
 
             return $value->id;
         })->unique()->values()->all();
+    }
+
+    private function attributeValue(
+        OdooProductImportRun $run,
+        ProductAttribute $attribute,
+        int $odooValueId,
+        string $name,
+        bool $isActive,
+        ?int $connectionId = null,
+    ): ProductAttributeValue {
+        $code = 'OD'.($connectionId ?? $run->odoo_connection_id).'-V'.$odooValueId;
+        $byCode = ProductAttributeValue::query()
+            ->where('product_attribute_id', $attribute->id)
+            ->where('code', $code)
+            ->first();
+        $byValue = ProductAttributeValue::query()
+            ->where('product_attribute_id', $attribute->id)
+            ->where('value', $name)
+            ->first();
+
+        if ($byCode && $byValue && ! $byCode->is($byValue)) {
+            $links = DB::table('product_variant_attribute_value')
+                ->where('product_attribute_value_id', $byCode->id)
+                ->get(['product_id', 'created_at', 'updated_at']);
+            foreach ($links as $link) {
+                DB::table('product_variant_attribute_value')->insertOrIgnore([
+                    'product_id' => $link->product_id,
+                    'product_attribute_value_id' => $byValue->id,
+                    'created_at' => $link->created_at,
+                    'updated_at' => $link->updated_at,
+                ]);
+            }
+            DB::table('product_variant_attribute_value')
+                ->where('product_attribute_value_id', $byCode->id)
+                ->delete();
+            $byCode->delete();
+        }
+
+        $value = $byValue ?: $byCode ?: new ProductAttributeValue;
+        $value->forceFill([
+            'tenant_id' => $run->tenant_id,
+            'company_id' => $run->company_id,
+            'product_attribute_id' => $attribute->id,
+            'value' => $name,
+            'code' => $code,
+            'is_active' => $isActive,
+        ])->save();
+
+        return $value;
     }
 
     private function attribute(OdooProductImportRun $run, int $odooId, string $name): ProductAttribute
