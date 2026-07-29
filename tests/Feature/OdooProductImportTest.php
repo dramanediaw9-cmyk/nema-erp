@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductAttribute;
+use App\Modules\Catalog\Models\ProductAttributeValue;
 use App\Modules\Core\Imports\Odoo\Contracts\OdooClient;
 use App\Modules\Core\Imports\Odoo\Jobs\ProcessOdooProductImportBatch;
 use App\Modules\Core\Imports\Odoo\Models\OdooConnection;
@@ -312,6 +314,91 @@ class OdooProductImportTest extends TestCase
             ->value('product_id'));
     }
 
+    public function test_full_import_merges_duplicate_attribute_values_without_losing_variant_links(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $connection = OdooConnection::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+            'name' => 'Odoo Duplicate Attribute Values',
+            'protocol' => 'jsonrpc',
+            'url' => 'https://odoo.example.test',
+            'database' => 'fake',
+            'username' => 'fake',
+            'secret' => 'fake',
+            'batch_size' => 25,
+            'verify_ssl' => true,
+            'import_images' => false,
+            'import_stock' => false,
+            'is_active' => true,
+        ]);
+
+        $attribute = ProductAttribute::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'code' => 'OD'.$connection->id.'-A5',
+            'name' => 'Taille',
+            'is_active' => true,
+        ]);
+        $valueByCode = ProductAttributeValue::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'product_attribute_id' => $attribute->id,
+            'value' => 'Ancienne valeur',
+            'code' => 'OD'.$connection->id.'-V101',
+            'is_active' => true,
+        ]);
+        $valueByName = ProductAttributeValue::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'product_attribute_id' => $attribute->id,
+            'value' => '24',
+            'code' => 'OD'.$connection->id.'-V202',
+            'is_active' => true,
+        ]);
+        $product = Product::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'sku' => 'SKU-ATTR',
+            'barcode' => 'BARCODE-ATTR',
+            'name' => 'Produit avec taille',
+        ]);
+        $product->attributeValues()->attach($valueByCode->id);
+
+        $client = new FakeOdooDuplicateAttributeValueClient;
+        $this->app->instance(OdooClientFactory::class, new class($client) extends OdooClientFactory
+        {
+            public function __construct(private readonly OdooClient $client) {}
+
+            public function make(OdooConnection $connection): OdooClient
+            {
+                return $this->client;
+            }
+        });
+
+        $service = $this->app->make(OdooProductImportService::class);
+        $run = $service->createRun($connection, 'full', $user);
+        while ($service->processNextBatch($run)) {
+            $run->refresh();
+        }
+
+        $this->assertSame('completed', $run->fresh()->status);
+        $this->assertSame(0, $run->fresh()->failed_count);
+        $this->assertDatabaseMissing('product_attribute_values', ['id' => $valueByCode->id]);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'id' => $valueByName->id,
+            'value' => '24',
+            'code' => 'OD'.$connection->id.'-V101',
+        ]);
+        $this->assertDatabaseHas('product_variant_attribute_value', [
+            'product_id' => $product->id,
+            'product_attribute_value_id' => $valueByName->id,
+        ]);
+    }
+
     public function test_manager_browser_can_advance_a_queued_import_when_no_worker_is_available(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
@@ -608,5 +695,59 @@ class FakeOdooDuplicateReferenceClient extends FakeOdooProductClient
             'product_template_variant_value_ids' => [],
             'write_date' => '2026-07-28 10:00:00',
         ];
+    }
+}
+
+class FakeOdooDuplicateAttributeValueClient extends FakeOdooProductClient
+{
+    public function searchRead(string $model, array $domain, array $fields, int $limit = 0, int $offset = 0, string $order = 'id asc'): array
+    {
+        $records = parent::searchRead($model, $domain, $fields, $limit, $offset, $order);
+        if ($records === []) {
+            return [];
+        }
+
+        if ($model === 'product.template') {
+            $records[0]['name'] = 'Produit avec taille';
+            $records[0]['default_code'] = 'SKU-ATTR';
+            $records[0]['barcode'] = 'BARCODE-ATTR';
+            $records[0]['attribute_line_ids'] = [501];
+            $records[0]['product_variant_ids'] = [11, 12];
+        }
+        if ($model === 'product.product') {
+            $records[0]['name'] = 'Produit avec taille';
+            $records[0]['display_name'] = 'Produit avec taille (24)';
+            $records[0]['default_code'] = 'SKU-ATTR';
+            $records[0]['barcode'] = 'BARCODE-ATTR';
+            $records[0]['product_template_variant_value_ids'] = [1001];
+        }
+
+        return $records;
+    }
+
+    public function read(string $model, array $ids, array $fields): array
+    {
+        return match ($model) {
+            'product.template.attribute.line' => [[
+                'id' => 501,
+                'product_tmpl_id' => [10, 'Produit avec taille'],
+                'attribute_id' => [5, 'Taille'],
+                'value_ids' => [101],
+            ]],
+            'product.attribute.value' => [[
+                'id' => 101,
+                'name' => '24',
+                'attribute_id' => [5, 'Taille'],
+                'active' => true,
+            ]],
+            'product.template.attribute.value' => [[
+                'id' => 1001,
+                'attribute_id' => [5, 'Taille'],
+                'product_attribute_value_id' => [101, '24'],
+                'name' => '24',
+                'product_tmpl_id' => [10, 'Produit avec taille'],
+            ]],
+            default => [],
+        };
     }
 }
