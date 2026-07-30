@@ -1972,7 +1972,7 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="{{ asset('css/pos-odoo.css') }}?v=20260721-3">
+    <link rel="stylesheet" href="{{ asset('css/pos-odoo.css') }}?v=20260730-1">
 
     <div class="pos-shell">
         <div class="pos-kicker">
@@ -2413,9 +2413,12 @@
         const deviceMemoryGb = Number(window.navigator.deviceMemory || 0);
         const isNarrowScreen = window.matchMedia('(max-width: 820px)').matches;
         const isLowPowerDevice = isNarrowScreen || (hardwareThreads > 0 && hardwareThreads <= 4) || (deviceMemoryGb > 0 && deviceMemoryGb <= 4);
+        const isShortDesktop = !isNarrowScreen && window.innerHeight <= 700;
         const maxVisibleProducts = isNarrowScreen
             ? 8
-            : (window.innerWidth >= 1600 ? 20 : 12);
+            : (isShortDesktop
+                ? (window.innerWidth >= 1600 ? 15 : (window.innerWidth <= 1320 ? 9 : 12))
+                : (window.innerWidth >= 1600 ? 20 : 12));
         remoteProductPages = Math.max(Math.ceil(productCatalogTotal / maxVisibleProducts), 1);
         const loadRemoteProducts = async ({ focusFirst = false } = {}) => {
             const sequence = ++productSearchSequence;
