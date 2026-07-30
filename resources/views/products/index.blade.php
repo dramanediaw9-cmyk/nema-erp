@@ -249,6 +249,10 @@
                     <a href="{{ route('imports.index') }}" class="button button-secondary">Importer Excel</a>
                 @endallowed
                 @allowed('products.manage')
+                    <form method="POST" action="{{ route('products.cleanup-invalid') }}" onsubmit="return confirm('Supprimer les produits inutilises sans nom reel ou sans prix, et archiver ceux deja utilises ?');">
+                        @csrf
+                        <button type="submit" class="button button-secondary">Nettoyer le catalogue</button>
+                    </form>
                     <a href="{{ route('products.create') }}" class="button button-primary">Nouveau {{ $productLabel }}</a>
                 @endallowed
             </div>
