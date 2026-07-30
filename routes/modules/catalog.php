@@ -24,6 +24,7 @@ Route::middleware(['auth', 'active', 'workspace'])->group(function (): void {
     Route::get('/produits', [ProductController::class, 'index'])->middleware('permission:products.view')->name('products.index');
     Route::get('/produits/creer', [ProductController::class, 'create'])->middleware('permission:products.manage')->name('products.create');
     Route::get('/produits/recherche/options', [ProductController::class, 'options'])->name('products.options');
+    Route::post('/produits/nettoyer-invalides', [ProductController::class, 'cleanupInvalid'])->middleware('permission:products.manage')->name('products.cleanup-invalid');
     Route::post('/produits', [ProductController::class, 'store'])->middleware('permission:products.manage')->name('products.store');
     Route::get('/produits/{product}', [ProductController::class, 'show'])->middleware('permission:products.view')->name('products.show');
     Route::get('/produits/{product}/modifier', [ProductController::class, 'edit'])->middleware('permission:products.manage')->name('products.edit');
