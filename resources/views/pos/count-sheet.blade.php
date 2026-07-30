@@ -43,7 +43,7 @@
             <h2>Totaux a controler</h2>
             <div>Brut {{ strtolower($productsLabel) }} : <strong>{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Remises : <strong>{{ number_format($summary['discount_total'], 0, ',', ' ') }} XOF</strong></div>
-            <div>{{ $salesLabel }} nettes : <strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
+            <div>Total net : <strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Retours : <strong>{{ number_format($summary['return_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Encaisse attendu : <strong>{{ number_format($summary['expected_amount'], 0, ',', ' ') }} XOF</strong></div>
         </section>

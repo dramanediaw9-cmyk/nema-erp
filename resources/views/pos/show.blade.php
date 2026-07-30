@@ -732,7 +732,7 @@
                             <div class="pos-detail-total">
                                 <div><span>Ouverte par</span><strong>{{ $session->opener?->name ?? 'Operateur' }}</strong></div>
                                 <div><span>Montant initial</span><strong>{{ number_format((float) $session->opening_amount, 0, ',', ' ') }} XOF</strong></div>
-                                <div><span>{{ $salesLabel }} nettes</span><strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
+                                <div><span>Total net</span><strong>{{ number_format($summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
                                 <div><span>Retours</span><strong>{{ number_format($summary['return_total'], 0, ',', ' ') }} XOF</strong></div>
                                 <div><span>Flux net</span><strong>{{ number_format($summary['net_cash'], 0, ',', ' ') }} XOF</strong></div>
                             </div>
@@ -768,7 +768,7 @@
             <div class="pos-stat-card"><div class="label">Montant initial</div><div class="value">{{ number_format((float) $session->opening_amount, 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Brut {{ strtolower($productsLabel) }}</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Remises</div><div class="value">{{ number_format($summary['discount_total'], 0, ',', ' ') }}</div></div>
-            <div class="pos-stat-card"><div class="label">{{ $salesLabel }} nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
+            <div class="pos-stat-card"><div class="label">Total net</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Retours</div><div class="value">{{ number_format($summary['return_total'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Flux net caisse</div><div class="value">{{ number_format($summary['net_cash'], 0, ',', ' ') }}</div></div>
             <div class="pos-stat-card"><div class="label">Ecart</div><div class="value">{{ number_format((float) ($session->variance_amount ?? 0), 0, ',', ' ') }}</div></div>

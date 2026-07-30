@@ -52,7 +52,7 @@
             <div>{{ $productsLabel }} vendus : <strong>{{ number_format((float) $summary['items_count'], 3, ',', ' ') }}</strong></div>
             <div>Brut {{ strtolower($productsLabel) }} : <strong>{{ number_format((float) $summary['gross_sales_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Remises : <strong>{{ number_format((float) $summary['discount_total'], 0, ',', ' ') }} XOF</strong></div>
-            <div>{{ $salesLabel }} nettes : <strong>{{ number_format((float) $summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
+            <div>Total net : <strong>{{ number_format((float) $summary['sales_total'], 0, ',', ' ') }} XOF</strong></div>
         </div>
         <div class="panel">
             <h2>Retours</h2>

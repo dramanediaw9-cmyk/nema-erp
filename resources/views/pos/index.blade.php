@@ -270,7 +270,7 @@
                     <a href="{{ route('pos.preparation.index') }}" class="button button-secondary">Board preparation</a>
                 @endunless
                 @if ($currentSession)
-                    <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">Nouvelle {{ strtolower($saleLabel) }} comptoir</a>
+                    <a href="{{ route('pos.sales.create', ['session' => $currentSession->id]) }}" class="button button-primary">+ {{ $saleLabel }} comptoir</a>
                     <a href="{{ route('pos.show', $currentSession) }}" class="button button-secondary">Voir la session</a>
                 @endif
             </div>
@@ -308,7 +308,7 @@
                 </div>
                 <div class="pos-shortcuts-grid">
                     <a href="{{ $currentSession ? route('pos.sales.create', ['session' => $currentSession->id]) : route('pos.index') }}" class="pos-shortcut-card">
-                        <strong>{{ $currentSession ? 'Nouvelle '.strtolower($saleLabel).' comptoir' : 'Ouvrir une session' }}</strong>
+                        <strong>{{ $currentSession ? $saleLabel.' comptoir' : 'Ouvrir une session' }}</strong>
                         <div class="muted">{{ $currentSession ? 'Lancer rapidement un ticket dans la session ouverte.' : 'Demarrer la caisse avec le bon compte et le bon entrepot.' }}</div>
                     </a>
                     <a href="{{ $currentSession ? route('pos.show', $currentSession) : ($isCashier ? route('pos.index') : route('pos.sessions.index')) }}" class="pos-shortcut-card">
@@ -529,7 +529,7 @@
                 <div class="pos-stat-card"><div class="label">Session ouverte</div><div class="value">{{ $currentSession->session_number }}</div></div>
                 <div class="pos-stat-card"><div class="label">Brut {{ strtolower($productsLabel) }}</div><div class="value">{{ number_format($summary['gross_sales_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Remises</div><div class="value">{{ number_format($summary['discount_total'], 0, ',', ' ') }}</div></div>
-                <div class="pos-stat-card"><div class="label">{{ $salesLabel }} nettes</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
+                <div class="pos-stat-card"><div class="label">Total net</div><div class="value">{{ number_format($summary['sales_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Retours</div><div class="value">{{ number_format($summary['return_total'], 0, ',', ' ') }}</div></div>
                 <div class="pos-stat-card"><div class="label">Encaisse attendu</div><div class="value">{{ number_format($summary['expected_amount'], 0, ',', ' ') }}</div></div>
             </div>
@@ -583,7 +583,7 @@
                             @empty
                                 <div class="empty-state" style="padding:26px 18px;">
                                     <h3 style="font-size:22px;">Aucun ticket pour cette session</h3>
-                                    <div class="muted">Ouvre une nouvelle {{ strtolower($saleLabel) }} comptoir pour commencer a encaisser.</div>
+                                    <div class="muted">Lance une operation comptoir pour commencer a encaisser.</div>
                                 </div>
                             @endforelse
                         </div>

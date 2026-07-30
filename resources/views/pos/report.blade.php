@@ -93,7 +93,7 @@
         <div class="card"><div class="muted">Tickets</div><div class="stat-value">{{ $report['sales_count'] }}</div></div>
         <div class="card"><div class="muted">Brut {{ strtolower($productsLabel) }}</div><div class="stat-value">{{ number_format($report['gross_sales'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Remises</div><div class="stat-value">{{ number_format($report['discounts_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">{{ $salesLabel }} nettes</div><div class="stat-value">{{ number_format($report['sales_after_discount'], 0, ',', ' ') }}</div></div>
+        <div class="card"><div class="muted">Total net</div><div class="stat-value">{{ number_format($report['sales_after_discount'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Retours traites</div><div class="stat-value">{{ number_format($report['returns_total'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Net apres retours</div><div class="stat-value">{{ number_format($report['net_sales'], 0, ',', ' ') }}</div></div>
         <div class="card"><div class="muted">Cout estime</div><div class="stat-value">{{ number_format($report['estimated_cost'], 0, ',', ' ') }}</div></div>
@@ -157,7 +157,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="muted">Aucune {{ strtolower($saleLabel) }} par {{ strtolower($cashierLabel) }} pour cette date.</td>
+                        <td colspan="5" class="muted">Aucune operation par {{ strtolower($cashierLabel) }} pour cette date.</td>
                     </tr>
                 @endforelse
                 </tbody>
@@ -374,7 +374,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="muted">Aucune {{ strtolower($saleLabel) }} POS sur cette date.</td>
+                            <td colspan="4" class="muted">Aucune operation POS sur cette date.</td>
                         </tr>
                     @endforelse
                     </tbody>

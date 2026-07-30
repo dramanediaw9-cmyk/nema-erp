@@ -22,7 +22,7 @@
                 <div class="muted">Vision back-office des tickets POS, commandes en attente et tickets retour.</div>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <a href="{{ route('pos.sales.create') }}" class="button button-primary">Nouvelle {{ strtolower($saleLabel) }}</a>
+                <a href="{{ route('pos.sales.create') }}" class="button button-primary">+ {{ $saleLabel }}</a>
                 <a href="{{ route('pos.report') }}" class="button button-secondary">Rapport journalier</a>
             </div>
         </div>

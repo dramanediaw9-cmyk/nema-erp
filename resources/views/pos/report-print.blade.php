@@ -30,7 +30,7 @@
             <h2>Synthese {{ strtolower($salesLabel) }}</h2>
             <div>Brut {{ strtolower($productsLabel) }} : <strong>{{ number_format((float) $report['gross_sales'], 0, ',', ' ') }} XOF</strong></div>
             <div>Remises : <strong>{{ number_format((float) $report['discounts_total'], 0, ',', ' ') }} XOF</strong></div>
-            <div>{{ $salesLabel }} nettes : <strong>{{ number_format((float) $report['sales_after_discount'], 0, ',', ' ') }} XOF</strong></div>
+            <div>Total net : <strong>{{ number_format((float) $report['sales_after_discount'], 0, ',', ' ') }} XOF</strong></div>
             <div>Retours : <strong>{{ number_format((float) $report['returns_total'], 0, ',', ' ') }} XOF</strong></div>
             <div>Net apres retours : <strong>{{ number_format((float) $report['net_sales'], 0, ',', ' ') }} XOF</strong></div>
             <div>Cout estime : <strong>{{ number_format((float) $report['estimated_cost'], 0, ',', ' ') }} XOF</strong></div>
@@ -90,7 +90,7 @@
                 <td class="right">{{ number_format((float) $row->estimated_margin, 0, ',', ' ') }} XOF</td>
             </tr>
         @empty
-            <tr><td colspan="5" class="meta">Aucune {{ strtolower($saleLabel) }} par {{ strtolower($cashierLabel) }} pour cette date.</td></tr>
+            <tr><td colspan="5" class="meta">Aucune operation par {{ strtolower($cashierLabel) }} pour cette date.</td></tr>
         @endforelse
         </tbody>
     </table>
@@ -144,7 +144,7 @@
                 <td class="right">{{ number_format((float) $product->amount, 0, ',', ' ') }} XOF</td>
             </tr>
         @empty
-            <tr><td colspan="4" class="meta">Aucune {{ strtolower($saleLabel) }} POS sur cette date.</td></tr>
+            <tr><td colspan="4" class="meta">Aucune operation POS sur cette date.</td></tr>
         @endforelse
         </tbody>
     </table>

@@ -24,7 +24,7 @@
         <div class="grid stats-grid">
             <div class="card"><div class="muted">Tickets du jour</div><div class="stat-value">{{ $data['report']['sales_count'] }}</div></div>
             <div class="card"><div class="muted">Brut {{ strtolower($productsLabel) }}</div><div class="stat-value">{{ number_format($data['report']['gross_sales'], 0, ',', ' ') }}</div></div>
-            <div class="card"><div class="muted">{{ $salesLabel }} nettes</div><div class="stat-value">{{ number_format($data['report']['net_sales'], 0, ',', ' ') }}</div></div>
+            <div class="card"><div class="muted">Total net</div><div class="stat-value">{{ number_format($data['report']['net_sales'], 0, ',', ' ') }}</div></div>
             <div class="card"><div class="muted">Ticket moyen</div><div class="stat-value">{{ number_format($data['report']['average_ticket'], 0, ',', ' ') }}</div></div>
             <div class="card"><div class="muted">Objectif prep moyen</div><div class="stat-value">{{ $data['prep']['average_target_minutes'] ? number_format($data['prep']['average_target_minutes'], 1, ',', ' ') . ' min' : 'n/a' }}</div></div>
         </div>

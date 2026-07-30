@@ -156,3 +156,44 @@ Les corrections auditees sont synchronisees dans la branche GitHub `codex/sync-p
 - La caisse contient une logique JavaScript importante ; l'idempotence et les tests serveur limitent le risque financier, mais le smoke test navigateur doit rester actif.
 - Les styles compacts sont globaux ; la matrice responsive doit etre relancee apres toute modification majeure du shell ou des tableaux.
 - Les libelles dependent du profil sectoriel ; les tests utilisent maintenant le vocabulaire metier plutot que des textes figes.
+
+## Contre-audit de production — 30 juillet 2026
+
+L'audit a ete repris sur la version réellement utilisee par Fily's Boutique, avec un ecran portable de 1272 × 587 px et une session POS de production. L'inventaire comporte maintenant 463 routes, dont 42 routes POS et 216 routes d'ecriture.
+
+### Pages POS parcourues
+
+- tableau de bord caisse ;
+- commandes, brouillons et retours ;
+- session POS ;
+- feuille de comptage ;
+- ticket detaille ;
+- ticket thermique ;
+- formulaire de retour ;
+- rapport journalier ;
+- caisse de vente et recherche catalogue.
+
+Les pages controlees repondent sans erreur JavaScript et sans debordement horizontal global sur l'ecran portable.
+
+### Defauts importants confirmes et corriges
+
+1. Apres un clic sur un produit recherche, la barre de recherche et les resultats etaient effaces. Le clic conserve maintenant le terme et permet d'ajouter plusieurs resultats successivement. Le scan ou la touche Entree garde son comportement rapide.
+2. Sur un ecran portable court, le champ « Montant recu en especes » se trouvait sous le viewport : son bord inferieur etait mesure a 638 px pour un viewport de 587 px. Le panneau d'encaissement adopte maintenant une disposition horizontale compacte.
+3. Douze produits etaient injectes dans une grille de neuf emplacements. Les noms et prix sortaient visuellement des cartes. La pagination s'adapte maintenant a la hauteur et a la largeur de l'ecran ; les cartes courtes utilisent une disposition horizontale.
+4. Le script de deploiement n'incluait pas les ressources du dossier `public`. Il les livre maintenant et normalise les permissions Hostinger de `public`, `routes`, `bootstrap` et `storage`.
+
+### Validation du lot
+
+- `PosFlowTest` : 19 tests, 273 assertions, 0 echec.
+- Build Vite : reussi.
+- Smoke Playwright : recherche persistante et cadrage POS 1280 × 600 reussis.
+- CI SQLite : reussie.
+- CI MySQL : reussie.
+- GitHub : commit `7414d9e2b5e76747ceba20951cd9f6f9985f4960`.
+- Production : `/up`, `/login` et la feuille `css/pos-odoo.css` repondent en HTTP 200.
+
+### Suite du contre-audit
+
+- uniformiser les accords grammaticaux lorsque le vocabulaire sectoriel remplace « vente » par « ticket caisse » ;
+- poursuivre la matrice responsive tablette et telephone ;
+- reprendre l'audit module par module : catalogue, stock, imports, ventes, achats, comptabilite, utilisateurs et permissions.

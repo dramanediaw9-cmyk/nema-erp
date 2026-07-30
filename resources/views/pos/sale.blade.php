@@ -2155,7 +2155,7 @@
                         @endif
 
                         <div>
-                            <div id="pos-empty" class="pos-empty">Le panier est vide. Scanne un {{ strtolower($productLabel) }} ou clique sur une carte {{ strtolower($productLabel) }} pour demarrer la {{ strtolower($saleLabel) }}.</div>
+                            <div id="pos-empty" class="pos-empty">Le panier est vide. Scanne un {{ strtolower($productLabel) }} ou clique sur une carte {{ strtolower($productLabel) }} pour demarrer.</div>
                             <div id="pos-lines" class="pos-lines"></div>
                         </div>
 
