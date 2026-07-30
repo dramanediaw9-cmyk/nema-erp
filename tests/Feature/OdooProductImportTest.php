@@ -399,6 +399,69 @@ class OdooProductImportTest extends TestCase
         ]);
     }
 
+    public function test_full_import_reuses_an_existing_variant_with_the_same_signature(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $connection = OdooConnection::query()->create([
+            'tenant_id' => $user->tenant_id,
+            'company_id' => $user->company_id,
+            'branch_id' => $user->branch_id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+            'name' => 'Odoo Duplicate Variant Signature',
+            'protocol' => 'jsonrpc',
+            'url' => 'https://odoo.example.test',
+            'database' => 'fake',
+            'username' => 'fake',
+            'secret' => 'fake',
+            'batch_size' => 25,
+            'verify_ssl' => true,
+            'import_images' => false,
+            'import_stock' => false,
+            'is_active' => true,
+        ]);
+
+        $client = new FakeOdooDuplicateVariantSignatureClient;
+        $this->app->instance(OdooClientFactory::class, new class($client) extends OdooClientFactory
+        {
+            public function __construct(private readonly OdooClient $client) {}
+
+            public function make(OdooConnection $connection): OdooClient
+            {
+                return $this->client;
+            }
+        });
+
+        $service = $this->app->make(OdooProductImportService::class);
+        $run = $service->createRun($connection, 'full', $user);
+        while ($service->processNextBatch($run)) {
+            $run->refresh();
+        }
+
+        $run->refresh();
+        $parent = OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.template')
+            ->where('odoo_id', 10)
+            ->firstOrFail()
+            ->product;
+        $variantMappings = OdooProductMapping::query()
+            ->where('odoo_connection_id', $connection->id)
+            ->where('odoo_model', 'product.product')
+            ->whereIn('odoo_id', [11, 12])
+            ->get();
+
+        $this->assertSame('completed', $run->status);
+        $this->assertSame(0, $run->failed_count);
+        $this->assertCount(2, $variantMappings);
+        $this->assertSame(1, $variantMappings->pluck('product_id')->unique()->count());
+        $this->assertSame(1, Product::query()
+            ->where('company_id', $user->company_id)
+            ->where('parent_product_id', $parent->id)
+            ->whereNotNull('variant_signature')
+            ->count());
+    }
+
     public function test_manager_browser_can_advance_a_queued_import_when_no_worker_is_available(): void
     {
         $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
@@ -746,6 +809,97 @@ class FakeOdooDuplicateAttributeValueClient extends FakeOdooProductClient
                 'product_attribute_value_id' => [101, '24'],
                 'name' => '24',
                 'product_tmpl_id' => [10, 'Produit avec taille'],
+            ]],
+            default => [],
+        };
+    }
+}
+
+class FakeOdooDuplicateVariantSignatureClient extends FakeOdooProductClient
+{
+    public function searchCount(string $model, array $domain): int
+    {
+        return $model === 'product.product' ? 2 : 1;
+    }
+
+    public function searchRead(string $model, array $domain, array $fields, int $limit = 0, int $offset = 0, string $order = 'id asc'): array
+    {
+        if ($model === 'product.supplierinfo') {
+            return [];
+        }
+
+        $cursor = collect($domain)->first(fn (array $clause): bool => ($clause[0] ?? null) === 'id' && ($clause[1] ?? null) === '>');
+        if ($cursor) {
+            return [];
+        }
+
+        if ($model === 'product.template') {
+            return [[
+                'id' => 10,
+                'name' => 'Produit avec variantes dupliquees',
+                'default_code' => null,
+                'barcode' => null,
+                'categ_id' => false,
+                'list_price' => 1000,
+                'standard_price' => 500,
+                'taxes_id' => [],
+                'supplier_taxes_id' => [],
+                'uom_id' => [1, 'Unite'],
+                'uom_po_id' => [1, 'Unite'],
+                'active' => true,
+                'sale_ok' => true,
+                'purchase_ok' => true,
+                'detailed_type' => 'product',
+                'product_variant_ids' => [11, 12],
+                'attribute_line_ids' => [501],
+                'write_date' => '2026-07-29 10:00:00',
+                'tracking' => 'none',
+                'invoice_policy' => 'order',
+            ]];
+        }
+
+        if ($model === 'product.product') {
+            return collect([11, 12])->map(fn (int $id): array => [
+                'id' => $id,
+                'product_tmpl_id' => [10, 'Produit avec variantes dupliquees'],
+                'name' => 'Produit avec variantes dupliquees',
+                'display_name' => 'Produit avec variantes dupliquees (Detail)',
+                'default_code' => 'SKU-'.$id,
+                'barcode' => 'BARCODE-'.$id,
+                'lst_price' => 1000,
+                'standard_price' => 500,
+                'active' => true,
+                'qty_available' => 1,
+                'product_template_attribute_value_ids' => [1001],
+                'product_template_variant_value_ids' => [1001],
+                'write_date' => '2026-07-29 10:00:00',
+            ])->all();
+        }
+
+        return [];
+    }
+
+    public function read(string $model, array $ids, array $fields): array
+    {
+        return match ($model) {
+            'product.template.attribute.line' => [[
+                'id' => 501,
+                'product_tmpl_id' => [10, 'Produit avec variantes dupliquees'],
+                'attribute_id' => [5, 'Conditionnement'],
+                'value_ids' => [101],
+            ]],
+            'product.attribute.value' => [[
+                'id' => 101,
+                'name' => 'Detail',
+                'attribute_id' => [5, 'Conditionnement'],
+                'active' => true,
+            ]],
+            'product.template.attribute.value' => [[
+                'id' => 1001,
+                'attribute_id' => [5, 'Conditionnement'],
+                'product_attribute_value_id' => [101, 'Detail'],
+                'name' => 'Detail',
+                'product_tmpl_id' => [10, 'Produit avec variantes dupliquees'],
             ]],
             default => [],
         };
