@@ -331,7 +331,7 @@ class OdooProductImportService
         $singleVariant = ! str_starts_with((string) $parent->sku, 'ODOO-T-'.$connection->id.'-');
         $fallbackSku = 'ODOO-P-'.$connection->id.'-'.$odooId;
         $requestedSku = $this->sku($record['default_code'] ?? null, $fallbackSku);
-        $barcode = $this->nullableString($record['barcode'] ?? null);
+        $requestedBarcode = $this->nullableString($record['barcode'] ?? null);
         $mappedProduct = $mapping?->product;
         $excludeId = $singleVariant ? null : $parent->id;
         if ($singleVariant) {
@@ -340,7 +340,7 @@ class OdooProductImportService
             $skuProduct = $this->findBySku($run->company_id, $requestedSku, $excludeId);
             $barcodeProduct = $this->findByBarcode(
                 $run->company_id,
-                $barcode,
+                $requestedBarcode,
                 $excludeId,
                 $connection->id,
                 'product.product',
@@ -353,7 +353,7 @@ class OdooProductImportService
             $product ??= $this->findBySkuOrBarcode(
                 $run->company_id,
                 $requestedSku,
-                $barcode,
+                $requestedBarcode,
                 $parent->id,
                 $connection->id,
                 'product.product',
@@ -363,8 +363,6 @@ class OdooProductImportService
 
         $created = ! $product;
         $product ??= new Product;
-        $sku = $this->availableSku($run->company_id, $requestedSku, $fallbackSku, $product);
-        $barcode = $this->availableBarcode($run->company_id, $barcode, $product);
         $mappingNeedsRepair = $mapping && $product->exists && (int) $mapping->product_id !== (int) $product->id;
         $variantValues = $context['variant_values_by_variant'][$odooId] ?? [];
         $suppliers = $context['suppliers_by_variant'][$odooId] ?? $context['suppliers_by_template'][$templateId] ?? [];
@@ -377,12 +375,30 @@ class OdooProductImportService
             return 'skipped';
         }
 
-        DB::transaction(function () use ($product, $run, $connection, $record, $odooId, $templateId, $parent, $singleVariant, $sku, $barcode, $variantValues, $suppliers, $stockQuantity, $hash): void {
+        DB::transaction(function () use (&$created, $product, $run, $connection, $record, $odooId, $templateId, $parent, $singleVariant, $requestedSku, $fallbackSku, $requestedBarcode, $variantValues, $suppliers, $stockQuantity, $hash): void {
             $valueIds = $this->syncVariantValues($run, $variantValues, $connection);
             $variantLabel = collect($variantValues)
                 ->map(fn (array $value): string => trim(($value['attribute_name'] ?? '').': '.($value['value_name'] ?? '')))
                 ->filter()
                 ->implode(' · ');
+            $variantSignature = $singleVariant
+                ? null
+                : (collect($valueIds)->sort()->implode('-') ?: 'odoo-'.$odooId);
+
+            if (! $singleVariant) {
+                $signatureProduct = $this->findByVariantSignature(
+                    $run->company_id,
+                    $parent->id,
+                    (string) $variantSignature,
+                );
+                if ($signatureProduct && (! $product->exists || ! $product->is($signatureProduct))) {
+                    $product = $signatureProduct;
+                    $created = false;
+                }
+            }
+
+            $sku = $this->availableSku($run->company_id, $requestedSku, $fallbackSku, $product);
+            $barcode = $this->availableBarcode($run->company_id, $requestedBarcode, $product);
 
             $product->fill([
                 'tenant_id' => $run->tenant_id,
@@ -412,9 +428,7 @@ class OdooProductImportService
                 'is_active' => (bool) ($record['active'] ?? $parent->is_active),
                 'is_variant' => ! $singleVariant,
                 'variant_label' => $singleVariant ? null : ($variantLabel ?: $this->variantName($record, $parent->name)),
-                'variant_signature' => $singleVariant
-                    ? null
-                    : (collect($valueIds)->sort()->implode('-') ?: 'odoo-'.$odooId),
+                'variant_signature' => $variantSignature,
             ]);
             $image = $record['image_variant_1920'] ?? $record['image_1920'] ?? null;
             $this->storeImage($product, $image, $connection, 'variant', $odooId);
@@ -797,6 +811,15 @@ class OdooProductImportService
             ->where('company_id', $companyId)
             ->when($excludeId, fn ($query, int $id) => $query->whereKeyNot($id))
             ->where('sku', $sku)
+            ->first();
+    }
+
+    private function findByVariantSignature(int $companyId, int $parentProductId, string $signature): ?Product
+    {
+        return Product::query()
+            ->where('company_id', $companyId)
+            ->where('parent_product_id', $parentProductId)
+            ->where('variant_signature', $signature)
             ->first();
     }
 
