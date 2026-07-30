@@ -7,6 +7,7 @@ use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductAttribute;
 use App\Modules\Catalog\Models\ProductAttributeValue;
 use App\Modules\Catalog\Models\ProductCategory;
+use App\Modules\Catalog\Services\ProductCatalogCleanupService;
 use App\Modules\Catalog\Services\ProductOptionService;
 use App\Modules\Core\Audit\Services\ActivityFeedService;
 use App\Modules\Core\Company\Models\TaxRule;
@@ -457,6 +458,30 @@ class ProductController extends Controller
         $this->deleteStoredImage($imagePath, $imageDisk);
 
         return redirect()->route('products.index')->with('success', 'Produit supprime avec succes.');
+    }
+
+    public function cleanupInvalid(
+        CurrentWorkspace $workspace,
+        ProductCatalogCleanupService $cleanupService,
+    ): RedirectResponse {
+        $companyId = $workspace->companyId();
+        abort_if(! $companyId, 403);
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        $result = $cleanupService->clean($companyId);
+
+        return redirect()->route('products.index')->with(
+            'success',
+            sprintf(
+                'Nettoyage termine : %d produit(s) sans nom reel ou sans prix detecte(s), %d supprime(s), %d archive(s) pour conserver l historique.',
+                $result['detected'],
+                $result['deleted'],
+                $result['archived'],
+            ),
+        );
     }
 
     private function auditWatchedProductFields(): array
