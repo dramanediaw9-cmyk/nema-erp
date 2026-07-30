@@ -181,6 +181,7 @@ Les pages controlees repondent sans erreur JavaScript et sans debordement horizo
 2. Sur un ecran portable court, le champ « Montant recu en especes » se trouvait sous le viewport : son bord inferieur etait mesure a 638 px pour un viewport de 587 px. Le panneau d'encaissement adopte maintenant une disposition horizontale compacte.
 3. Douze produits etaient injectes dans une grille de neuf emplacements. Les noms et prix sortaient visuellement des cartes. La pagination s'adapte maintenant a la hauteur et a la largeur de l'ecran ; les cartes courtes utilisent une disposition horizontale.
 4. Le script de deploiement n'incluait pas les ressources du dossier `public`. Il les livre maintenant et normalise les permissions Hostinger de `public`, `routes`, `bootstrap` et `storage`.
+5. L'audit de production a detecte six avis de securite Dompdf (quatre moyens et deux faibles) affectant la version 3.1.5. Dompdf a ete mis a jour vers 3.1.6, qui corrige ces avis.
 
 ### Validation du lot
 
@@ -189,6 +190,8 @@ Les pages controlees repondent sans erreur JavaScript et sans debordement horizo
 - Smoke Playwright : recherche persistante et cadrage POS 1280 × 600 reussis.
 - CI SQLite : reussie.
 - CI MySQL : reussie.
+- Composer audit : aucun avis de securite apres mise a jour de Dompdf.
+- Generation PDF : 1 test, 28 assertions, 0 echec.
 - GitHub : commit `7414d9e2b5e76747ceba20951cd9f6f9985f4960`.
 - Production : `/up`, `/login` et la feuille `css/pos-odoo.css` repondent en HTTP 200.
 
