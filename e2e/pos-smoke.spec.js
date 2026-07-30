@@ -28,7 +28,12 @@ test('cashier can open POS session, validate a sale, print the thermal ticket, a
     await expect(availableProduct).toBeVisible();
     await expect(availableProduct).toBeEnabled();
 
-    await availableProduct.click();
+    const productName = (await availableProduct.locator('strong').innerText()).trim();
+    const productSearch = page.locator('#pos-search');
+    await productSearch.fill(productName);
+    await expect(page.locator('.pos-product[data-product-id]:not(:disabled)').first()).toBeVisible();
+    await page.locator('.pos-product[data-product-id]:not(:disabled)').first().click();
+    await expect(productSearch).toHaveValue(productName);
     await expect(page.locator('[data-line-card]').first()).toBeVisible();
     await page.locator('#cash_received_amount').fill('999999');
 
