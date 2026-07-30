@@ -16,6 +16,17 @@ async function login(page) {
     await expect(page).toHaveURL(/dashboard|onboarding|workspace|select-company/);
 }
 
+async function expectNoPageOverflow(page) {
+    const dimensions = await page.evaluate(() => ({
+        viewportWidth: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+    }));
+
+    expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+    expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+}
+
 test('core work pages keep operational data high on desktop', async ({ page }) => {
     await login(page);
 
@@ -42,24 +53,40 @@ test('core work pages keep operational data high on desktop', async ({ page }) =
 test.describe('mobile work layout', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    test('stock page stays compact without horizontal page overflow', async ({ page }) => {
+    test('core work pages stay compact without horizontal page overflow', async ({ page }) => {
         await login(page);
-        await page.goto('/stock');
 
-        await expect(page.locator('.mobile-menu-button')).toBeVisible();
-        await expect(page.locator('.erp-work-toolbar')).toBeVisible();
-        await expect(page.locator('.erp-kpi-strip')).toBeVisible();
-        await expect(page.locator('.erp-filter-panel')).toBeVisible();
+        for (const [url, dataSelector] of workPages) {
+            await page.goto(url);
 
-        const mainBox = await page.locator('.main').boundingBox();
-        expect(mainBox.width).toBeGreaterThan(350);
+            await expect(page.locator('.mobile-menu-button')).toBeVisible();
+            await expect(page.locator('.erp-work-toolbar, .search-workbar')).toBeVisible();
+            await expect(page.locator(dataSelector).first()).toBeVisible();
 
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-        expect(overflow).toBe(false);
+            const mainBox = await page.locator('.main').boundingBox();
+            expect(mainBox.width).toBeGreaterThan(350);
+            await expectNoPageOverflow(page);
+        }
 
         await page.screenshot({ path: 'logs/operational-density-mobile.png', fullPage: false });
 
         await page.locator('[data-sidebar-toggle]').click();
         await expect(page.locator('[data-layout-shell]')).toHaveAttribute('data-sidebar-open', 'true');
+    });
+});
+
+test.describe('tablet work layout', () => {
+    test.use({ viewport: { width: 768, height: 1024 } });
+
+    test('core work pages keep filters and data reachable without page overflow', async ({ page }) => {
+        await login(page);
+
+        for (const [url, dataSelector] of workPages) {
+            await page.goto(url);
+
+            await expect(page.locator('.erp-work-toolbar, .search-workbar')).toBeVisible();
+            await expect(page.locator(dataSelector).first()).toBeVisible();
+            await expectNoPageOverflow(page);
+        }
     });
 });

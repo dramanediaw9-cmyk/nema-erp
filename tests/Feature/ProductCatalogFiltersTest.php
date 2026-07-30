@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductCategory;
 use App\Modules\Inventory\Models\StockMovement;
+use Database\Factories\UserFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -193,6 +194,66 @@ class ProductCatalogFiltersTest extends TestCase
             ->assertSee('Kanban')
             ->assertSee('Savon kanban')
             ->assertSee('Ouvrir fiche');
+    }
+
+    public function test_product_picker_returns_every_matching_diago_product_as_a_distinct_option(): void
+    {
+        $user = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+
+        foreach ([
+            ['PRD-DIAGO-01', '890000000001', 'Diago lait 400 g'],
+            ['PRD-DIAGO-02', '890000000002', 'Diago cacao 400 g'],
+            ['PRD-DIAGO-03', '890000000003', 'Diago vanille 400 g'],
+        ] as [$sku, $barcode, $name]) {
+            Product::query()->create([
+                'company_id' => $user->company_id,
+                'sku' => $sku,
+                'barcode' => $barcode,
+                'name' => $name,
+                'unit' => 'boite',
+                'type' => 'stockable',
+                'sale_price' => 2500,
+                'purchase_price' => 1800,
+                'min_stock' => 2,
+                'is_active' => true,
+            ]);
+        }
+
+        $response = $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->getJson(route('products.options', [
+                'q' => 'Diago',
+                'mode' => 'saleable',
+                'limit' => 40,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('has_more', false);
+
+        $results = collect($response->json('results'));
+
+        $this->assertCount(3, $results);
+        $this->assertSame(
+            ['Diago cacao 400 g', 'Diago lait 400 g', 'Diago vanille 400 g'],
+            $results->pluck('name')->all(),
+        );
+        $this->assertCount(3, $results->pluck('id')->unique());
+    }
+
+    public function test_product_picker_rejects_authenticated_user_without_catalog_permission(): void
+    {
+        $manager = User::query()->where('email', 'manager@nema-erp.test')->firstOrFail();
+        $user = UserFactory::new()->create([
+            'tenant_id' => $manager->tenant_id,
+            'company_id' => $manager->company_id,
+            'branch_id' => $manager->branch_id,
+            'email' => 'sans-catalogue@nema-erp.test',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->getJson(route('products.options', ['q' => 'Diago']))
+            ->assertForbidden();
     }
 
     private function workspaceSession(User $user): array

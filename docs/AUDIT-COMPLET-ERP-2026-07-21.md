@@ -197,6 +197,38 @@ Les pages controlees repondent sans erreur JavaScript et sans debordement horizo
 
 ### Suite du contre-audit
 
-- uniformiser les accords grammaticaux lorsque le vocabulaire sectoriel remplace « vente » par « ticket caisse » ;
-- poursuivre la matrice responsive tablette et telephone ;
-- reprendre l'audit module par module : catalogue, stock, imports, ventes, achats, comptabilite, utilisateurs et permissions.
+- les libelles POS dependants du vocabulaire sectoriel ont ete remplaces par des formulations neutres et grammaticalement stables ;
+- la matrice responsive catalogue, stock, ventes, achats et recherche a ete etendue au telephone et a la tablette ;
+- le contre-audit se poursuit sur les autres modules : ventes detaillees, comptabilite, utilisateurs et permissions.
+
+## Contre-audit Catalogue, Stocks et Achats — 30 juillet 2026
+
+### Perimetre controle
+
+- catalogue produits : recherche, filtres, vue liste, vue kanban, cycle de vie et images ;
+- recherche asynchrone par nom, SKU et code-barres ;
+- import CSV et synchronisation Odoo complete, incrementale, reprenable et sans doublon ;
+- variantes, attributs, valeurs, fournisseurs, prix d'achat et permissions des couts ;
+- stock initial, ajustements, pertes, inventaires, lots, numeros de serie et FEFO ;
+- demandes d'achat, commandes fournisseur, receptions, factures, avoirs et paiements ;
+- responsive des pages Produits, Stock, Ventes, Achats et Recherche.
+
+### Regressions ajoutees
+
+1. La recherche « Diago » doit restituer chaque produit correspondant comme une option distincte et selectionnable.
+2. Un utilisateur authentifie sans permission catalogue doit recevoir une reponse 403 sur l'endpoint de recherche produit.
+3. Les cinq pages de travail principales ne doivent provoquer aucun debordement horizontal global sur bureau, tablette 768 × 1024 et telephone 390 × 844.
+4. Les donnees operationnelles et les filtres doivent rester visibles et accessibles sur chaque format.
+
+### Validation du lot
+
+- Produits, Stocks, Imports Odoo et Achats : 70 tests, 570 assertions, 0 echec.
+- Playwright Chromium : 3 scenarios de densite et responsive, 0 echec.
+- Build Vite de production : reussi.
+- Sauvegarde hors site : empreintes SHA-256 verifiees.
+- Restauration reelle : base Resto saine, 130 tables ERP et trois archives sources valides.
+- Controle de production : 7 URL critiques en HTTP 200, TLS valide, temps de reponse sous le seuil et audit Composer propre.
+
+### Etat Odoo
+
+La base source utilisee par Fily's Boutique est auto-hebergee a l'adresse `filys.tielservices.com`, avec la base logique `filys`. L'acces navigateur a ete confirme. La synchronisation Nema ERP reste unidirectionnelle vers Nema ERP tant qu'une synchronisation inverse des stocks n'est pas explicitement activee.
