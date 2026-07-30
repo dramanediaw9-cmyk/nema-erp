@@ -3905,7 +3905,7 @@
             }
         };
 
-        const addProduct = (product) => {
+        const addProduct = (product, { preserveSearch = false } = {}) => {
             if (product.type === 'stockable' && availableProductQty(product.id) <= 0.0001) {
                 feedback.textContent = `${product.name} est en rupture sur ${sessionWarehouseName}.`;
                 setScanStatus('Article en rupture');
@@ -3941,9 +3941,11 @@
             resetBuffer();
             renderCart();
             renderProducts();
-            searchInput.value = '';
-            state.search = '';
-            void loadRemoteProducts();
+            if (!preserveSearch) {
+                searchInput.value = '';
+                state.search = '';
+                void loadRemoteProducts();
+            }
             searchInput.focus();
         };
 
@@ -4304,7 +4306,7 @@
             }
             const product = byId[String(button.dataset.productId)];
             if (product) {
-                addProduct(product);
+                addProduct(product, { preserveSearch: String(state.search || '').trim() !== '' });
             }
         });
 
