@@ -266,6 +266,10 @@ Sur la Balance, le premier tableau commençait a 602 px dans un viewport de 720 
 - Regressions Securite/Comptabilite : 13 tests, 82 assertions, 0 echec.
 - Matrice Playwright etendue a 13 pages : bureau, telephone 390 × 844 et tablette 768 × 1024, 0 debordement global et 0 echec.
 - GitHub Actions du lot responsive precedent : CI, qualite/smoke et deploiement Laravel Cloud reussis.
+- Inventaire statique authentifie : 135 routes GET sans parametre ouvertes comme administrateur, aucune 404, 500 ou page HTML vide.
+- Profils tiers et collaboration documentaire : 9 tests, 39 assertions, 0 echec.
+- Routes d'ecriture sans middleware de permission statique : 13 controlees ; les routes de profil, documents et tiers appliquent leur permission dynamique et leur isolation d'entreprise dans le controleur.
+- Production Hostinger : 15 controles HTTP, TLS, redirection, 404, ressources publiques et en-tetes de securite, 0 echec.
 
 ### Fichiers modifies dans ce lot
 
@@ -277,4 +281,6 @@ Sur la Balance, le premier tableau commençait a 602 px dans un viewport de 720 
 - `resources/views/accounting/balance-sheet/index.blade.php`
 - `resources/views/accounting/tax-report/index.blade.php`
 - `tests/Feature/AccessManagementSecurityTest.php`
+- `tests/Feature/PartnerProfileSecurityTest.php`
+- `tests/Feature/StaticAuthenticatedRouteSmokeTest.php`
 - `e2e/operational-density.spec.js`
