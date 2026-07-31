@@ -224,6 +224,8 @@ Les pages controlees repondent sans erreur JavaScript et sans debordement horizo
 
 - Produits, Stocks, Imports Odoo et Achats : 70 tests, 570 assertions, 0 echec.
 - Playwright Chromium : 3 scenarios de densite et responsive, 0 echec.
+- Smoke navigateur complet en mode CI serie : 8 parcours, incluant POS, portails client et matrice responsive, 0 echec.
+- La matrice responsive fait maintenant partie du script `e2e:smoke` execute automatiquement par GitHub Actions.
 - Build Vite de production : reussi.
 - Sauvegarde hors site : empreintes SHA-256 verifiees.
 - Restauration reelle : base Resto saine, 130 tables ERP et trois archives sources valides.
