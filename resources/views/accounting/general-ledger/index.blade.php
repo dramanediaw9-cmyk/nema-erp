@@ -4,49 +4,55 @@
 @section('page-title', 'Grand livre')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Grand livre comptable</h2>
-            <div class="muted">Vue detaillee des lignes d ecriture par compte sur la periode.</div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Grand livre comptable</strong>
+                    <div class="muted">Lignes d’écriture par compte sur la période.</div>
+                </div>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                <a href="{{ route('accounting.general-ledger.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
+                <a href="{{ route('accounting.general-ledger.print', request()->query()) }}" class="button button-secondary" target="_blank">PDF</a>
+            </div>
+        </section>
+
+        <details class="card erp-filter-panel" @if(request()->hasAny(['date_from', 'date_to', 'account_id'])) open @endif>
+            <summary>Filtres du grand livre</summary>
+            <div class="erp-filter-panel__body">
+                <form method="GET" action="{{ route('accounting.general-ledger.index') }}" class="form-grid" style="align-items:end; grid-template-columns: repeat(4, minmax(0, 1fr));">
+                    <div>
+                        <label for="date_from">Date début</label>
+                        <input type="date" id="date_from" name="date_from" value="{{ $filters['date_from'] ?? '' }}">
+                    </div>
+                    <div>
+                        <label for="date_to">Date fin</label>
+                        <input type="date" id="date_to" name="date_to" value="{{ $filters['date_to'] ?? '' }}">
+                    </div>
+                    <div>
+                        <label for="account_id">Compte</label>
+                        <select id="account_id" name="account_id">
+                            <option value="">Tous les comptes</option>
+                            @foreach ($accounts as $account)
+                                <option value="{{ $account->id }}" @selected((string) ($filters['account_id'] ?? '') === (string) $account->id)>{{ $account->code }} - {{ $account->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
+                        <button type="submit" class="button button-primary">Filtrer</button>
+                        <a href="{{ route('accounting.general-ledger.index') }}" class="button button-secondary">Réinitialiser</a>
+                    </div>
+                </form>
+            </div>
+        </details>
+
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Débit</div><div class="value">{{ number_format((float) $summary['debit'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Crédit</div><div class="value">{{ number_format((float) $summary['credit'], 0, ',', ' ') }} XOF</div></div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{{ route('accounting.general-ledger.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-            <a href="{{ route('accounting.general-ledger.print', request()->query()) }}" class="button button-secondary" target="_blank">PDF</a>
-        </div>
-    </div>
 
-    <section class="card" style="margin-bottom:20px;">
-        <form method="GET" action="{{ route('accounting.general-ledger.index') }}" class="form-grid" style="align-items:end; grid-template-columns: repeat(4, minmax(0, 1fr));">
-            <div>
-                <label for="date_from">Date debut</label>
-                <input type="date" id="date_from" name="date_from" value="{{ $filters['date_from'] ?? '' }}">
-            </div>
-            <div>
-                <label for="date_to">Date fin</label>
-                <input type="date" id="date_to" name="date_to" value="{{ $filters['date_to'] ?? '' }}">
-            </div>
-            <div>
-                <label for="account_id">Compte</label>
-                <select id="account_id" name="account_id">
-                    <option value="">Tous les comptes</option>
-                    @foreach ($accounts as $account)
-                        <option value="{{ $account->id }}" @selected((string) ($filters['account_id'] ?? '') === (string) $account->id)>{{ $account->code }} - {{ $account->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="actions" style="margin-top:0; justify-content:flex-start; align-self:end;">
-                <button type="submit" class="button button-primary">Filtrer</button>
-                <a href="{{ route('accounting.general-ledger.index') }}" class="button button-secondary">Reinitialiser</a>
-            </div>
-        </form>
-    </section>
-
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Debit</div><div class="stat-value">{{ number_format((float) $summary['debit'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Credit</div><div class="stat-value">{{ number_format((float) $summary['credit'], 0, ',', ' ') }}</div></div>
-    </div>
-
-    <section class="card table-wrap">
+        <section class="card table-wrap">
         <table>
             <thead>
             <tr>
@@ -84,5 +90,6 @@
         @if (method_exists($lines, 'links'))
             <div style="margin-top:18px;">{{ $lines->links() }}</div>
         @endif
-    </section>
+        </section>
+    </div>
 @endsection

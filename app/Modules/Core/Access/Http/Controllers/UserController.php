@@ -11,6 +11,7 @@ use App\Support\CurrentWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class UserController extends Controller
@@ -37,7 +38,7 @@ class UserController extends Controller
         abort_if(! $companyId, 403);
 
         return view('users.create', [
-            'userModel' => new User(),
+            'userModel' => new User,
             'branches' => Branch::query()->where('company_id', $companyId)->orderByDesc('is_default')->orderBy('name')->get(),
             'roles' => $this->availableRoles($companyId),
         ]);
@@ -98,7 +99,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'password' => ['nullable', 'string', Password::defaults()->uncompromised(), 'confirmed'],
             'roles' => ['required', 'array', 'min:1'],
@@ -130,8 +131,13 @@ class UserController extends Controller
 
     private function availableRoles(int $companyId)
     {
-        return Role::query()
-            ->where(fn($query) => $query->whereNull('company_id')->orWhere('company_id', $companyId))
+        $query = Role::query()->where('company_id', $companyId);
+
+        if (request()->user()?->hasRole('platform_admin')) {
+            $query->orWhereNull('company_id');
+        }
+
+        return $query
             ->orderByDesc('is_system')
             ->orderBy('name')
             ->get();
@@ -142,7 +148,11 @@ class UserController extends Controller
         $availableIds = $this->availableRoles($companyId)->pluck('id')->all();
 
         foreach ($roleIds as $roleId) {
-            abort_unless(in_array((int) $roleId, $availableIds, true), 422, 'Un rôle sélectionné n\'est pas autorisé pour cette entreprise.');
+            if (! in_array((int) $roleId, $availableIds, true)) {
+                throw ValidationException::withMessages([
+                    'roles' => 'Un rôle sélectionné n\'est pas autorisé pour cette entreprise.',
+                ]);
+            }
         }
 
         return array_map('intval', $roleIds);

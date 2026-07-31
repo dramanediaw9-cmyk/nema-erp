@@ -1,11 +1,19 @@
 import { expect, test } from '@playwright/test';
 
 const workPages = [
-    ['/produits', '.catalog-table'],
-    ['/stock', '.inventory-table'],
-    ['/ventes', '.records-table'],
-    ['/achats', '.records-table'],
-    ['/recherche?q=PRD', '.search-grid'],
+    { url: '/produits', dataSelector: '.catalog-table', headerSelector: '.erp-work-toolbar' },
+    { url: '/stock', dataSelector: '.inventory-table', headerSelector: '.erp-work-toolbar' },
+    { url: '/ventes', dataSelector: '.records-table', headerSelector: '.erp-work-toolbar' },
+    { url: '/achats', dataSelector: '.records-table', headerSelector: '.erp-work-toolbar' },
+    { url: '/recherche?q=PRD', dataSelector: '.search-grid', headerSelector: '.search-workbar' },
+    { url: '/utilisateurs', dataSelector: '.table-wrap', headerSelector: '.page-head' },
+    { url: '/roles', dataSelector: '.table-wrap', headerSelector: '.page-head' },
+    { url: '/comptabilite/balance', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/comptabilite/grand-livre', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/comptabilite/compte-resultat', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/comptabilite/bilan', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/comptabilite/fiscalite', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/comptabilite/journaux', dataSelector: '.table-wrap', headerSelector: '.page-head' },
 ];
 
 async function login(page) {
@@ -30,12 +38,12 @@ async function expectNoPageOverflow(page) {
 test('core work pages keep operational data high on desktop', async ({ page }) => {
     await login(page);
 
-    for (const [url, dataSelector] of workPages) {
+    for (const { url, dataSelector, headerSelector } of workPages) {
         await page.goto(url);
 
         await expect(page.locator('.erp-module-bar')).toBeVisible();
         await expect(page.locator('.module-favorite-button')).toHaveCount(0);
-        await expect(page.locator('.erp-work-toolbar, .search-workbar')).toBeVisible();
+        await expect(page.locator(headerSelector)).toBeVisible();
 
         const dataRegion = page.locator(dataSelector).first();
         await expect(dataRegion).toBeVisible();
@@ -56,11 +64,11 @@ test.describe('mobile work layout', () => {
     test('core work pages stay compact without horizontal page overflow', async ({ page }) => {
         await login(page);
 
-        for (const [url, dataSelector] of workPages) {
+        for (const { url, dataSelector, headerSelector } of workPages) {
             await page.goto(url);
 
             await expect(page.locator('.mobile-menu-button')).toBeVisible();
-            await expect(page.locator('.erp-work-toolbar, .search-workbar')).toBeVisible();
+            await expect(page.locator(headerSelector)).toBeVisible();
             await expect(page.locator(dataSelector).first()).toBeVisible();
 
             const mainBox = await page.locator('.main').boundingBox();
@@ -81,10 +89,10 @@ test.describe('tablet work layout', () => {
     test('core work pages keep filters and data reachable without page overflow', async ({ page }) => {
         await login(page);
 
-        for (const [url, dataSelector] of workPages) {
+        for (const { url, dataSelector, headerSelector } of workPages) {
             await page.goto(url);
 
-            await expect(page.locator('.erp-work-toolbar, .search-workbar')).toBeVisible();
+            await expect(page.locator(headerSelector)).toBeVisible();
             await expect(page.locator(dataSelector).first()).toBeVisible();
             await expectNoPageOverflow(page);
         }

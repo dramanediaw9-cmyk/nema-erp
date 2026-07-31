@@ -14,9 +14,7 @@ use Illuminate\View\View;
 
 class RoleController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
-    }
+    public function __construct(private readonly ActivityLogger $activityLogger) {}
 
     public function index(CurrentWorkspace $workspace): View
     {
@@ -40,7 +38,7 @@ class RoleController extends Controller
         }
 
         return view('roles.create', [
-            'role' => new Role(),
+            'role' => new Role,
             'permissions' => Permission::query()->orderBy('module')->orderBy('name')->get()->groupBy('module'),
         ]);
     }
@@ -76,6 +74,7 @@ class RoleController extends Controller
     public function edit(Role $role, CurrentWorkspace $workspace): View
     {
         abort_if($role->company_id !== null && $workspace->companyId() !== $role->company_id, 403);
+        abort_if($role->company_id === null, 403, 'Les rôles système ne peuvent pas être modifiés depuis cette interface.');
 
         return view('roles.edit', [
             'role' => $role->load('permissions'),

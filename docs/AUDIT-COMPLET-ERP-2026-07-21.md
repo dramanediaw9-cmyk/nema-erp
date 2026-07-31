@@ -234,3 +234,47 @@ Les pages controlees repondent sans erreur JavaScript et sans debordement horizo
 ### Etat Odoo
 
 La base source utilisee par Fily's Boutique est auto-hebergee a l'adresse `filys.tielservices.com`, avec la base logique `filys`. L'acces navigateur a ete confirme. La synchronisation Nema ERP reste unidirectionnelle vers Nema ERP tant qu'une synchronisation inverse des stocks n'est pas explicitement activee.
+
+## Contre-audit Ventes, Comptabilite et Acces — 31 juillet 2026
+
+### Securite et permissions
+
+Un defaut critique d'elevation de privileges a ete confirme dans la gestion des utilisateurs : un administrateur d'entreprise pouvait soumettre directement l'identifiant du role global `platform_admin`. Le controle est maintenant applique cote serveur :
+
+- les administrateurs d'entreprise ne voient et ne peuvent attribuer que les roles de leur entreprise ;
+- les administrateurs plateforme conservent la possibilite d'attribuer un role global ;
+- une tentative interdite retourne un message de validation comprehensible ;
+- l'URL directe d'edition d'un role systeme retourne 403 ;
+- les acces inter-entreprises aux utilisateurs et roles retournent 403 ;
+- les utilisateurs sans permissions `users.*` ou `roles.*` restent bloques cote serveur.
+
+### Interface comptable compacte
+
+Les pages Balance, Grand livre, Compte de resultat, Bilan et Fiscalite utilisent maintenant les memes composants :
+
+- barre d'actions compacte ;
+- filtres repliables, ouverts uniquement lorsqu'un filtre est actif ;
+- indicateurs de synthese compacts avec montants en XOF ;
+- tableaux visibles plus haut dans le viewport ;
+- libelles et accents francais uniformises.
+
+Sur la Balance, le premier tableau commençait a 602 px dans un viewport de 720 px. Apres correction, il commence a environ 415 px, sans suppression de filtre, d'export CSV ni d'impression PDF.
+
+### Validation du lot
+
+- Ventes, Comptabilite et Acces : 40 tests historiques, 344 assertions, 0 echec.
+- Regressions Securite/Comptabilite : 13 tests, 82 assertions, 0 echec.
+- Matrice Playwright etendue a 13 pages : bureau, telephone 390 × 844 et tablette 768 × 1024, 0 debordement global et 0 echec.
+- GitHub Actions du lot responsive precedent : CI, qualite/smoke et deploiement Laravel Cloud reussis.
+
+### Fichiers modifies dans ce lot
+
+- `app/Modules/Core/Access/Http/Controllers/UserController.php`
+- `app/Modules/Core/Access/Http/Controllers/RoleController.php`
+- `resources/views/accounting/balance/index.blade.php`
+- `resources/views/accounting/general-ledger/index.blade.php`
+- `resources/views/accounting/profit-loss/index.blade.php`
+- `resources/views/accounting/balance-sheet/index.blade.php`
+- `resources/views/accounting/tax-report/index.blade.php`
+- `tests/Feature/AccessManagementSecurityTest.php`
+- `e2e/operational-density.spec.js`
