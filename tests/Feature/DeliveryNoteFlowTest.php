@@ -82,6 +82,12 @@ class DeliveryNoteFlowTest extends TestCase
 
         $this->actingAs($user)
             ->withSession($this->workspaceSession($user))
+            ->get(route('delivery-notes.show', $firstDelivery))
+            ->assertOk()
+            ->assertSeeText($firstDelivery->delivery_number);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
             ->post(route('delivery-notes.store'), [
                 'order_id' => $order->id,
                 'warehouse_id' => $warehouse->id,

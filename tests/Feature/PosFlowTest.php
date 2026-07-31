@@ -6,13 +6,14 @@ use App\Models\User;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Core\Audit\Models\ActivityLog;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Inventory\Models\Warehouse;
+use App\Modules\Partners\Models\Partner;
 use App\Modules\Pos\Models\PosComboChoice;
 use App\Modules\Pos\Models\PosMenuCategory;
 use App\Modules\Pos\Models\PosNoteTemplate;
 use App\Modules\Pos\Models\PosPaymentMethod;
 use App\Modules\Pos\Models\PosProductTag;
 use App\Modules\Pos\Models\PosProfile;
-use App\Modules\Inventory\Models\Warehouse;
 use App\Modules\Pos\Models\PosSession;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
@@ -60,6 +61,11 @@ class PosFlowTest extends TestCase
             ->assertSeeText('Montant initial')
             ->assertSeeText('50 000 XOF')
             ->assertSeeText($user->name);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('pos.session.print', $session))
+            ->assertOk();
     }
 
     public function test_pos_stock_availability_refresh_reflects_stock_adjustments(): void
@@ -610,7 +616,7 @@ class PosFlowTest extends TestCase
         $cashAccount = CashAccount::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('name', 'Caisse principale')->firstOrFail();
         $warehouse = Warehouse::query()->where('company_id', $user->company_id)->where('branch_id', $user->branch_id)->where('is_default', true)->firstOrFail();
         $product = Product::query()->where('company_id', $user->company_id)->where('sku', 'PRD-0001')->firstOrFail();
-        $customer = \App\Modules\Partners\Models\Partner::query()
+        $customer = Partner::query()
             ->customers()
             ->where('company_id', $user->company_id)
             ->firstOrFail();

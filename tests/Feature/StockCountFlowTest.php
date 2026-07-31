@@ -55,6 +55,11 @@ class StockCountFlowTest extends TestCase
 
         $this->assertSame('posted', $stockCount->status);
         $this->assertEqualsWithDelta($counted, $finalBalance, 0.001);
+
+        $this->actingAs($manager)
+            ->withSession($this->workspaceSession($manager))
+            ->get(route('stock-counts.print', $stockCount))
+            ->assertOk();
     }
 
     public function test_manager_can_record_stock_loss_from_dedicated_screen(): void

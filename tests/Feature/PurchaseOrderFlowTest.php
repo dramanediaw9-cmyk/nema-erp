@@ -53,6 +53,11 @@ class PurchaseOrderFlowTest extends TestCase
 
         $this->actingAs($user)
             ->withSession($this->workspaceSession($user))
+            ->get(route('purchase-orders.print', $order))
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
             ->post(route('purchase-orders.confirm', $order))
             ->assertRedirect(route('purchase-orders.show', $order));
 
@@ -79,6 +84,17 @@ class PurchaseOrderFlowTest extends TestCase
         $this->assertEqualsWithDelta(2, (float) $orderItem->received_qty, 0.001);
         $this->assertEqualsWithDelta($stockBefore + 2, $this->stockBalance($user->company_id, $user->branch_id, $product->id, $warehouse->id), 0.001);
         $this->assertMatchesRegularExpression('/^BRF-BKO-\d{4}-\d{5}$/', $firstReceipt->receipt_number);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('goods-receipts.show', $firstReceipt))
+            ->assertOk()
+            ->assertSeeText($firstReceipt->receipt_number);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('goods-receipts.print', $firstReceipt))
+            ->assertOk();
 
         $this->actingAs($user)
             ->withSession($this->workspaceSession($user))

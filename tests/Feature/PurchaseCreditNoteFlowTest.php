@@ -119,6 +119,11 @@ class PurchaseCreditNoteFlowTest extends TestCase
             ->assertOk()
             ->assertSeeText('Avoir fournisseur')
             ->assertSeeText($creditNote->credit_note_number);
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('purchase-credit-notes.print', $creditNote))
+            ->assertOk();
     }
 
     private function workspaceSession(User $user): array

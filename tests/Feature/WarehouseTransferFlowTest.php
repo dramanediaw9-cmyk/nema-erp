@@ -64,6 +64,11 @@ class WarehouseTransferFlowTest extends TestCase
             ->where('reference_id', $transfer->id)
             ->where('product_id', $product->id)
             ->count());
+
+        $this->actingAs($user)
+            ->withSession($this->workspaceSession($user))
+            ->get(route('transfers.print', $transfer))
+            ->assertOk();
     }
 
     private function stockBalance(int $companyId, int $branchId, int $productId, ?int $warehouseId = null): float
