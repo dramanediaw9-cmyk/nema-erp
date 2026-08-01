@@ -145,10 +145,9 @@ Les corrections auditees sont synchronisees sur la branche GitHub `main`. Elles 
 
 ## Points restant a traiter
 
-1. **Moyen — CDN Hostinger :** conserver aussi l'en-tete CSP Laravel complet au niveau du CDN. La politique de secours HTML est deja active.
-2. **Mineur — appareils physiques :** refaire un controle ponctuel sur le terminal et l'imprimante reellement utilises par le caissier.
-3. **Mineur — anciennes sessions POS :** compter puis cloturer les sessions historiques encore ouvertes ; cette action modifierait les donnees de caisse reelles et n'a donc pas ete automatisee.
-4. **Mineur — historique tres long :** si une session depasse regulierement 60 tickets, ajouter une pagination serveur a la liste de session.
+1. **Mineur — appareils physiques :** refaire un controle ponctuel sur le terminal et l'imprimante reellement utilises par le caissier.
+2. **Mineur — anciennes sessions POS :** compter puis cloturer les sessions historiques encore ouvertes ; cette action modifierait les donnees de caisse reelles et n'a donc pas ete automatisee.
+3. **Mineur — historique tres long :** si une session depasse regulierement 60 tickets, ajouter une pagination serveur a la liste de session.
 
 ## Risques de regression
 
@@ -324,6 +323,11 @@ Avant correction, les donnees operationnelles commencaient a environ 1 847 px da
 - Smoke navigateur complet : 8 parcours, incluant POS, portails client et matrice responsive, 0 echec.
 - Matrice responsive avec surveillance console/reseau : 3 scenarios, 0 echec.
 - Logs du serveur local apres les parcours : aucune erreur applicative de niveau ERROR, CRITICAL, ALERT ou EMERGENCY dans la plage controlee.
+- GitHub `main` : commit `6b90a27a4769a9d070a33ab08eec87faac9ee780`, CI SQLite/MySQL, qualite/smoke et deploiement Laravel Cloud reussis.
+- Hostinger : sauvegarde distante creee avant livraison, syntaxe PHP et cache Blade valides, puis remise en ligne reussie.
+- Empreinte de production : le manifeste public livre `assets/app-DgOYU9Z8.css`, identique au build de ce lot.
+- Controle apres deploiement : 7 URL critiques en HTTP 200 et sous 1,5 seconde apres rechauffement ; 15 controles ERP HTTP, redirection, 404, ressources et securite, 0 echec.
+- Securite CDN : l'en-tete CSP et la politique CSP HTML complete sont maintenant tous deux presents ; l'ancien point restant est clos.
 
 ### Fichiers modifies dans ce lot
 
