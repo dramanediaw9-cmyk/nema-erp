@@ -4,32 +4,37 @@
 @section('page-title', 'Depenses')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Sorties d'argent</h2>
-            <div class="muted">Le module couvre les charges du quotidien avec suivi d'approbation et lecture immediate des urgences de reglement.</div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            @allowed('approvals.view')
-                <a href="{{ route('approvals.index', ['module' => 'expenses']) }}" class="button button-secondary">Approvals depenses</a>
-            @endallowed
-            <a href="{{ route('expenses.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
-            @allowed('expenses.manage')
-                <a href="{{ route('expenses.create') }}" class="button button-primary">Nouvelle depense</a>
-            @endallowed
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Sorties d'argent</strong>
+                    <div class="muted">Charges, approbations et urgences de reglement.</div>
+                </div>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                @allowed('approvals.view')
+                    <a href="{{ route('approvals.index', ['module' => 'expenses']) }}" class="button button-secondary">Approbations</a>
+                @endallowed
+                <a href="{{ route('expenses.export', request()->query()) }}" class="button button-secondary">Exporter CSV</a>
+                @allowed('expenses.manage')
+                    <a href="{{ route('expenses.create') }}" class="button button-primary">Nouvelle depense</a>
+                @endallowed
+            </div>
+        </section>
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Depenses non reglees</div><div class="stat-value">{{ $summary['unpaid_count'] }}</div></div>
-        <div class="card"><div class="muted">Montant a regler</div><div class="stat-value">{{ number_format($summary['unpaid_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">A approuver</div><div class="stat-value">{{ $summary['pending_approval_count'] }}</div></div>
-        <div class="card"><div class="muted">Age 8 a 30 jours</div><div class="stat-value">{{ number_format($summary['aging_8_30_total'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Age 31+ jours</div><div class="stat-value">{{ number_format($summary['aging_31_plus_total'], 0, ',', ' ') }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Non reglees</div><div class="value">{{ $summary['unpaid_count'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">A regler</div><div class="value">{{ number_format($summary['unpaid_total'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">A approuver</div><div class="value">{{ $summary['pending_approval_count'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Age 8 a 30 jours</div><div class="value">{{ number_format($summary['aging_8_30_total'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Age 31+ jours</div><div class="value">{{ number_format($summary['aging_31_plus_total'], 0, ',', ' ') }} XOF</div></div>
+        </div>
 
-    <section class="card" style="margin-bottom:18px;">
-        <form method="GET" action="{{ route('expenses.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+        <details class="card erp-filter-panel" @if(request()->hasAny(['search', 'date_from', 'date_to', 'branch_id', 'category_id', 'status', 'payment_status', 'aging_state'])) open @endif>
+            <summary>Rechercher et filtrer</summary>
+            <div class="erp-filter-panel__body">
+                <form method="GET" action="{{ route('expenses.index') }}" class="form-grid" style="align-items:end; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
             <div style="grid-column:span 2; min-width:220px;">
                 <label for="search">Recherche</label>
                 <input type="text" id="search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Numero, description, categorie, fournisseur...">
@@ -91,10 +96,11 @@
                 <button type="submit" class="button button-primary">Filtrer</button>
                 <a href="{{ route('expenses.index') }}" class="button button-secondary">Reinitialiser</a>
             </div>
-        </form>
-    </section>
+                </form>
+            </div>
+        </details>
 
-    <section class="card table-wrap">
+        <section class="card table-wrap">
         <table>
             <thead>
             <tr>
@@ -188,5 +194,6 @@
         @if (method_exists($expenses, 'links'))
             <div style="margin-top:18px;">{{ $expenses->links() }}</div>
         @endif
-    </section>
+        </section>
+    </div>
 @endsection

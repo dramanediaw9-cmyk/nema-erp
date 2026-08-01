@@ -32,12 +32,15 @@
         ];
     @endphp
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Pilotage projets</h2>
-            <div class="muted">Portefeuille, execution terrain, jalons et alertes de retard dans un meme cockpit.</div>
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Pilotage projets</strong>
+                    <div class="muted">Portefeuille, exécution, jalons et alertes de retard.</div>
+                </div>
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -50,16 +53,19 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Projets</div><div class="stat-value">{{ $summary['projects'] }}</div></div>
-        <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active'] }}</div></div>
-        <div class="card"><div class="muted">Sous tension</div><div class="stat-value">{{ $summary['at_risk'] }}</div></div>
-        <div class="card"><div class="muted">Budget cumule</div><div class="stat-value">{{ number_format($summary['budget'], 0, ',', ' ') }} XOF</div></div>
-        <div class="card"><div class="muted">Elements ouverts</div><div class="stat-value">{{ $summary['open_tasks'] }}</div></div>
-        <div class="card"><div class="muted">Retards / jalons proches</div><div class="stat-value">{{ $summary['overdue_tasks'] }} / {{ $summary['milestones_due'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Projets</div><div class="value">{{ $summary['projects'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Actifs</div><div class="value">{{ $summary['active'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Sous tension</div><div class="value">{{ $summary['at_risk'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Budget cumulé</div><div class="value">{{ number_format($summary['budget'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Éléments ouverts</div><div class="value">{{ $summary['open_tasks'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Retards / jalons</div><div class="value">{{ $summary['overdue_tasks'] }} / {{ $summary['milestones_due'] }}</div></div>
+        </div>
 
     @allowed('projects.manage')
+        <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+            <summary>Ajouter un projet</summary>
+            <div class="erp-filter-panel__body">
         <form method="POST" action="{{ route('projects.store') }}" class="card form-grid" style="margin-bottom:18px;">
             @csrf
             <div class="full">
@@ -127,9 +133,11 @@
                 <button type="submit" class="button button-primary">Enregistrer le projet</button>
             </div>
         </form>
+            </div>
+        </details>
     @endallowed
 
-    <section class="card" style="margin-bottom:18px;">
+    <section class="card">
         <h3 class="section-title">Portefeuille projets</h3>
         <div class="table-wrap">
             <table>
@@ -337,4 +345,5 @@
             </div>
         @endforelse
     </section>
+    </div>
 @endsection

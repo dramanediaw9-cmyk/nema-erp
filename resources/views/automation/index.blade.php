@@ -10,18 +10,23 @@
         $executionBadge = ['matched' => 'badge-danger', 'cooldown' => 'badge-warning', 'clear' => 'badge-success', 'error' => 'badge-danger'];
     @endphp
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Moteur d automatisation transverse</h2>
-            <div class="muted">Le noyau relie les signaux critiques des approbations, creances, tresorerie mobile money, versements agence, projets, production et connecteurs.</div>
-        </div>
-        @allowed('automation.manage')
-            <form method="POST" action="{{ route('automation.run-all') }}">
-                @csrf
-                <button type="submit" class="button button-primary">Executer les regles actives</button>
-            </form>
-        @endallowed
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Moteur d automatisation transverse</strong>
+                    <div class="muted">Signaux critiques, regles actives et execution transverse.</div>
+                </div>
+            </div>
+            <div class="erp-work-toolbar__actions">
+                @allowed('automation.manage')
+                    <form method="POST" action="{{ route('automation.run-all') }}">
+                        @csrf
+                        <button type="submit" class="button button-primary">Executer les regles actives</button>
+                    </form>
+                @endallowed
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -34,16 +39,19 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Regles</div><div class="stat-value">{{ $catalog['summary']['rules'] }}</div></div>
-        <div class="card"><div class="muted">Actives</div><div class="stat-value">{{ $catalog['summary']['active'] }}</div></div>
-        <div class="card"><div class="muted">En pause</div><div class="stat-value">{{ $catalog['summary']['paused'] }}</div></div>
-        <div class="card"><div class="muted">Signals 24 h</div><div class="stat-value">{{ $catalog['summary']['matched_last_24h'] }}</div></div>
-        <div class="card"><div class="muted">Signaux en veille</div><div class="stat-value">{{ $catalog['summary']['signals_on_watch'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Regles</div><div class="value">{{ $catalog['summary']['rules'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Actives</div><div class="value">{{ $catalog['summary']['active'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">En pause</div><div class="value">{{ $catalog['summary']['paused'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Signaux 24 h</div><div class="value">{{ $catalog['summary']['matched_last_24h'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Signaux en veille</div><div class="value">{{ $catalog['summary']['signals_on_watch'] }}</div></div>
+        </div>
 
-    @allowed('automation.manage')
-        <form method="POST" action="{{ route('automation.store') }}" class="card form-grid" style="margin-bottom:18px;">
+        @allowed('automation.manage')
+            <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+                <summary>Ajouter une regle</summary>
+                <div class="erp-filter-panel__body">
+                    <form method="POST" action="{{ route('automation.store') }}" class="form-grid">
             @csrf
             <div class="full"><h3 class="section-title">Nouvelle regle noyau</h3></div>
             <div><label for="automation-code">Code</label><input id="automation-code" name="code" value="{{ old('code') }}" placeholder="AUTO-0001"></div>
@@ -104,10 +112,12 @@
             <div class="full"><label for="automation-description">Description</label><textarea id="automation-description" name="description" rows="2">{{ old('description') }}</textarea></div>
             <div class="full"><label for="automation-notes">Notes</label><textarea id="automation-notes" name="notes" rows="2">{{ old('notes') }}</textarea></div>
             <div class="full actions"><button type="submit" class="button button-primary">Enregistrer la regle</button></div>
-        </form>
-    @endallowed
+                    </form>
+                </div>
+            </details>
+        @endallowed
 
-    <section class="card" style="margin-bottom:18px;">
+        <section class="card">
         <h3 class="section-title">Catalogue des signaux noyau</h3>
         <div class="table-wrap">
             <table>
@@ -127,9 +137,9 @@
                 </tbody>
             </table>
         </div>
-    </section>
+        </section>
 
-    <section class="card" style="margin-bottom:18px;">
+        <section class="card">
         <h3 class="section-title">Regles du noyau</h3>
         <div class="table-wrap">
             <table>
@@ -166,7 +176,10 @@
                     @allowed('automation.manage')
                         <tr>
                             <td colspan="7">
-                                <form method="POST" action="{{ route('automation.update', $rule) }}" class="form-grid" style="padding:12px 0;">
+                                <details class="erp-filter-panel">
+                                    <summary>Modifier {{ $rule->code }} — {{ $rule->name }}</summary>
+                                    <div class="erp-filter-panel__body">
+                                        <form method="POST" action="{{ route('automation.update', $rule) }}" class="form-grid">
                                     @csrf
                                     @method('PUT')
                                     <input type="hidden" name="code" value="{{ $rule->code }}">
@@ -227,7 +240,9 @@
                                     <div class="full"><label for="rule-description-{{ $rule->id }}">Description</label><textarea id="rule-description-{{ $rule->id }}" name="description" rows="2">{{ $rule->description }}</textarea></div>
                                     <div class="full"><label for="rule-notes-{{ $rule->id }}">Notes</label><textarea id="rule-notes-{{ $rule->id }}" name="notes" rows="2">{{ $rule->notes }}</textarea></div>
                                     <div class="full actions"><button type="submit" class="button button-primary">Mettre a jour</button></div>
-                                </form>
+                                        </form>
+                                    </div>
+                                </details>
                             </td>
                         </tr>
                     @endallowed
@@ -237,9 +252,9 @@
                 </tbody>
             </table>
         </div>
-    </section>
+        </section>
 
-    <section class="card">
+        <section class="card">
         <h3 class="section-title">Historique d execution</h3>
         <div class="table-wrap">
             <table>
@@ -259,5 +274,6 @@
                 </tbody>
             </table>
         </div>
-    </section>
+        </section>
+    </div>
 @endsection

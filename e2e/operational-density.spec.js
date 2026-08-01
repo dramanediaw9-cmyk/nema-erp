@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.describe.configure({ timeout: 180_000 });
+
 const workPages = [
     { url: '/produits', dataSelector: '.catalog-table', headerSelector: '.erp-work-toolbar' },
     { url: '/stock', dataSelector: '.inventory-table', headerSelector: '.erp-work-toolbar' },
@@ -14,6 +16,15 @@ const workPages = [
     { url: '/comptabilite/bilan', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
     { url: '/comptabilite/fiscalite', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
     { url: '/comptabilite/journaux', dataSelector: '.table-wrap', headerSelector: '.page-head' },
+    { url: '/capital-humain', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/paie', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/projets', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/production', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/commerce-unifie', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/crm', dataSelector: '.table-wrap', headerSelector: '.page-head' },
+    { url: '/budgets', dataSelector: '.table-wrap', headerSelector: '.page-head' },
+    { url: '/depenses', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
+    { url: '/automatisations', dataSelector: '.table-wrap', headerSelector: '.erp-work-toolbar' },
 ];
 
 async function login(page) {
@@ -35,7 +46,29 @@ async function expectNoPageOverflow(page) {
     expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
 }
 
+function observeClientFailures(page) {
+    const failures = [];
+
+    page.on('console', (message) => {
+        if (message.type() === 'error') {
+            failures.push(`console: ${message.text()}`);
+        }
+    });
+    page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`));
+    page.on('requestfailed', (request) => {
+        failures.push(`requestfailed: ${request.method()} ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`);
+    });
+    page.on('response', (response) => {
+        if (response.status() >= 500) {
+            failures.push(`http-${response.status()}: ${response.request().method()} ${response.url()}`);
+        }
+    });
+
+    return () => expect(failures, failures.join('\n')).toEqual([]);
+}
+
 test('core work pages keep operational data high on desktop', async ({ page }) => {
+    const expectNoClientFailures = observeClientFailures(page);
     await login(page);
 
     for (const { url, dataSelector, headerSelector } of workPages) {
@@ -51,10 +84,11 @@ test('core work pages keep operational data high on desktop', async ({ page }) =
         const dataBox = await dataRegion.boundingBox();
         const viewport = page.viewportSize();
 
-        expect(dataBox.y).toBeLessThan(viewport.height * 0.65);
+        expect(dataBox.y, `${url}: operational data starts too low (${Math.round(dataBox.y)}px)`).toBeLessThan(viewport.height * 0.65);
         expect(await page.locator('.premium-hero, .sales-hero, .purchases-hero, .search-hero').count()).toBe(0);
     }
 
+    expectNoClientFailures();
     await page.screenshot({ path: 'logs/operational-density-desktop.png', fullPage: false });
 });
 
@@ -62,6 +96,7 @@ test.describe('mobile work layout', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
     test('core work pages stay compact without horizontal page overflow', async ({ page }) => {
+        const expectNoClientFailures = observeClientFailures(page);
         await login(page);
 
         for (const { url, dataSelector, headerSelector } of workPages) {
@@ -80,6 +115,7 @@ test.describe('mobile work layout', () => {
 
         await page.locator('[data-sidebar-toggle]').click();
         await expect(page.locator('[data-layout-shell]')).toHaveAttribute('data-sidebar-open', 'true');
+        expectNoClientFailures();
     });
 });
 
@@ -87,6 +123,7 @@ test.describe('tablet work layout', () => {
     test.use({ viewport: { width: 768, height: 1024 } });
 
     test('core work pages keep filters and data reachable without page overflow', async ({ page }) => {
+        const expectNoClientFailures = observeClientFailures(page);
         await login(page);
 
         for (const { url, dataSelector, headerSelector } of workPages) {
@@ -96,5 +133,7 @@ test.describe('tablet work layout', () => {
             await expect(page.locator(dataSelector).first()).toBeVisible();
             await expectNoPageOverflow(page);
         }
+
+        expectNoClientFailures();
     });
 });

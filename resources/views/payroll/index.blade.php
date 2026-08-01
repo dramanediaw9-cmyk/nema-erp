@@ -4,12 +4,15 @@
 @section('page-title', 'Paie')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Executions de paie</h2>
-            <div class="muted">Socle paie approfondi: periodes, bulletins detailles, lignes salariales et mise en paiement.</div>
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Executions de paie</strong>
+                    <div class="muted">Périodes, bulletins détaillés, lignes salariales et paiements.</div>
+                </div>
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -22,15 +25,18 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Executions</div><div class="stat-value">{{ $summary['runs'] }}</div></div>
-        <div class="card"><div class="muted">Brouillons</div><div class="stat-value">{{ $summary['draft_runs'] }}</div></div>
-        <div class="card"><div class="muted">Net planifie</div><div class="stat-value">{{ number_format($summary['scheduled_net'], 0, ',', ' ') }} XOF</div></div>
-        <div class="card"><div class="muted">Effectifs planifies</div><div class="stat-value">{{ $summary['people_planned'] }}</div></div>
-        <div class="card"><div class="muted">Bulletins a valider</div><div class="stat-value">{{ $summary['ready_slips'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Exécutions</div><div class="value">{{ $summary['runs'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Brouillons</div><div class="value">{{ $summary['draft_runs'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Net planifié</div><div class="value">{{ number_format($summary['scheduled_net'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Effectifs planifiés</div><div class="value">{{ $summary['people_planned'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Bulletins à valider</div><div class="value">{{ $summary['ready_slips'] }}</div></div>
+        </div>
 
     @allowed('payroll.manage')
+        <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+            <summary>Ajouter une exécution ou un bulletin</summary>
+            <div class="erp-filter-panel__body">
         <form method="POST" action="{{ route('payroll.store') }}" class="card form-grid" style="margin-bottom:18px;">
             @csrf
             <div class="full">
@@ -174,9 +180,11 @@
                 <button type="submit" class="button button-primary">Enregistrer le bulletin</button>
             </div>
         </form>
+            </div>
+        </details>
     @endallowed
 
-    <section class="card" style="margin-bottom:18px;">
+    <section class="card">
         <h3 class="section-title">Calendrier de paie</h3>
         <div class="table-wrap">
             <table>
@@ -245,4 +253,5 @@
             </table>
         </div>
     </section>
+    </div>
 @endsection

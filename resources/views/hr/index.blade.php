@@ -4,12 +4,15 @@
 @section('page-title', 'Capital humain')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Capital humain</h2>
-            <div class="muted">Socle RH operationnel: departements, collaborateurs, contrats, cycles de paie et gestion des conges.</div>
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Capital humain</strong>
+                    <div class="muted">Départements, collaborateurs, contrats, paie et congés.</div>
+                </div>
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -22,15 +25,18 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Departements</div><div class="stat-value">{{ $summary['departments'] }}</div></div>
-        <div class="card"><div class="muted">Collaborateurs</div><div class="stat-value">{{ $summary['employees'] }}</div></div>
-        <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active_employees'] }}</div></div>
-        <div class="card"><div class="muted">Paie mensuelle</div><div class="stat-value">{{ number_format($summary['monthly_payroll'], 0, ',', ' ') }} XOF</div></div>
-        <div class="card"><div class="muted">Conges ouverts</div><div class="stat-value">{{ $summary['open_leave_requests'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Départements</div><div class="value">{{ $summary['departments'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Collaborateurs</div><div class="value">{{ $summary['employees'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Actifs</div><div class="value">{{ $summary['active_employees'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Paie mensuelle</div><div class="value">{{ number_format($summary['monthly_payroll'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Congés ouverts</div><div class="value">{{ $summary['open_leave_requests'] }}</div></div>
+        </div>
 
     @allowed('hr.manage')
+        <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+            <summary>Ajouter un département, un collaborateur ou un congé</summary>
+            <div class="erp-filter-panel__body">
         <div class="split" style="margin-bottom:18px;">
             <form method="POST" action="{{ route('hr.departments.store') }}" class="card form-grid">
                 @csrf
@@ -231,6 +237,8 @@
                 <button type="submit" class="button button-primary">Enregistrer la demande</button>
             </div>
         </form>
+            </div>
+        </details>
     @endallowed
 
     <div class="split">
@@ -332,4 +340,5 @@
             </table>
         </div>
     </section>
+    </div>
 @endsection

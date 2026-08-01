@@ -31,12 +31,15 @@
         ];
     @endphp
 
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Commerce unifie</h2>
-            <div class="muted">Cockpit omnicanal pour suivre traction, execution et incidents web, retail, marketplace et mobile money.</div>
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Commerce unifie</strong>
+                    <div class="muted">Traction et incidents web, retail, marketplace et mobile money.</div>
+                </div>
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -49,17 +52,20 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Canaux</div><div class="stat-value">{{ $summary['channels'] }}</div></div>
-        <div class="card"><div class="muted">Actifs</div><div class="stat-value">{{ $summary['active'] }}</div></div>
-        <div class="card"><div class="muted">Digitaux</div><div class="stat-value">{{ $summary['digital'] }}</div></div>
-        <div class="card"><div class="muted">Objectif mensuel</div><div class="stat-value">{{ number_format($summary['target_revenue'], 0, ',', ' ') }} XOF</div></div>
-        <div class="card"><div class="muted">CA suivi</div><div class="stat-value">{{ number_format($summary['current_revenue'], 0, ',', ' ') }} XOF</div></div>
-        <div class="card"><div class="muted">Canaux sous tension</div><div class="stat-value">{{ $summary['at_risk'] }}</div></div>
-        <div class="card"><div class="muted">Actions ouvertes</div><div class="stat-value">{{ $summary['open_actions'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Canaux</div><div class="value">{{ $summary['channels'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Actifs</div><div class="value">{{ $summary['active'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Digitaux</div><div class="value">{{ $summary['digital'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Objectif mensuel</div><div class="value">{{ number_format($summary['target_revenue'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">CA suivi</div><div class="value">{{ number_format($summary['current_revenue'], 0, ',', ' ') }} XOF</div></div>
+            <div class="card erp-kpi-card"><div class="label">Sous tension</div><div class="value">{{ $summary['at_risk'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Actions ouvertes</div><div class="value">{{ $summary['open_actions'] }}</div></div>
+        </div>
 
     @allowed('commerce.manage')
+        <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+            <summary>Ajouter un canal</summary>
+            <div class="erp-filter-panel__body">
         <form method="POST" action="{{ route('commerce.store') }}" class="card form-grid" style="margin-bottom:18px;">
             @csrf
             <div class="full">
@@ -122,9 +128,11 @@
                 <button type="submit" class="button button-primary">Enregistrer le canal</button>
             </div>
         </form>
+            </div>
+        </details>
     @endallowed
 
-    <section class="card" style="margin-bottom:18px;">
+    <section class="card">
         <h3 class="section-title">Vue portefeuille</h3>
         <div class="table-wrap">
             <table>
@@ -384,4 +392,5 @@
             </div>
         @endforelse
     </section>
+    </div>
 @endsection

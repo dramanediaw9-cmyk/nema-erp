@@ -4,12 +4,15 @@
 @section('page-title', 'Production')
 
 @section('content')
-    <div class="page-head">
-        <div>
-            <h2 style="margin:0;">Ordres de production</h2>
-            <div class="muted">Production structuree: nomenclatures, ordres atelier, jalons et premiers couts matieres.</div>
-        </div>
-    </div>
+    <div class="erp-work-page">
+        <section class="erp-work-toolbar">
+            <div class="erp-work-toolbar__context">
+                <div>
+                    <strong>Ordres de production</strong>
+                    <div class="muted">Nomenclatures, ordres atelier, jalons et coûts matières.</div>
+                </div>
+            </div>
+        </section>
 
     @if ($errors->any())
         <div class="card" style="margin-bottom:18px; border-color:#9c3d2f;">
@@ -22,15 +25,18 @@
         </div>
     @endif
 
-    <div class="grid stats-grid" style="margin-bottom:20px;">
-        <div class="card"><div class="muted">Ordres</div><div class="stat-value">{{ $summary['orders'] }}</div></div>
-        <div class="card"><div class="muted">En cours</div><div class="stat-value">{{ $summary['in_progress'] }}</div></div>
-        <div class="card"><div class="muted">Retards</div><div class="stat-value">{{ $summary['late'] }}</div></div>
-        <div class="card"><div class="muted">Quantite planifiee</div><div class="stat-value">{{ number_format($summary['planned_qty'], 0, ',', ' ') }}</div></div>
-        <div class="card"><div class="muted">Nomenclatures</div><div class="stat-value">{{ $summary['boms'] }}</div></div>
-    </div>
+        <div class="erp-kpi-strip">
+            <div class="card erp-kpi-card"><div class="label">Ordres</div><div class="value">{{ $summary['orders'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">En cours</div><div class="value">{{ $summary['in_progress'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Retards</div><div class="value">{{ $summary['late'] }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Quantité planifiée</div><div class="value">{{ number_format($summary['planned_qty'], 0, ',', ' ') }}</div></div>
+            <div class="card erp-kpi-card"><div class="label">Nomenclatures</div><div class="value">{{ $summary['boms'] }}</div></div>
+        </div>
 
     @allowed('manufacturing.manage')
+        <details class="card erp-filter-panel" @if($errors->any()) open @endif>
+            <summary>Ajouter une nomenclature ou un ordre</summary>
+            <div class="erp-filter-panel__body">
         <form method="POST" action="{{ route('manufacturing.boms.store') }}" class="card form-grid" style="margin-bottom:18px;">
             @csrf
             <div class="full">
@@ -162,9 +168,11 @@
                 <button type="submit" class="button button-primary">Enregistrer l ordre</button>
             </div>
         </form>
+            </div>
+        </details>
     @endallowed
 
-    <section class="card" style="margin-bottom:18px;">
+    <section class="card">
         <h3 class="section-title">Nomenclatures</h3>
         <div class="table-wrap">
             <table>
@@ -233,4 +241,5 @@
             </table>
         </div>
     </section>
+    </div>
 @endsection

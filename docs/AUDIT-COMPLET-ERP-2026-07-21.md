@@ -4,14 +4,14 @@
 
 L'ERP de Fily's Boutique est operationnel sur les parcours controles. La campagne finale ne contient aucune erreur de test, aucune erreur PHPStan, aucune erreur de syntaxe dans les fichiers modifies et aucune vulnerabilite connue dans les dependances de production.
 
-Les corrections auditees sont synchronisees dans la branche GitHub `codex/sync-production-audit`. Elles couvrent la caisse, le stock, les achats, les ventes, les permissions, les imports, les impressions, la navigation, les erreurs publiques, le responsive et le controle continu.
+Les corrections auditees sont synchronisees sur la branche GitHub `main`. Elles couvrent la caisse, le stock, les achats, les ventes, les permissions, les imports, les impressions, la navigation, les erreurs publiques, le responsive et le controle continu.
 
 ## Perimetre controle
 
-- 454 routes Laravel chargees et mises en cache avec succes.
+- 463 routes Laravel inventoriees ; les routes statiques et parametrees authentifiees sont couvertes par les tests de navigation dedies.
 - 20 domaines fonctionnels : comptabilite, budgets, catalogue, recouvrement, commerce, noyau, CRM, depenses, immobilisations, RH, stock, production, tiers, paie, caisse, projets, achats, reporting, ventes et tresorerie.
 - Roles verifies : administrateur societe, caissier, superviseur POS, administrateur d'une autre societe et administrateur plateforme.
-- 400 tests Laravel et 3 173 assertions.
+- 424 tests Laravel et 3 296 assertions.
 - 190 fichiers PHP modifies ou ajoutes controles par `php -l`.
 - 2 scripts JavaScript publics controles par `node --check`.
 - Build Vite de production controle.
@@ -111,7 +111,7 @@ Les corrections auditees sont synchronisees dans la branche GitHub `codex/sync-p
 
 ## Validation technique finale
 
-- PHPUnit : 400 tests, 3 173 assertions, 0 echec, 0 erreur.
+- PHPUnit : 424 tests, 3 296 assertions, 0 echec, 0 erreur.
 - PHPStan/Larastan : 0 erreur.
 - Pint sur le perimetre durci utilise par la CI : reussi.
 - `php -l` : 190 fichiers modifies ou ajoutes, 0 erreur.
@@ -293,4 +293,46 @@ Sur la Balance, le premier tableau commençait a 602 px dans un viewport de 720 
 - `tests/Feature/PosFlowTest.php`
 - `tests/Feature/StockCountFlowTest.php`
 - `tests/Feature/WarehouseTransferFlowTest.php`
+- `e2e/operational-density.spec.js`
+
+## Contre-audit densite et modules de croissance — 1er aout 2026
+
+### Modules controles et corrections
+
+- Capital humain, Paie, Projets, Production et Commerce unifie utilisent maintenant la barre de travail, les indicateurs compacts et les panneaux de creation repliables communs.
+- Depenses utilise la meme barre d'actions, un resume financier compact et des filtres repliables qui se rouvrent automatiquement lorsqu'une recherche est active.
+- Automatisations n'affiche plus en permanence le long formulaire de creation ni les formulaires de modification de chaque regle ; ces actions restent disponibles dans des panneaux contextuels repliables.
+- Les marges cumulees entre sections ont ete retirees au profit de l'espacement unique du conteneur de travail.
+- Les montants des indicateurs restent sur une ligne et utilisent une taille lisible de 18 px afin d'eviter les cartes inutilement hautes.
+
+Avant correction, les donnees operationnelles commencaient a environ 1 847 px dans Capital humain, 1 828 px dans Paie et 1 335 px dans Automatisations sur un viewport de 720 px. La matrice impose maintenant que la premiere zone de donnees des 22 pages controlees commence avant 65 % de la hauteur du viewport sur ordinateur.
+
+### Matrice responsive et erreurs client
+
+- 22 pages metier parcourues sur ordinateur 1280 x 720, telephone 390 x 844 et tablette 768 x 1024, soit 66 controles de page.
+- Aucun debordement horizontal global, bouton de menu inaccessible, tableau absent ou entete de travail masque.
+- Le test collecte maintenant les erreurs de console, les exceptions JavaScript, les requetes echouees et toutes les reponses HTTP 5xx ; aucune n'a ete detectee sur la matrice.
+- Le message d'echec de densite indique desormais directement la route et la position mesuree, ce qui rend les regressions immediatement actionnables.
+
+### Validation du lot
+
+- Tests Growth Foundation et Growth Depth : 10 tests, 115 assertions, 0 echec.
+- Regressions PHP completes : 424 tests, 3 296 assertions, 0 echec.
+- PHPStan/Larastan : 0 erreur.
+- Pint sur le perimetre durci de la CI : reussi.
+- Build Vite de production : reussi.
+- Smoke navigateur complet : 8 parcours, incluant POS, portails client et matrice responsive, 0 echec.
+- Matrice responsive avec surveillance console/reseau : 3 scenarios, 0 echec.
+- Logs du serveur local apres les parcours : aucune erreur applicative de niveau ERROR, CRITICAL, ALERT ou EMERGENCY dans la plage controlee.
+
+### Fichiers modifies dans ce lot
+
+- `resources/css/app.css`
+- `resources/views/hr/index.blade.php`
+- `resources/views/payroll/index.blade.php`
+- `resources/views/projects/index.blade.php`
+- `resources/views/manufacturing/index.blade.php`
+- `resources/views/commerce/index.blade.php`
+- `resources/views/expenses/index.blade.php`
+- `resources/views/automation/index.blade.php`
 - `e2e/operational-density.spec.js`

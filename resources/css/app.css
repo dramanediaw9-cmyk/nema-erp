@@ -1391,7 +1391,7 @@ select:disabled {
 
 .erp-work-page {
     display: grid;
-    gap: 10px !important;
+    gap: 6px !important;
 }
 
 .erp-work-toolbar {
@@ -1399,7 +1399,7 @@ select:disabled {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    min-height: 48px;
+    min-height: 46px;
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -1445,7 +1445,7 @@ select:disabled {
 
 .erp-kpi-card {
     min-width: 0;
-    padding: 9px 11px !important;
+    padding: 8px 10px !important;
     border-radius: 10px !important;
     box-shadow: none !important;
 }
@@ -1460,9 +1460,10 @@ select:disabled {
 
 .erp-kpi-card .value {
     margin-top: 3px !important;
-    font-size: 21px !important;
+    font-size: 18px !important;
     line-height: 1.15;
     letter-spacing: 0 !important;
+    white-space: nowrap;
 }
 
 .erp-kpi-card .hint {
