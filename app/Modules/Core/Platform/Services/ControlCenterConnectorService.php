@@ -17,7 +17,7 @@ class ControlCenterConnectorService
     public function configured(): bool
     {
         return filled(config('services.nema_control_center.url'))
-            && filled(config('services.nema_control_center.connector_token'));
+            && filled($this->connectorToken());
     }
 
     public function sync(): array
@@ -132,9 +132,24 @@ class ControlCenterConnectorService
     {
         return Http::acceptJson()
             ->asJson()
-            ->withToken((string) config('services.nema_control_center.connector_token'))
+            ->withToken($this->connectorToken())
             ->timeout(max((int) config('services.nema_control_center.timeout', 10), 2))
             ->retry(2, 500, throw: false);
+    }
+
+    private function connectorToken(): string
+    {
+        $token = trim((string) config('services.nema_control_center.connector_token'));
+        if ($token !== '') {
+            return $token;
+        }
+
+        $tokenFile = (string) config('services.nema_control_center.connector_token_file');
+        if ($tokenFile === '' || ! is_file($tokenFile) || ! is_readable($tokenFile)) {
+            return '';
+        }
+
+        return trim((string) file_get_contents($tokenFile));
     }
 
     private function sessions(int $nowTimestamp): array

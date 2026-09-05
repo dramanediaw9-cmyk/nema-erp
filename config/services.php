@@ -55,6 +55,7 @@ return [
     'nema_control_center' => [
         'url' => env('NEMA_CONTROL_CENTER_URL', 'https://temtxnblsaadftwbycpc.supabase.co/functions/v1/platform-ingest'),
         'connector_token' => env('NEMA_CONTROL_CENTER_CONNECTOR_TOKEN'),
+        'connector_token_file' => env('NEMA_CONTROL_CENTER_TOKEN_FILE', base_path('.nema-control-center-token')),
         'timeout' => (int) env('NEMA_CONTROL_CENTER_TIMEOUT', 10),
     ],
 

@@ -14,12 +14,33 @@ class ControlCenterConnectorTest extends TestCase
     public function test_connector_does_not_send_without_a_server_secret(): void
     {
         config()->set('services.nema_control_center.connector_token', null);
+        config()->set('services.nema_control_center.connector_token_file', storage_path('missing-control-center-token'));
         Http::fake();
 
         $result = app(ControlCenterConnectorService::class)->sync();
 
         $this->assertSame('skipped', $result['status']);
         Http::assertNothingSent();
+    }
+
+    public function test_connector_can_read_a_separate_server_token_file(): void
+    {
+        $tokenFile = tempnam(sys_get_temp_dir(), 'nema-control-');
+        file_put_contents($tokenFile, 'nema_live_'.str_repeat('f', 48));
+
+        try {
+            config()->set('services.nema_control_center.url', 'https://control.example.test/platform-ingest');
+            config()->set('services.nema_control_center.connector_token', null);
+            config()->set('services.nema_control_center.connector_token_file', $tokenFile);
+            Http::fake(['https://control.example.test/*' => Http::response(['accepted' => true], 202)]);
+
+            $result = app(ControlCenterConnectorService::class)->sync();
+
+            $this->assertSame('accepted', $result['status']);
+            Http::assertSent(fn ($request): bool => $request->hasHeader('Authorization', 'Bearer nema_live_'.str_repeat('f', 48)));
+        } finally {
+            @unlink($tokenFile);
+        }
     }
 
     public function test_connector_uses_bearer_auth_and_excludes_sensitive_session_fields(): void
