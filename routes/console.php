@@ -15,6 +15,7 @@ use App\Modules\Core\Ops\Services\BackupService;
 use App\Modules\Core\Ops\Services\OpsAlertingService;
 use App\Modules\Core\Ops\Services\PriorityExecutionService;
 use App\Modules\Core\Ops\Services\SystemHealthService;
+use App\Modules\Core\Platform\Services\ControlCenterConnectorService;
 use App\Modules\Core\Platform\Services\CorePulseService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -494,6 +495,18 @@ Artisan::command('nema:core:pulse {--company=* : Limite le calcul a une ou plusi
     return collect($reports)->contains(fn (array $report): bool => ($report['status'] ?? '') === 'fragile') ? 1 : 0;
 })->purpose('Calcule un indice de puissance du noyau ERP (automation, ops, ecosysteme, readiness)');
 
+Artisan::command('nema:control-center:sync {--json : Retourne le resultat en JSON}', function (ControlCenterConnectorService $connector) {
+    $result = $connector->sync();
+
+    if ($this->option('json')) {
+        $this->line(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    } else {
+        $this->line($result['message'] ?? 'Synchronisation terminee.');
+    }
+
+    return ($result['status'] ?? 'failed') === 'failed' ? 1 : 0;
+})->purpose('Synchronise l inventaire ERP vers le NEMA Control Center');
+
 Artisan::command('nema:ops:execute-priorities {--company=* : Limite l execution a une ou plusieurs societes} {--apply : Lance les actions actives (alerte, backup sync/verify, pulse store)} {--json : Retourne le rapport en JSON}', function (PriorityExecutionService $priorityExecutionService) {
     $companyIds = collect($this->option('company'))
         ->filter(fn (mixed $value): bool => filled($value))
@@ -621,6 +634,7 @@ Schedule::command('nema:ops:backup-offsite-sync')->dailyAt('03:15');
 Schedule::command('nema:ops:backup-offsite-verify')->dailyAt('03:30');
 Schedule::command('nema:ops:alert-dispatch')->everyFifteenMinutes();
 Schedule::command('nema:core:pulse --store')->hourlyAt(35);
+Schedule::command('nema:control-center:sync')->everyFiveMinutes()->withoutOverlapping(4);
 Schedule::command('nema:ops:execute-priorities')->dailyAt('04:00');
 Schedule::command('nema:ops:verify-production --json')
     ->dailyAt('05:15')

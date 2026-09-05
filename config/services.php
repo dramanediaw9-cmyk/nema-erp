@@ -52,4 +52,10 @@ return [
         'minimum_level' => env('OPS_ALERT_MINIMUM_LEVEL', 'warning'),
     ],
 
+    'nema_control_center' => [
+        'url' => env('NEMA_CONTROL_CENTER_URL', 'https://temtxnblsaadftwbycpc.supabase.co/functions/v1/platform-ingest'),
+        'connector_token' => env('NEMA_CONTROL_CENTER_CONNECTOR_TOKEN'),
+        'timeout' => (int) env('NEMA_CONTROL_CENTER_TIMEOUT', 10),
+    ],
+
 ];
